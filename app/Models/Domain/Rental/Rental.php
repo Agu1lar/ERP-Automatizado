@@ -1,0 +1,151 @@
+<?php
+
+namespace App\Models\Domain\Rental;
+
+use App\Enums\RentalStatus;
+use App\Models\Domain\Customer\Customer;
+use App\Models\Domain\Fleet\Asset;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Rental extends Model
+{
+    protected $fillable = [
+        'codigo',
+        'asset_id',
+        'customer_id',
+        'status',
+        'reserved_at',
+        'reserved_by',
+        'checkout_at',
+        'checkout_by',
+        'expected_return_at',
+        'returned_at',
+        'returned_by',
+        'completed_at',
+        'completed_by',
+        'cancelled_at',
+        'cancelled_by',
+        'cancel_reason',
+        'observacoes',
+        'horimetro_saida',
+        'horimetro_retorno',
+        'ficha_descricao',
+        'local_obra',
+        'localizacao_origem',
+        'valor_faturamento',
+        'pricing_period',
+        'billed_days',
+        'valor_calculado',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'reserved_at' => 'datetime',
+            'checkout_at' => 'datetime',
+            'expected_return_at' => 'date',
+            'returned_at' => 'datetime',
+            'completed_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'horimetro_saida' => 'decimal:2',
+            'horimetro_retorno' => 'decimal:2',
+            'valor_faturamento' => 'decimal:2',
+            'valor_calculado' => 'decimal:2',
+        ];
+    }
+
+    public function asset(): BelongsTo
+    {
+        return $this->belongsTo(Asset::class);
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function reservedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reserved_by');
+    }
+
+    public function checkoutByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'checkout_by');
+    }
+
+    public function returnedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'returned_by');
+    }
+
+    public function completedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completed_by');
+    }
+
+    public function cancelledByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function checklists(): HasMany
+    {
+        return $this->hasMany(RentalChecklist::class)->latest();
+    }
+
+    public function statusEnum(): RentalStatus
+    {
+        return RentalStatus::from($this->status);
+    }
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereIn('status', [
+            RentalStatus::Reservado->value,
+            RentalStatus::Locado->value,
+            RentalStatus::EmInspecao->value,
+        ]);
+    }
+
+    public function scopePendingCheckout(Builder $query): Builder
+    {
+        return $query->where('status', RentalStatus::Reservado->value);
+    }
+
+    public function scopeDueToday(Builder $query): Builder
+    {
+        return $query
+            ->where('status', RentalStatus::Locado->value)
+            ->whereNotNull('expected_return_at')
+            ->whereDate('expected_return_at', now()->toDateString());
+    }
+
+    public function scopeOverdueReturns(Builder $query): Builder
+    {
+        return $query
+            ->where('status', RentalStatus::Locado->value)
+            ->whereNotNull('expected_return_at')
+            ->whereDate('expected_return_at', '<', now()->toDateString());
+    }
+
+    public function isReturnOverdue(): bool
+    {
+        return $this->status === RentalStatus::Locado->value
+            && $this->expected_return_at !== null
+            && $this->expected_return_at->lt(now()->startOfDay());
+    }
+
+    public function daysOverdue(): ?int
+    {
+        if (! $this->isReturnOverdue()) {
+            return null;
+        }
+
+        return (int) $this->expected_return_at->diffInDays(now()->startOfDay());
+    }
+}
