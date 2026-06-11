@@ -5,10 +5,12 @@ namespace App\Models\Domain\Maintenance;
 use App\Enums\MaintenanceOrderStatus;
 use App\Enums\MaintenanceOrderType;
 use App\Enums\MaintenancePriority;
+use App\Models\Concerns\BelongsToOperatingCompany;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Fleet\Asset;
 use App\Models\Domain\Rental\Rental;
 use App\Models\User;
+use App\Support\OperatingCompanyRelations;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +18,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MaintenanceOrder extends Model
 {
+    use BelongsToOperatingCompany;
+
     protected $fillable = [
+        'operating_company_id',
         'codigo',
         'asset_id',
         'rental_id',
@@ -62,12 +67,12 @@ class MaintenanceOrder extends Model
 
     public function asset(): BelongsTo
     {
-        return $this->belongsTo(Asset::class);
+        return OperatingCompanyRelations::belongsTo($this, Asset::class, 'asset');
     }
 
     public function rental(): BelongsTo
     {
-        return $this->belongsTo(Rental::class);
+        return OperatingCompanyRelations::belongsTo($this, Rental::class, 'rental');
     }
 
     public function customer(): BelongsTo

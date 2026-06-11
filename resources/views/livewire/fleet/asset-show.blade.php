@@ -7,7 +7,7 @@
                 <div>
                     <a href="{{ route('assets.index') }}" wire:navigate class="text-sm text-indigo-600 hover:underline">← Voltar</a>
                     <h2 class="text-2xl font-bold text-gray-800 mt-1">{{ $asset->codigo_patrimonio }}</h2>
-                    <p class="text-gray-500">{{ $asset->equipmentModel->category->nome }} — {{ $asset->equipmentModel->displayName() }}</p>
+                    <p class="text-gray-500">{{ $asset->equipmentModel?->category?->nome ?? '—' }} — {{ $asset->equipmentDisplayName() }}</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <x-status-badge :status="$currentStatus" />
@@ -136,7 +136,7 @@
                             />
                             @can('updatePurchaseValue', $asset)
                                 <x-inline-field
-                                    label="Valor de compra"
+                                    label="Valor de aquisição"
                                     :display="$asset->valor_compra ? 'R$ '.number_format($asset->valor_compra, 2, ',', '.') : null"
                                     type="currency"
                                     :editable="true"
@@ -144,7 +144,7 @@
                                     wire:model="ficha_valor_compra"
                                 />
                                 <x-inline-field
-                                    label="Data de compra"
+                                    label="Data de aquisição"
                                     :display="$asset->data_compra?->format('d/m/Y')"
                                     type="date"
                                     :editable="true"
@@ -212,6 +212,22 @@
                 <div class="space-y-6">
                     <div class="bg-white rounded-lg shadow p-6">
                         <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h3 class="font-semibold text-gray-800">Manutenção do patrimônio</h3>
+                                <p class="text-sm text-gray-500 mt-0.5">Abra OS aqui ou em Manutenção → Nova OS (fora da ficha).</p>
+                            </div>
+                            @can('create', App\Models\Domain\Maintenance\MaintenanceOrder::class)
+                                @if(! $activeMaintenanceOrder)
+                                    <x-btn-primary wire:click="openCorrectiveOrder" class="text-sm inline-flex items-center">
+                                        + Abrir OS corretiva
+                                        <x-help-hint text="Cria ordem de serviço corretiva para este patrimônio. Também é possível abrir em Manutenção → Nova OS." class="ml-2" />
+                                    </x-btn-primary>
+                                @endif
+                            @endcan
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
                             <h3 class="font-semibold text-gray-800">Regras preventivas do tipo de equipamento</h3>
                             @can('manage', App\Models\Domain\Maintenance\PreventiveMaintenanceRule::class)
                                 <a href="{{ route('maintenance.preventive.index') }}" wire:navigate class="text-sm text-indigo-600 hover:underline">Gerenciar regras</a>
@@ -253,7 +269,10 @@
                                                 @endif
                                                 @can('create', App\Models\Domain\Maintenance\MaintenanceOrder::class)
                                                     @if($status['vencida'] && ! $activeMaintenanceOrder)
-                                                        <x-btn-primary wire:click="openPreventiveOrder({{ $rule->id }})" class="text-xs">Abrir OS preventiva</x-btn-primary>
+                                                        <x-btn-primary wire:click="openPreventiveOrder({{ $rule->id }})" class="text-xs inline-flex items-center">
+                                                            Abrir OS preventiva
+                                                            <x-help-hint text="Cria uma OS preventiva para este patrimônio com base na regra vencida. O equipamento segue para manutenção programada." class="ml-1" />
+                                                        </x-btn-primary>
                                                     @endif
                                                 @endcan
                                             </div>

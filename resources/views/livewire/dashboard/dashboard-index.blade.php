@@ -1,7 +1,12 @@
 <div>
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 mb-4">
-            <h2 class="text-xl font-semibold text-gray-800">Dashboard — Linha Leve</h2>
+            <h2 class="text-xl font-semibold text-gray-800">
+                Dashboard — {{ $activeCompany?->nome ?? config('app.name') }}
+            </h2>
+            @if($activeCompany?->formattedCnpj())
+                <p class="text-sm text-gray-500 mt-0.5">CNPJ {{ $activeCompany->formattedCnpj() }}</p>
+            @endif
         </div>
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             @if($overdueReturnsCount > 0)
@@ -21,6 +26,76 @@
                             </li>
                         @endforeach
                     </ul>
+                </div>
+            @endif
+
+            @if($receivableWeek && $receivableWeek['quantidade'] > 0)
+                <div class="rounded-lg border border-emerald-300 bg-emerald-50 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <p class="font-semibold text-emerald-900">A receber esta semana</p>
+                            <p class="text-sm text-emerald-800 mt-1">
+                                R$ {{ number_format($receivableWeek['total'], 2, ',', '.') }} —
+                                {{ $receivableWeek['quantidade'] }} título(s) com vencimento até {{ \Carbon\Carbon::parse($receivableWeek['fim'])->format('d/m') }}
+                            </p>
+                        </div>
+                        <a href="{{ route('finance.receivables') }}" wire:navigate class="text-sm font-medium text-emerald-900 hover:underline">Ver títulos →</a>
+                    </div>
+                    <ul class="mt-3 space-y-1 text-sm">
+                        @foreach($receivableWeekTitles as $title)
+                            <li>
+                                <a href="{{ route('finance.receivables', ['q' => $title->codigo]) }}" wire:navigate class="text-emerald-900 hover:underline font-medium">{{ $title->codigo }}</a>
+                                <span class="text-emerald-700">
+                                    — {{ $title->customer->nome }}
+                                    · vence {{ $title->vencimento->format('d/m') }}
+                                    · R$ {{ number_format($title->valor, 2, ',', '.') }}
+                                </span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            @if($billingCycleDueCount > 0)
+                <div class="rounded-lg border border-amber-300 bg-amber-50 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <p class="font-semibold text-amber-900">Ciclos de faturamento vencidos</p>
+                            <p class="text-sm text-amber-800 mt-1">
+                                {{ $billingCycleDueCount }} locação(ões) com renovação de faturamento pendente
+                                @if($pendingRenewalQueueCount > 0)
+                                    · {{ $pendingRenewalQueueCount }} já na fila a faturar
+                                @endif
+                            </p>
+                        </div>
+                        <a href="{{ route('finance.billing-queue') }}" wire:navigate class="text-sm font-medium text-amber-900 hover:underline">Fila a faturar →</a>
+                    </div>
+                    <ul class="mt-3 space-y-1 text-sm">
+                        @foreach($billingCycleDueRentals as $rental)
+                            <li>
+                                <a href="{{ route('rentals.show', $rental) }}#faturamento" wire:navigate class="text-amber-900 hover:underline font-medium">{{ $rental->codigo }}</a>
+                                <span class="text-amber-700">
+                                    — {{ $rental->customer->nome }}
+                                    · ciclo venceu {{ $rental->next_billing_at?->format('d/m/Y') }}
+                                </span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            @if($financeSummary && $financeSummary['total_atrasado'] > 0)
+                <div class="rounded-lg border border-red-300 bg-red-50 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <p class="font-semibold text-red-800">Inadimplência financeira</p>
+                            <p class="text-sm text-red-700 mt-1">
+                                R$ {{ number_format($financeSummary['total_atrasado'], 2, ',', '.') }} em atraso —
+                                {{ $financeSummary['clientes'] }} cliente(s)
+                            </p>
+                        </div>
+                        <a href="{{ route('finance.delinquency') }}" wire:navigate class="text-sm font-medium text-red-800 hover:underline">Ver relatório →</a>
+                    </div>
                 </div>
             @endif
 
@@ -128,7 +203,7 @@
                             <a href="{{ route('assets.show', $asset) }}" wire:navigate class="text-indigo-600 hover:underline font-medium">
                                 {{ $asset->codigo_patrimonio }}
                             </a>
-                            <p class="text-sm text-gray-500">{{ $asset->equipmentModel->displayName() }}</p>
+                            <p class="text-sm text-gray-500">{{ $asset->equipmentDisplayName() }}</p>
                             @if($asset->motivo_bloqueio)
                                 <p class="text-xs text-red-600 mt-1">{{ $asset->motivo_bloqueio }}</p>
                             @endif
@@ -142,7 +217,7 @@
                     <h3 class="font-semibold text-gray-800 mb-4">Últimas alterações de status</h3>
                     @forelse($recentChanges as $change)
                         <div class="py-2 border-b border-gray-100 last:border-0 text-sm">
-                            <span class="font-medium">{{ $change->asset->codigo_patrimonio }}</span>
+                            <span class="font-medium">{{ $change->asset?->codigo_patrimonio ?? '—' }}</span>
                             <span class="text-gray-500">
                                 {{ $change->status_anterior ? \App\Enums\AssetStatus::from($change->status_anterior)->label() : '—' }}
                                 →

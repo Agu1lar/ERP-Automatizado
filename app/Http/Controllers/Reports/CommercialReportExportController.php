@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
 use App\Services\CommercialReportService;
+use App\Support\BrandContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -17,14 +18,16 @@ class CommercialReportExportController extends Controller
         $validated = $request->validate([
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
-            'group_by' => 'in:model,category',
+            'group_by' => 'in:model,category,user',
         ]);
 
         $from = Carbon::parse($validated['date_from'])->startOfDay();
         $to = Carbon::parse($validated['date_to'])->endOfDay();
         $groupBy = $validated['group_by'] ?? 'model';
 
-        $rows = $service->revenueByEquipmentType($from, $to, $groupBy);
+        $rows = $groupBy === 'user'
+            ? $service->revenueByCommercialUser($from, $to)
+            : $service->revenueByEquipmentType($from, $to, $groupBy);
         $total = $service->totalRevenueInPeriod($from, $to);
 
         $filename = sprintf(
@@ -37,13 +40,21 @@ class CommercialReportExportController extends Controller
             $handle = fopen('php://output', 'w');
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            fputcsv($handle, ['Relatório comercial — Linha Leve'], ';');
+            fputcsv($handle, [BrandContext::exportTitle('Relatório comercial')], ';');
             fputcsv($handle, ['Período', $from->format('d/m/Y').' a '.$to->format('d/m/Y')], ';');
-            fputcsv($handle, ['Agrupamento', $groupBy === 'category' ? 'Categoria' : 'Modelo'], ';');
+            fputcsv($handle, ['Agrupamento', match ($groupBy) {
+                'category' => 'Categoria',
+                'user' => 'Usuário responsável',
+                default => 'Modelo',
+            }], ';');
             fputcsv($handle, ['Total faturamento', number_format($total, 2, ',', '.')], ';');
             fputcsv($handle, [], ';');
 
-            fputcsv($handle, ['Tipo de equipamento', 'Locações', 'Faturamento (R$)', 'Ticket médio (R$)'], ';');
+            fputcsv($handle, [match ($groupBy) {
+                'user' => 'Usuário responsável',
+                'category' => 'Categoria',
+                default => 'Modelo',
+            }, 'Locações', 'Faturamento (R$)', 'Ticket médio (R$)'], ';');
 
             foreach ($rows as $row) {
                 fputcsv($handle, [

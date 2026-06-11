@@ -15,8 +15,8 @@ class RentalFichaBuilder
         $descricao = $asset->descricao;
         if (blank($descricao)) {
             $descricao = trim(implode(' — ', array_filter([
-                $asset->equipmentModel->displayName(),
-                $asset->equipmentModel->category->nome ?? null,
+                $asset->equipmentDisplayName(),
+                $asset->equipmentModel?->category?->nome,
                 $asset->serie ? "Série {$asset->serie}" : null,
             ])));
         }
@@ -50,8 +50,8 @@ class RentalFichaBuilder
         return [
             'id' => $asset->id,
             'codigo' => $asset->codigo_patrimonio,
-            'modelo' => $asset->equipmentModel->displayName(),
-            'categoria' => $asset->equipmentModel->category->nome,
+            'modelo' => $asset->equipmentDisplayName(),
+            'categoria' => $asset->equipmentModel?->category?->nome ?? '—',
             'serie' => $asset->serie,
             'descricao' => $asset->descricao,
             'horimetro' => $asset->horimetro,

@@ -6,9 +6,11 @@ use App\Enums\AssetStatus;
 use App\Enums\QrCodeStatus;
 use App\Enums\RentalStatus;
 use App\Enums\MaintenanceOrderStatus;
+use App\Models\Concerns\BelongsToOperatingCompany;
 use App\Models\Domain\Attachment\Attachment;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
+use App\Support\OperatingCompanyRelations;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,9 +19,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Asset extends Model
 {
-    use SoftDeletes;
+    use BelongsToOperatingCompany, SoftDeletes;
 
     protected $fillable = [
+        'operating_company_id',
         'codigo_patrimonio',
         'equipment_model_id',
         'serie',
@@ -50,7 +53,12 @@ class Asset extends Model
 
     public function equipmentModel(): BelongsTo
     {
-        return $this->belongsTo(EquipmentModel::class);
+        return OperatingCompanyRelations::belongsTo($this, EquipmentModel::class, 'equipmentModel');
+    }
+
+    public function equipmentDisplayName(): string
+    {
+        return $this->equipmentModel?->displayName() ?? 'Modelo não vinculado';
     }
 
     public function statusHistories(): HasMany
@@ -113,5 +121,12 @@ class Asset extends Model
     public function qrCodeStatusEnum(): QrCodeStatus
     {
         return QrCodeStatus::from($this->qr_code_status ?? QrCodeStatus::Pending->value);
+    }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return static::withoutGlobalScope('operating_company')
+            ->where($field ?? $this->getRouteKeyName(), $value)
+            ->firstOrFail();
     }
 }

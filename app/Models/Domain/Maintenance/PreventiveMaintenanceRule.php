@@ -2,6 +2,8 @@
 
 namespace App\Models\Domain\Maintenance;
 
+use App\Models\Concerns\BelongsToOperatingCompany;
+use App\Support\OperatingCompanyRelations;
 use App\Models\Domain\Fleet\EquipmentModel;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,7 +13,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PreventiveMaintenanceRule extends Model
 {
+    use BelongsToOperatingCompany;
+
     protected $fillable = [
+        'operating_company_id',
         'equipment_model_id',
         'interval_horas',
         'descricao',
@@ -29,7 +34,7 @@ class PreventiveMaintenanceRule extends Model
 
     public function equipmentModel(): BelongsTo
     {
-        return $this->belongsTo(EquipmentModel::class);
+        return OperatingCompanyRelations::belongsTo($this, EquipmentModel::class, 'equipmentModel');
     }
 
     public function createdByUser(): BelongsTo

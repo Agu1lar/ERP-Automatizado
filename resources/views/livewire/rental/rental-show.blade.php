@@ -1,6 +1,6 @@
 <x-flash-message />
 
-<div>
+<div @billing-download.window="window.open($event.detail.url, '_blank')">
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             <div class="flex flex-wrap justify-between items-start gap-4">
@@ -8,30 +8,32 @@
                     <a href="{{ route('rentals.index') }}" wire:navigate class="text-sm text-indigo-600 hover:underline">← Voltar</a>
                     <h2 class="text-2xl font-bold text-gray-800 mt-1">{{ $rental->codigo }}</h2>
                     <p class="text-gray-500">{{ $rental->asset->codigo_patrimonio }} — {{ $rental->customer->nome }}</p>
+
+                    <div class="text-sm text-gray-600 mt-2">
+                        <form wire:submit.prevent="changeRentalCompany" class="inline-flex items-center gap-2">
+                            <label class="text-xs text-gray-500">Empresa:</label>
+                            <select wire:model="rental_operating_company_id" class="rounded border-gray-200 text-sm">
+                                @foreach($operatingCompanies as $oc)
+                                    <option value="{{ $oc->id }}">{{ $oc->nome }}@if($oc->formattedCnpj()) ({{ $oc->formattedCnpj() }})@endif</option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="ml-2 rounded bg-indigo-600 text-white px-2 py-1 text-sm">Salvar</button>
+                        </form>
+                    </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <x-sheet-incomplete-badge :warnings="$fichaWarnings" />
-                    <a href="{{ route('rentals.pdf', $rental) }}" target="_blank" class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Baixar PDF</a>
                     <x-status-badge :status="$status" />
-                    @if($status === \App\Enums\RentalStatus::Reservado)
-                        @can('operate', $rental)
-                            <x-btn-primary wire:click="openCheckoutModal">Registrar saída</x-btn-primary>
-                        @endcan
-                        @can('cancel', $rental)
-                            <x-btn-secondary wire:click="openCancelModal">Cancelar reserva</x-btn-secondary>
-                        @endcan
-                    @elseif($status === \App\Enums\RentalStatus::Locado)
-                        @can('operate', $rental)
-                            <x-btn-secondary wire:click="openExtendModal">Prorrogar</x-btn-secondary>
-                            <x-btn-primary wire:click="openReturnModal">Registrar retorno</x-btn-primary>
-                        @endcan
-                    @elseif($status === \App\Enums\RentalStatus::EmInspecao)
-                        @can('operate', $rental)
-                            <x-btn-primary wire:click="openCompleteModal">Concluir inspeção</x-btn-primary>
-                        @endcan
-                    @endif
                 </div>
             </div>
+
+            <x-rental-workflow-panel
+                :rental="$rental"
+                :status="$status"
+                :steps="$workflowSteps"
+                :can-open-maintenance-order="$canOpenMaintenanceOrder"
+                :can-generate-receivables="$canGenerateReceivables"
+            />
 
             @php
                 $fieldWarning = fn (string $field) => \App\Support\FichaCompleteness::hasFieldWarning($fichaWarnings, $field);
@@ -50,12 +52,58 @@
                 </div>
             @endif
 
+            @php
+                $pendingBillingOnRental = $rental->billingQueueEntries->filter(
+                    fn ($e) => in_array($e->status, ['pendente', 'autorizado'], true)
+                )->count();
+                $itemsEmCampo = $rental->items->where('ativo', true)->where('devolvido', false)->count();
+            @endphp
+
+            <div class="border-b border-gray-200">
+                <nav class="flex flex-wrap gap-1 -mb-px" aria-label="Abas da ficha">
+                    @foreach([
+                        'dados' => 'Dados',
+                        'faturamento' => 'Faturamento',
+                        'devolver' => 'A devolver',
+                        'anexos' => 'Anexos',
+                    ] as $tab => $label)
+                        <button
+                            type="button"
+                            wire:click="$set('activeTab', '{{ $tab }}')"
+                            @class([
+                                'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors',
+                                'border-indigo-600 text-indigo-700' => $activeTab === $tab,
+                                'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' => $activeTab !== $tab,
+                            ])
+                        >
+                            {{ $label }}
+                            @if($tab === 'faturamento' && $pendingBillingOnRental > 0)
+                                <span class="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white">{{ $pendingBillingOnRental }}</span>
+                            @endif
+                            @if($tab === 'devolver' && $itemsEmCampo > 0)
+                                <span class="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-500 px-1.5 text-[10px] font-bold text-white">{{ $itemsEmCampo }}</span>
+                            @endif
+                        </button>
+                    @endforeach
+                </nav>
+            </div>
+
+            @if($activeTab === 'dados')
             <div class="bg-white rounded-lg shadow p-6 space-y-6">
                 <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
                     <h3 class="font-semibold text-gray-800">Ficha da locação</h3>
                     @if($canEditFicha)
                         <span class="text-xs text-gray-400">Clique em qualquer campo para editar e salvar</span>
                     @endif
+                </div>
+
+                <div class="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+                    <span class="font-medium">Empresa operacional:</span>
+                    {{ $rental->operatingCompany?->nome ?? 'Não informada' }}
+                    @if($rental->operatingCompany?->formattedCnpj())
+                        <span class="text-indigo-700">— CNPJ {{ $rental->operatingCompany->formattedCnpj() }}</span>
+                    @endif
+                    <span class="block text-xs text-indigo-600 mt-1">Contratos e documentos desta ficha usam os dados desta empresa.</span>
                 </div>
 
                 @if($canEditFicha)
@@ -129,7 +177,31 @@
                     </div>
 
                     <div>
+                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Responsável comercial</h4>
+                        <div class="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <p class="text-xs uppercase tracking-wide text-indigo-700">Usuário da ficha</p>
+                                    <p class="font-semibold text-indigo-900">{{ $rental->commercialUser?->name ?? 'Não informado' }}</p>
+                                    <p class="text-xs text-indigo-600 mt-0.5">Definido automaticamente ao abrir a locação. Usado no faturamento por usuário.</p>
+                                </div>
+                                @can('transferCommercialUser', $rental)
+                                    <x-btn-secondary type="button" wire:click="openTransferCommercialModal" class="text-xs">
+                                        Transferir responsabilidade
+                                    </x-btn-secondary>
+                                @endcan
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
                         <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Cliente</h4>
+                        @if($rental->customer->createdByUser)
+                            <p class="text-xs text-gray-500 mb-2">
+                                Cadastrado por <strong>{{ $rental->customer->createdByUser->name }}</strong>
+                                em {{ $rental->customer->created_at->format('d/m/Y H:i') }}
+                            </p>
+                        @endif
                         @if($canEditCustomer)
                             <div class="grid md:grid-cols-2 gap-x-4 gap-y-1">
                                 <x-inline-field
@@ -273,9 +345,27 @@
                 @endif
             </div>
 
+            @if($rental->assetSubstitutions->isNotEmpty())
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="font-semibold text-gray-800 mb-3">Histórico de substituições</h3>
+                    <ul class="space-y-2 text-sm">
+                        @foreach($rental->assetSubstitutions as $sub)
+                            <li class="rounded-lg border border-gray-100 px-4 py-3">
+                                <span class="text-gray-500">{{ $sub->substituted_at->format('d/m/Y H:i') }}</span>
+                                — <strong>{{ $sub->fromAsset->codigo_patrimonio }}</strong>
+                                → <strong>{{ $sub->toAsset->codigo_patrimonio }}</strong>
+                                @if($sub->motivo)<span class="text-gray-600"> · {{ $sub->motivo }}</span>@endif
+                                @if($sub->substitutedByUser)<span class="text-xs text-gray-400 block mt-0.5">por {{ $sub->substitutedByUser->name }}</span>@endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <div class="grid gap-6 lg:grid-cols-2">
                 <div class="bg-white rounded-lg shadow p-6 space-y-3 text-sm">
                     <h3 class="font-semibold text-gray-800 mb-2">Resumo operacional</h3>
+                    <div><span class="text-gray-500">Responsável comercial:</span> {{ $rental->commercialUser?->name ?? '—' }}</div>
                     <div><span class="text-gray-500">Patrimônio:</span>
                         <a href="{{ route('assets.show', $rental->asset) }}" wire:navigate class="text-indigo-600 hover:underline">{{ $rental->asset->codigo_patrimonio }}</a>
                     </div>
@@ -333,8 +423,53 @@
                     </div>
                 </div>
             @endif
+            @endif
+
+            @if($activeTab === 'faturamento')
+                @include('livewire.rental.partials.rental-tab-faturamento')
+            @endif
+
+            @if($activeTab === 'devolver')
+                @include('livewire.rental.partials.rental-tab-devolver')
+            @endif
+
+            @if($activeTab === 'anexos')
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="font-semibold text-gray-800 mb-1">Anexos e observações</h3>
+                <p class="text-sm text-gray-500 mb-4">Fotos de avaria, laudos, comprovantes ou documentos complementares desta locação.</p>
+                @can('manageAttachments', $rental)
+                    <form wire:submit="uploadAttachment" class="flex flex-wrap items-end gap-4 mb-4 pb-4 border-b border-gray-100">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Enviar arquivo (PDF, foto, doc — máx. 10MB)</label>
+                            <input wire:model="attachmentFile" type="file" class="mt-1 text-sm" />
+                            @error('attachmentFile') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                        </div>
+                        <x-btn-primary type="submit" wire:loading.attr="disabled">Enviar anexo</x-btn-primary>
+                    </form>
+                @endcan
+                <div class="space-y-2 text-sm">
+                    @forelse($rental->attachments as $attachment)
+                        <div class="flex justify-between items-center gap-2 py-2 border-b border-gray-50 last:border-0">
+                            <div>
+                                <span class="font-medium">{{ $attachment->nome_original }}</span>
+                                <span class="text-gray-500 text-xs ml-2">{{ $attachment->humanSize() }} — {{ $attachment->user?->name ?? 'Sistema' }}</span>
+                            </div>
+                            <div class="space-x-2 shrink-0">
+                                <a href="{{ route('attachments.download', $attachment) }}" class="text-indigo-600 hover:underline">Download</a>
+                                @can('manageAttachments', $rental)
+                                    <button wire:click="deleteAttachment({{ $attachment->id }})" wire:confirm="Remover este anexo?" class="text-red-600 hover:underline">Excluir</button>
+                                @endcan
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-gray-500">Nenhum anexo nesta ficha.</p>
+                    @endforelse
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 
     @include('livewire.rental.partials.rental-modals')
+    @include('livewire.finance.partials.billing-pay-modal')
 </div>

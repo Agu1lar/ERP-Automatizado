@@ -16,6 +16,10 @@ class AssetScanController extends Controller
 
         Gate::authorize('view', $asset);
 
+        if (auth()->user()?->can('rentals.operate')) {
+            return redirect()->route('yard.scan', $codigo);
+        }
+
         return redirect()->route('assets.show', $asset);
     }
 }

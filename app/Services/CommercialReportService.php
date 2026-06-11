@@ -74,4 +74,39 @@ class CommercialReportService
             ->whereDate('completed_at', '<=', $to->toDateString())
             ->sum('valor_faturamento');
     }
+
+    /**
+     * Faturamento agrupado pelo responsável comercial da locação.
+     *
+     * @return Collection<int, object{grupo_id: int|null, grupo_nome: string, total_locacoes: int, faturamento_total: float, ticket_medio: float}>
+     */
+    public function revenueByCommercialUser(CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        $rows = Rental::query()
+            ->leftJoin('users', 'rentals.commercial_user_id', '=', 'users.id')
+            ->where('rentals.status', RentalStatus::Concluido->value)
+            ->whereNotNull('rentals.completed_at')
+            ->whereDate('rentals.completed_at', '>=', $from->toDateString())
+            ->whereDate('rentals.completed_at', '<=', $to->toDateString())
+            ->select([
+                'rentals.commercial_user_id as grupo_id',
+                DB::raw("COALESCE(users.name, 'Sem responsável') as grupo_nome"),
+                DB::raw('COUNT(rentals.id) as total_locacoes'),
+                DB::raw('COALESCE(SUM(rentals.valor_faturamento), 0) as faturamento_total'),
+            ])
+            ->groupBy('rentals.commercial_user_id', 'users.name')
+            ->orderByDesc('faturamento_total')
+            ->get();
+
+        return $rows->map(function ($row) {
+            $row->grupo_id = $row->grupo_id !== null ? (int) $row->grupo_id : null;
+            $row->faturamento_total = (float) $row->faturamento_total;
+            $row->total_locacoes = (int) $row->total_locacoes;
+            $row->ticket_medio = $row->total_locacoes > 0
+                ? round($row->faturamento_total / $row->total_locacoes, 2)
+                : 0.0;
+
+            return $row;
+        });
+    }
 }

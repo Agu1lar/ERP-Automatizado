@@ -32,6 +32,99 @@ class Phase10PricingTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
+    public function test_category_price_applies_to_all_assets_in_category(): void
+    {
+        $category = EquipmentCategory::create([
+            'nome' => 'Betoneiras',
+            'tipo_linha' => 'linha_leve',
+            'ativo' => true,
+        ]);
+
+        $modelA = EquipmentModel::create([
+            'equipment_category_id' => $category->id,
+            'marca' => 'Menegotti',
+            'modelo' => '160',
+            'ativo' => true,
+        ]);
+
+        $modelB = EquipmentModel::create([
+            'equipment_category_id' => $category->id,
+            'marca' => 'CSM',
+            'modelo' => '400',
+            'ativo' => true,
+        ]);
+
+        EquipmentPricing::create([
+            'equipment_category_id' => $category->id,
+            'periodo' => RentalPricingPeriod::Diaria->value,
+            'valor' => 85,
+            'ativo' => true,
+        ]);
+
+        $assetA = $this->asset($modelA, 'PAT-BET-01', AssetStatus::Disponivel);
+        $assetB = $this->asset($modelB, 'PAT-BET-02', AssetStatus::Disponivel);
+        $service = app(RentalPricingService::class);
+
+        $this->assertSame(85.0, $service->resolveUnitPrice($assetA, RentalPricingPeriod::Diaria));
+        $this->assertSame(85.0, $service->resolveUnitPrice($assetB, RentalPricingPeriod::Diaria));
+    }
+
+    public function test_category_grid_save_updates_all_periods(): void
+    {
+        $gestor = $this->user(UserRole::Gestor);
+        $category = EquipmentCategory::create([
+            'nome' => 'Betoneiras',
+            'tipo_linha' => 'linha_leve',
+            'ativo' => true,
+        ]);
+
+        $this->actingAs($gestor);
+
+        Livewire::test(PricingIndex::class)
+            ->set('categoryGrid.'.$category->id.'.diaria', '90')
+            ->set('categoryGrid.'.$category->id.'.semanal', '480')
+            ->set('categoryGrid.'.$category->id.'.mensal', '1500')
+            ->call('saveCategoryRow', $category->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('equipment_pricings', [
+            'equipment_category_id' => $category->id,
+            'equipment_model_id' => null,
+            'periodo' => RentalPricingPeriod::Diaria->value,
+            'valor' => '90.00',
+        ]);
+
+        $this->assertDatabaseHas('equipment_pricings', [
+            'equipment_category_id' => $category->id,
+            'periodo' => RentalPricingPeriod::Mensal->value,
+            'valor' => '1500.00',
+        ]);
+    }
+
+    public function test_new_category_appears_in_category_grid(): void
+    {
+        $gestor = $this->user(UserRole::Gestor);
+        $category = EquipmentCategory::create([
+            'nome' => 'Compactadores',
+            'tipo_linha' => 'linha_leve',
+            'ativo' => true,
+        ]);
+
+        $this->actingAs($gestor);
+
+        Livewire::test(PricingIndex::class)
+            ->assertSet('categoryGrid.'.$category->id.'.diaria', '')
+            ->set('categoryGrid.'.$category->id.'.diaria', '120')
+            ->call('saveCategoryRow', $category->id)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('equipment_pricings', [
+            'equipment_category_id' => $category->id,
+            'periodo' => RentalPricingPeriod::Diaria->value,
+            'valor' => '120.00',
+        ]);
+    }
+
     public function test_model_price_takes_priority_over_category(): void
     {
         $model = $this->model('Marteletes');

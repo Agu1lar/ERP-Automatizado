@@ -31,9 +31,9 @@ class MaintenanceOsBuilder
         return [
             'id' => $asset->id,
             'codigo' => $asset->codigo_patrimonio,
-            'modelo' => $asset->equipmentModel->displayName(),
-            'marca' => $asset->equipmentModel->marca,
-            'categoria' => $asset->equipmentModel->category->nome,
+            'modelo' => $asset->equipmentDisplayName(),
+            'marca' => $asset->equipmentModel?->marca,
+            'categoria' => $asset->equipmentModel?->category?->nome ?? '—',
             'serie' => $asset->serie,
             'voltagem' => $asset->voltagem,
             'horimetro' => $asset->horimetro,

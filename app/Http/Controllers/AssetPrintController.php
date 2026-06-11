@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Domain\Fleet\Asset;
 use App\Services\QrCodeService;
+use App\Support\BrandContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Gate;
 
@@ -13,11 +14,12 @@ class AssetPrintController extends Controller
     {
         Gate::authorize('view', $asset);
 
-        $asset->load(['equipmentModel.category', 'statusHistories.user', 'movements.user']);
+        $asset->load(['equipmentModel.category', 'operatingCompany', 'statusHistories.user', 'movements.user']);
 
         return view('assets.print', [
             'asset' => $asset,
             'hasQr' => $qrCodeService->existsOnDisk($asset),
+            'company' => BrandContext::documentHeader($asset->operatingCompany),
         ]);
     }
 }

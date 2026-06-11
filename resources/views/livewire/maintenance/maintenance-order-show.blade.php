@@ -5,11 +5,19 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             <div class="flex flex-wrap justify-between items-start gap-4">
                 <div>
-                    <a href="{{ route('maintenance.index') }}" wire:navigate class="text-sm text-indigo-600 hover:underline">← Voltar</a>
+                    <div class="flex flex-wrap items-center gap-3 text-sm">
+                        <a href="{{ route('maintenance.index') }}" wire:navigate class="text-indigo-600 hover:underline">← Voltar</a>
+                        @if($order->rental)
+                            <a href="{{ route('rentals.show', $order->rental) }}" wire:navigate data-tab-title="{{ $order->rental->codigo }}" class="text-indigo-600 hover:underline">
+                                ← Ficha {{ $order->rental->codigo }}
+                            </a>
+                        @endif
+                    </div>
                     <h2 class="text-2xl font-bold text-gray-800 mt-1">{{ $order->codigo }}</h2>
                     <p class="text-gray-500">{{ $order->asset->codigo_patrimonio }} — {{ $order->tipoEnum()->label() }} ({{ $order->prioridadeEnum()->label() }})</p>
                 </div>
-                <div class="flex flex-wrap items-center gap-2">
+                <div id="acoes" class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('maintenance.index', ['aba' => 'painel']) }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Painel de manutenção</a>
                     <a href="{{ route('maintenance.pdf', $order) }}" target="_blank" class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Baixar PDF</a>
                     <x-status-badge :status="$status" />
                     @if($order->impeditiva)
@@ -17,7 +25,10 @@
                     @endif
                     @if($status === \App\Enums\MaintenanceOrderStatus::Aberta)
                         @can('operate', $order)
-                            <x-btn-primary wire:click="start">Iniciar execução</x-btn-primary>
+                            <x-btn-primary wire:click="start" class="inline-flex items-center">
+                                Iniciar execução
+                                <x-help-hint text="Marca a OS como em execução. Depois disso, registre peças utilizadas e horas de trabalho nesta mesma tela." class="ml-2" />
+                            </x-btn-primary>
                             <x-btn-secondary wire:click="openCancelModal">Cancelar OS</x-btn-secondary>
                         @endcan
                     @elseif($status === \App\Enums\MaintenanceOrderStatus::EmExecucao)
@@ -33,6 +44,26 @@
                     @endif
                 </div>
             </div>
+
+            @php $workflowHint = \App\Support\WorkflowNextStep::maintenanceStatusHint($status); @endphp
+            @if($workflowHint)
+                <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-sm">
+                    <p class="font-medium text-indigo-900">Próximo passo</p>
+                    <p class="text-indigo-800 mt-0.5">{{ $workflowHint }}</p>
+                </div>
+            @endif
+
+            @if($status === \App\Enums\MaintenanceOrderStatus::EmExecucao || $status === \App\Enums\MaintenanceOrderStatus::AguardandoPeca)
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 text-sm flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="font-medium text-orange-900">OS {{ $status->label() }}</p>
+                        <p class="text-orange-800 mt-0.5">Registre peças e horas abaixo ou acompanhe todas as ordens no painel operacional.</p>
+                    </div>
+                    <a href="{{ route('maintenance.index', ['aba' => 'painel']) }}" wire:navigate class="inline-flex items-center px-3 py-2 rounded-md bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 shrink-0">
+                        Ver painel de manutenção
+                    </a>
+                </div>
+            @endif
 
             <div class="grid gap-6 lg:grid-cols-2">
                 <div class="bg-white rounded-lg shadow p-6 space-y-3 text-sm">
@@ -202,8 +233,13 @@
                                         <option value="{{ $tech->id }}">{{ $tech->name }}</option>
                                     @endforeach
                                 </select>
-                                @error('labor_descricao') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
-                                <x-btn-secondary type="submit">Registrar horas</x-btn-secondary>
+                                @error('labor_data') <span class="text-red-600 text-sm block">{{ $message }}</span> @enderror
+                                @error('labor_horas') <span class="text-red-600 text-sm block">{{ $message }}</span> @enderror
+                                @error('labor_descricao') <span class="text-red-600 text-sm block">{{ $message }}</span> @enderror
+                                <x-btn-secondary type="submit" class="inline-flex items-center">
+                                    Registrar horas
+                                    <x-help-hint text="Informe data, quantidade de horas e a atividade realizada. O técnico pode ser alterado no campo abaixo." class="ml-2" />
+                                </x-btn-secondary>
                             </form>
                         @endcan
                     @endif

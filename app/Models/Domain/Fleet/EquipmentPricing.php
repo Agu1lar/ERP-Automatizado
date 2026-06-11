@@ -3,13 +3,18 @@
 namespace App\Models\Domain\Fleet;
 
 use App\Enums\RentalPricingPeriod;
+use App\Models\Concerns\BelongsToOperatingCompany;
+use App\Support\OperatingCompanyRelations;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EquipmentPricing extends Model
 {
+    use BelongsToOperatingCompany;
+
     protected $fillable = [
+        'operating_company_id',
         'equipment_model_id',
         'equipment_category_id',
         'periodo',
@@ -27,12 +32,12 @@ class EquipmentPricing extends Model
 
     public function equipmentModel(): BelongsTo
     {
-        return $this->belongsTo(EquipmentModel::class);
+        return OperatingCompanyRelations::belongsTo($this, EquipmentModel::class, 'equipmentModel');
     }
 
     public function category(): BelongsTo
     {
-        return $this->belongsTo(EquipmentCategory::class, 'equipment_category_id');
+        return OperatingCompanyRelations::belongsTo($this, EquipmentCategory::class, 'category', 'equipment_category_id');
     }
 
     public function periodEnum(): RentalPricingPeriod
@@ -48,7 +53,7 @@ class EquipmentPricing extends Model
     public function targetLabel(): string
     {
         if ($this->equipment_model_id) {
-            return $this->equipmentModel->displayName();
+            return $this->equipmentModel?->displayName() ?? '—';
         }
 
         return $this->category->nome ?? '—';

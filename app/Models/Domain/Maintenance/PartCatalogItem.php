@@ -2,12 +2,16 @@
 
 namespace App\Models\Domain\Maintenance;
 
+use App\Models\Concerns\BelongsToOperatingCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class PartCatalogItem extends Model
 {
+    use BelongsToOperatingCompany;
+
     protected $fillable = [
+        'operating_company_id',
         'codigo_peca',
         'codigo_alternativo',
         'descricao',

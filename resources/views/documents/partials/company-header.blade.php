@@ -5,7 +5,7 @@
                 @if(!empty($logoBase64))
                     <img src="{{ $logoBase64 }}" alt="Logo" class="logo"><br>
                 @endif
-                <p class="company-name">{{ $company['name'] ?? 'ACESSO equipamentos' }}</p>
+                <p class="company-name">{{ $company['name'] ?? config('app.name') }}</p>
                 <div class="company-meta">
                     @if(!empty($company['document'])){{ $company['document'] }}<br>@endif
                     @if(!empty($company['address'])){{ $company['address'] }}<br>@endif

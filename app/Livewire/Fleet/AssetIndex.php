@@ -8,8 +8,10 @@ use App\Models\Domain\Fleet\EquipmentCategory;
 use App\Models\Domain\Fleet\EquipmentModel;
 use App\Services\AssetMovementService;
 use App\Services\AssetStatusService;
+use App\Support\ActiveOperatingCompany;
 use App\Support\TextSearch;
 use Illuminate\Contracts\View\View;
+use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -93,9 +95,18 @@ class AssetIndex extends Component
 
     public function save(AssetStatusService $statusService, AssetMovementService $movementService): void
     {
+        $companyId = ActiveOperatingCompany::id();
+
         $rules = [
             'codigo_patrimonio' => 'required|string|max:100|unique:assets,codigo_patrimonio'.($this->editingId ? ','.$this->editingId : ''),
-            'equipment_model_id' => 'required|exists:equipment_models,id',
+            'equipment_model_id' => [
+                'required',
+                Rule::exists('equipment_models', 'id')->where(
+                    fn ($query) => $companyId
+                        ? $query->where('operating_company_id', $companyId)
+                        : $query
+                ),
+            ],
             'serie' => 'nullable|string|max:255',
             'valor_compra' => 'nullable|numeric|min:0',
             'data_compra' => 'nullable|date',

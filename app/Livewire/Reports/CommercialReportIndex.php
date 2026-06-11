@@ -34,8 +34,12 @@ class CommercialReportIndex extends Component
 
         $service = app(CommercialReportService::class);
 
+        $rows = $this->group_by === 'user'
+            ? $service->revenueByCommercialUser($from, $to)
+            : $service->revenueByEquipmentType($from, $to, $this->group_by);
+
         return view('livewire.reports.commercial-report-index', [
-            'rows' => $service->revenueByEquipmentType($from, $to, $this->group_by),
+            'rows' => $rows,
             'totalRevenue' => $service->totalRevenueInPeriod($from, $to),
         ]);
     }

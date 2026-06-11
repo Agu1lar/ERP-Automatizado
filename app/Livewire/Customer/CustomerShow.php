@@ -7,6 +7,7 @@ use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
 use App\Rules\ValidCpfCnpj;
+use App\Services\ReceivableTitleService;
 use App\Support\RentalPanelQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -35,10 +36,16 @@ class CustomerShow extends Component
 
     public string $ativo = '1';
 
+    public string $limite_credito = '';
+
+    public string $bloqueado = '0';
+
+    public string $motivo_bloqueio = '';
+
     public function mount(Customer $customer): void
     {
         $this->authorize('view', $customer);
-        $this->customer = $customer;
+        $this->customer = $customer->load(['createdByUser', 'blockedByUser']);
         $this->syncFields();
     }
 
@@ -74,6 +81,11 @@ class CustomerShow extends Component
             'ativo' => $this->customer->update([
                 'ativo' => $this->validateOnly('ativo', ['ativo' => 'required|in:0,1'])['ativo'] === '1',
             ]),
+            'limite_credito' => $this->customer->update([
+                'limite_credito' => ($v = $this->validateOnly('limite_credito', ['limite_credito' => 'nullable|numeric|min:0'])['limite_credito']) !== '' ? $v : null,
+            ]),
+            'bloqueado' => $this->updateManualBlock(),
+            'motivo_bloqueio' => $this->updateBlockReason(),
             default => abort(404),
         };
 
@@ -107,6 +119,7 @@ class CustomerShow extends Component
             ->get();
 
         $historySummary = app(RentalPanelQuery::class)->summaryForCustomer($this->customer->id);
+        $financeService = app(ReceivableTitleService::class);
 
         return view('livewire.customer.customer-show', [
             'activeRentals' => $activeRentals,
@@ -116,6 +129,9 @@ class CustomerShow extends Component
             'statusOptions' => RentalStatus::cases(),
             'totalRevenue' => $this->customer->totalRevenue(),
             'canEdit' => auth()->user()->can('update', $this->customer),
+            'openBalance' => $financeService->customerOpenBalance($this->customer),
+            'overdueBalance' => $financeService->customerOverdueBalance($this->customer),
+            'canViewFinance' => auth()->user()->can('finance.view'),
         ]);
     }
 
@@ -128,5 +144,37 @@ class CustomerShow extends Component
         $this->email = $this->customer->email ?? '';
         $this->endereco = $this->customer->endereco ?? '';
         $this->ativo = $this->customer->ativo ? '1' : '0';
+        $this->limite_credito = $this->customer->limite_credito !== null ? (string) $this->customer->limite_credito : '';
+        $this->bloqueado = $this->customer->bloqueado ? '1' : '0';
+        $this->motivo_bloqueio = $this->customer->motivo_bloqueio ?? '';
+    }
+
+    private function updateManualBlock(): void
+    {
+        $bloqueado = $this->validateOnly('bloqueado', ['bloqueado' => 'required|in:0,1'])['bloqueado'] === '1';
+
+        $payload = ['bloqueado' => $bloqueado];
+
+        if ($bloqueado) {
+            $payload['motivo_bloqueio'] = trim($this->validateOnly('motivo_bloqueio', [
+                'motivo_bloqueio' => 'required|string|max:2000',
+            ])['motivo_bloqueio']);
+        }
+
+        Customer::applyManualBlockPayload($payload);
+        $this->customer->update($payload);
+    }
+
+    private function updateBlockReason(): void
+    {
+        if ($this->bloqueado !== '1') {
+            return;
+        }
+
+        $this->customer->update([
+            'motivo_bloqueio' => trim($this->validateOnly('motivo_bloqueio', [
+                'motivo_bloqueio' => 'required|string|max:2000',
+            ])['motivo_bloqueio']),
+        ]);
     }
 }

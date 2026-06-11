@@ -1,6 +1,16 @@
-# Linha Leve — Sistema de Gerenciamento
+# Gestão Acesso — Sistema de Gerenciamento
 
-ERP interno para controle de frota, patrimônios, clientes e auditoria operacional da linha leve.
+ERP interno para controle de frota, patrimônios, clientes, locação, manutenção, financeiro leve e auditoria operacional da linha leve.
+
+**Visão de produto (não técnica):** [docs/VISAO_PRODUTO.md](docs/VISAO_PRODUTO.md) — o que o sistema oferece, para quem, e o que vem a seguir.
+
+## Documentação
+
+| Documento | Conteúdo |
+|-----------|----------|
+| [docs/VISAO_PRODUTO.md](docs/VISAO_PRODUTO.md) | Visão de produto — jornadas, funcionalidades, limites |
+| [docs/PRODUCTION.md](docs/PRODUCTION.md) | Deploy, fila, cron, backup |
+| `.env.example` | Variáveis (copiloto/LLM, exportação contábil Omie/Sisloc, documentos PDF) |
 
 ## Stack
 
@@ -94,16 +104,34 @@ Depois acesse http://localhost:8000 e entre com `admin@acesso.local` / `Acesso@2
 | Operação | `operacao@acesso.local` |
 | Manutenção | `manutencao@acesso.local` |
 
+### Mapa rápido de rotas
+
+| Área | Rota principal |
+|------|----------------|
+| Dashboard | `/dashboard` |
+| Patrimônios | `/patrimonios` |
+| Scan QR / pátio | `/patrimonios/scan/{codigo}` → `/patio/{codigo}` (operadores) |
+| Locações | `/locacoes` · painel: `?aba=painel` |
+| Orçamentos | `/orcamentos` |
+| Manutenção | `/manutencao` · painel: `?aba=painel` |
+| Financeiro | `/financeiro/titulos` · a faturar · inadimplência · fluxo de caixa |
+| Relatórios | `/relatorios/comercial` · `/relatorios/analise-financeira` |
+| Copiloto | `/copiloto` (permissão `agent.api`) |
+| Busca global | `/busca` |
+| Admin | `/admin/usuarios` · empresas · auditoria · copiloto-logs |
+
 ## Estrutura modular
 
 ```
 app/
-  Domain/          # Models por domínio (Fleet, Customer, Audit, Attachment)
-  Enums/           # AssetStatus, UserRole, AuditAction
-  Services/        # AssetStatusService, AuditService, AttachmentService
+  Agent/           # Copiloto: comandos, chat, API, sessões auditáveis
+  Domain/          # Models por domínio (Fleet, Rental, Finance, Person, …)
+  Enums/           # Status, permissões, tipos de documento
+  Services/        # Regras de negócio (locação, OS, títulos, orçamentos, …)
   Livewire/        # Componentes de UI
   Policies/        # Permissões granulares
   Observers/       # Auditoria automática
+  Support/         # Queries de painel, exportadores contábeis, workflow
 ```
 
 ## Módulos (Fase 1)
@@ -120,13 +148,48 @@ app/
 ## Storage e backup
 
 - Anexos: `storage/app/assets/{id}/`
-- Backups recomendados: `pg_dump` + cópia de `storage/`
+- Backups: ver [docs/PRODUCTION.md](docs/PRODUCTION.md) — script `deploy/scripts/backup.sh`
 
 ## Testes
 
 ```bash
+# Desenvolvimento (SQLite em memória)
 php artisan test
+
+# Paridade com produção (PostgreSQL)
+php artisan test --configuration=phpunit.pgsql.xml
 ```
+
+**CI:** GitHub Actions roda os dois bancos em todo push para `main` (`.github/workflows/tests.yml`).
+
+### Testes de integração críticos
+
+| Arquivo | Cobertura |
+|---------|-----------|
+| `tests/Feature/Integration/RentalMaintenanceIntegrationTest.php` | Retorno → inspeção → OS automática (3 módulos) |
+| `tests/Feature/Integration/RentalReservationConcurrencyTest.php` | Dupla reserva bloqueada (lock + índice único parcial) |
+| `tests/Feature/Phase12FeaturesTest.php` | Export contábil Omie, PWA pátio, orçamento → reserva |
+| `tests/Feature/AgentApiTest.php` | API do agente (manifest, comandos, contexto) |
+| `tests/Feature/AgentCopilotTest.php` | Copiloto, dry-run, sessões auditáveis |
+
+**Proteção no banco:** índice único parcial `rentals_one_active_per_asset` — no máximo uma locação ativa (`reservado`, `locado`, `em_inspecao`) por patrimônio.
+
+### Jobs agendados (cron)
+
+Requer `php artisan schedule:run` a cada minuto (ver `docs/PRODUCTION.md`):
+
+| Horário | Comando | Função |
+|---------|---------|--------|
+| 06:00 | `maintenance:process-preventive-due` | OS preventiva vencida por horímetro |
+| 06:30 | `rentals:process-billing-renewals` | Renovações de ciclo de faturamento |
+| 07:00 | `quotes:expire` | Expira orçamentos enviados fora da validade |
+
+## Produção (P7)
+
+Runbook completo: **[docs/PRODUCTION.md](docs/PRODUCTION.md)**
+
+- PostgreSQL, Supervisor (`deploy/supervisor/laravel-worker.conf`), cron, backup (`deploy/scripts/backup.sh`), deploy (`deploy/scripts/deploy.sh`)
+- **Não subir em produção** sem fila supervisionada e backup automatizado
 
 ## Fase 2 — Frota e status (implementada)
 
@@ -166,6 +229,8 @@ Reservar → Registrar saída (checklist) → Registrar retorno (checklist) → 
 | Ver locações | Todos com `rentals.view` |
 | Criar reserva / cancelar | Comercial, Gestor, Admin |
 | Saída, retorno, inspeção | Operação, Gestor, Admin |
+| Orçamentos | `rentals.reserve` (comercial operacional) |
+| Modo pátio (checklist mobile) | `rentals.operate` |
 
 ## Fase 4 — Manutenção (implementada)
 
@@ -448,18 +513,149 @@ As abas ficam salvas no navegador (`localStorage`) e são limpas ao sair do sist
 ### Demo
 - `LargeDemoSeeder` inclui preços por categoria e overrides em modelos Bosch GBH 2-24 e Honda EG 6500
 
+## Fase 11 — Financeiro e cobrança (implementada)
+
+### Títulos a receber
+- Geração automática na **saída** da locação (quando há `valor_faturamento`)
+- Listagem em **Financeiro → Títulos** (`/financeiro/titulos`)
+- Vínculo com locação e cliente; parcela única ou múltiplas (via serviço)
+
+### Baixa manual
+- Modal **Baixar** com data, forma de pagamento (PIX, dinheiro, etc.) e observação
+- Permissão `finance.manage` (gestor/admin)
+
+### Inadimplência
+- Relatório aging **1–30 / 31–60 / 61–90 / 90+** dias (`/financeiro/inadimplencia`)
+- Alerta no **dashboard** e badge no menu Financeiro
+- Exportação CSV para contador
+
+### Fluxo de caixa previsto
+- Entradas por vencimento de títulos em aberto (`/financeiro/fluxo-caixa`)
+
+### Bloqueio comercial
+- Cliente com títulos **em atraso** não recebe nova locação (`bloqueio_inadimplencia`, padrão ativo)
+- **Limite de crédito** opcional por cliente (saldo em aberto + nova locação)
+
+### Permissões
+- `finance.view` — todos operacionais
+- `finance.manage` — gestor e admin
+
+## Fase 11B — Faturamento recorrente e cobrança avançada (implementada)
+
+Além dos títulos na saída (Fase 11), o ciclo comercial completo:
+
+### Fila a faturar
+- Menu **Financeiro → A faturar** (`/financeiro/a-faturar`)
+- Pendências por locação (locação inicial, **renovação de ciclo**, indenização)
+- Fluxo: pendente → autorizado → faturado → título a receber vinculado
+- PDF e export CSV por fatura
+
+### Ciclos e renovações
+- Ciclo configurável por locação (`billing_cycle_days`, valor mínimo)
+- Job diário `rentals:process-billing-renewals` (06:30) gera renovações quando vencidas
+- Dashboard: **Ciclos de faturamento vencidos** e **A receber esta semana**
+
+### Multa e juros
+- Regras configuráveis por escopo (global / cliente)
+- Projeção na inadimplência; aplicação nos títulos
+- Export CSV de inadimplência com encargos detalhados
+
+### UX operacional
+- **Próximo passo** sugerido após reserva, saída, retorno, OS e bloqueio de cliente
+- Mensagens flash com **botões de ação** (ir para faturamento, ver título, etc.)
+- Vencimento de título editável no modal e na aba Faturamento da locação
+
+## Fase 11C — Multi-empresa operacional (implementada)
+
+- Cadastro de **empresas operacionais (CNPJ)** em Admin → Empresas
+- Seletor no topo do menu — dados de locação, financeiro e frota **isolados por empresa**
+- Header `X-Operating-Company-Id` na API do agente
+- Middleware `SetActiveOperatingCompany` em todas as rotas web autenticadas
+
+## Fase 11D — Pessoas, empresas e busca (implementada)
+
+- **Pessoas** (`/pessoas`) e **Empresas CNPJ** (`/empresas`) — cadastro separado do cliente de locação quando necessário
+- **Busca global** (`/busca`) — patrimônios, locações, clientes, OS por código ou texto
+- Validação **CPF/CNPJ** em português (`pt_BR`) nos formulários
+
+## Fase 11E — Cliente e bloqueios (implementada)
+
+- **Bloqueio manual** de cliente (motivo, data, usuário)
+- **Bloqueio por inadimplência** configurável por cliente (`bloqueio_inadimplencia`)
+- Reserva recusada com mensagem e **ações sugeridas** (ver títulos, inadimplência)
+
+## Fase 11F — Relatórios gerenciais (implementada)
+
+- **Análise financeira** (`/relatorios/analise-financeira`) — visão consolidada para gestão
+- Exportação do **painel de locados** (CSV com filtros aplicados)
+- Exportação contábil de títulos — ver Fase 12A
+
+## Fase 12A — Integração contábil (implementada)
+
+Exportação de **títulos a receber** em layout fixo — **não emite NF-e**; destina-se ao contador ou ERP parceiro.
+
+| Formato | Uso |
+|---------|-----|
+| `csv` | Planilha genérica contábil |
+| `omie` | Colunas para importação de contas a receber no Omie |
+| `sisloc` | Layout CAR Sisloc |
+
+- Rota: `/financeiro/exportar-contabil?format=csv|omie|sisloc`
+- Botão **Exportar contábil** em Financeiro → Títulos
+- Config: `config/accounting.php` e variáveis `ACCOUNTING_*` no `.env`
+
+## Fase 12B — PWA e modo pátio (implementada)
+
+- **PWA** instalável (`manifest.webmanifest`, service worker leve)
+- Scan QR → operadores com `rentals.operate` vão para **`/patio/{codigo}`**
+- Tela mobile enxuta: ficha resumida + **checklist de saída** (reservado) ou **retorno** (locado)
+- Layout dedicado `mobile-yard` (sem menu pesado, botões grandes)
+
+## Fase 12C — Orçamento → locação (implementada)
+
+- Menu **Comercial → Orçamentos** (`/orcamentos`)
+- Código `ORC-000001`, status: rascunho → enviado → convertido / expirado / cancelado
+- **Validade** configurável ao enviar (padrão 7 dias)
+- **Converter** cria reserva oficial (`RentalService::reserve`)
+- Job diário `quotes:expire` (07:00) expira orçamentos vencidos
+
+## Fase 12D — Copiloto operacional e API do agente (implementada)
+
+### Copiloto (UI)
+- Menu **Copiloto** (`/copiloto`) — permissão `agent.api` (Gestor/Admin)
+- Interpretação heurística (PT) ou **LLM opcional** (`AGENT_LLM_*` no `.env`)
+- Confirmação obrigatória antes de comandos de escrita
+- **Dry-run** em ações financeiras (prévia antes de faturar/baixar título)
+
+### API (Sanctum)
+- `GET /api/agent/manifest` — comandos disponíveis
+- `POST /api/agent/commands/{name}` — executar (suporta `dry_run`, `session_id`)
+- `POST /api/agent/chat` — chat com confirmação
+- `GET /api/agent/context/{rental|customer|system|maintenance}` — contexto estruturado
+
+### Comandos registrados (exemplos)
+`rental.get`, `rental.list`, `rental.reserve`, `rental.checkout`, `rental.return`, `customer.search`, `billing.list_pending`, `billing.invoice_entry`, `receivable.mark_paid`, `maintenance.open/start/wait_part/resume/complete`, `finance.summary`
+
+### Auditoria do copiloto
+- Sessões, mensagens e log de comandos (`agent_sessions`, `agent_command_logs`)
+- Admin → **Copiloto (logs)** (`/admin/copiloto-logs`)
+
+```bash
+php artisan agent:manifest   # JSON dos comandos no terminal
+```
+
 ---
 
 ## Roadmap — visão geral
 
 **Público-alvo:** locadora de equipamentos de **médio porte**, operação **regional** (BH e região metropolitana de Minas Gerais).
 
-**Posicionamento atual:** ERP **operacional** forte (frota, locação, manutenção, painéis, PDFs). Ainda **não substitui** Sisloc ou Protheus de ponta a ponta — o gap principal está em **comercial-financeiro-fiscal** e **logística regional**.
+**Posicionamento atual:** ERP **operacional + comercial + financeiro leve** (frota, locação, manutenção, faturamento recorrente, copiloto). Ainda **não substitui** Sisloc ou Protheus de ponta a ponta — gaps principais: **fiscal (NF-e)**, **logística/romaneio** e **gateway de pagamento**.
 
 | Comparativo estimado | Cobertura |
 |---------------------|-----------|
-| Sisloc — módulo operacional | ~65–75% |
-| Sisloc — produto completo | ~45–55% |
+| Sisloc — módulo operacional | ~75–85% |
+| Sisloc — produto completo | ~55–65% |
 | Protheus — ERP completo | ~15–25% |
 
 **Estratégia recomendada:** Linha Leve = **operação + comercial**; fiscal/contábil pesado via integração (Omie, Conta Azul, Bling) ou módulo fiscal em fase posterior.
@@ -480,6 +676,14 @@ As abas ficam salvas no navegador (`localStorage`) e são limpas ao sair do sist
 | 8 | Relatório comercial, preventiva, alertas dashboard | Implementada |
 | 9 | Retornos atrasados, ficha cliente, painel manutenção, CSV, local da obra | Implementada |
 | 10 | Tabela de preços, cálculo automático, prorrogação (10.1–10.4) | Implementada |
+| 11 | Títulos a receber, inadimplência, baixa, fluxo previsto, bloqueio (11.1–11.4, 11.6 CSV) | Implementada |
+| 11B | Fila a faturar, ciclos, renovações, multa/juros, próximo passo UX | Implementada |
+| 11C | Multi-empresa operacional (CNPJ) | Implementada |
+| 11D | Pessoas, empresas, busca global, validação pt_BR | Implementada |
+| 12A | Exportação contábil CSV / Omie / Sisloc | Implementada |
+| 12B | PWA + modo pátio (QR → checklist) | Implementada |
+| 12C | Orçamento com validade → reserva | Implementada |
+| 12D | Copiloto + API agente + auditoria | Implementada |
 
 ---
 
@@ -489,13 +693,13 @@ Itens pequenos, discutidos e ainda **não implementados**, que complementam as f
 
 | # | Item | Prioridade | Esforço |
 |---|------|------------|---------|
-| P1 | Exportação CSV do **painel de locados** (filtros aplicados) | Alta | 1–2 dias |
-| P2 | Job agendado de **preventiva vencida** (`schedule:run` diário) | Alta | 1–2 dias |
+| P1 | Exportação CSV do **painel de locados** (filtros aplicados) | Alta | ✅ Implementada |
+| P2 | Job agendado de **preventiva vencida** (`schedule:run` diário) | Alta | ✅ Implementada |
 | P3 | **Notificações por e-mail** (retorno atrasado, OS atrasada, preventiva) | Alta | 3–5 dias |
 | P4 | **Estoque de peças** — saldo atual + estoque mínimo + alerta dashboard | Média | 3–5 dias |
 | P5 | Baixa automática de peça ao **concluir OS** | Média | 2–3 dias |
-| P6 | **PWA / mobile** enxuto para pátio (scan, checklist, entrega) | Média | 1–2 semanas |
-| P7 | Ambiente **produção** (PostgreSQL, `queue:work`, cron, backup automático) | Alta | 2–3 dias |
+| P6 | **PWA / mobile** enxuto para pátio (scan, checklist, entrega) | Média | ✅ Implementada |
+| P7 | Ambiente **produção** (PostgreSQL, `queue:work`, cron, backup automático) | Alta | ✅ Scripts + runbook em `docs/PRODUCTION.md` |
 | P8 | Seeds demo com **regras preventivas** e `local_obra` preenchido | Baixa | 0,5 dia |
 
 ---
@@ -510,11 +714,11 @@ Itens pequenos, discutidos e ainda **não implementados**, que complementam as f
 | 10.2 | **Cálculo automático do valor** | Dias entre saída e retorno (inclusivo) | ✅ Implementada |
 | 10.3 | Preenchimento automático de `valor_faturamento` | Na reserva/saída, editável depois | ✅ Implementada |
 | 10.4 | **Prorrogação de locação** | Novo vencimento + recálculo de valor | ✅ Implementada |
-| 10.5 | **Substituição de equipamento** | Troca de patrimônio em locação ativa (histórico preservado) | Alta |
-| 10.6 | **Contrato de locação PDF** | Modelo com cláusulas editáveis (além do resumo operacional) | Alta |
-| 10.7 | **Orçamento / proposta** | Pré-reserva com validade e conversão em locação | Média |
+| 10.5 | **Substituição de equipamento** | Troca de patrimônio em locação ativa (histórico preservado) | ✅ Implementada |
+| 10.6 | **Contrato de locação PDF** | Modelo com cláusulas editáveis (além do resumo operacional) | ✅ Implementada |
+| 10.7 | **Orçamento / proposta** | Pré-reserva com validade e conversão em locação | ✅ Implementada |
 | 10.8 | Descontos e tabelas promocionais | Por cliente, categoria ou período | Média |
-| 10.9 | **Caução / depósito** | Valor registrado na locação, status (recebido/devolvido) | Média |
+| 10.9 | **Caução / depósito** | Valor registrado na locação, status (recebido/devolvido) | ✅ Implementada |
 | 10.10 | Limite de crédito no cliente | Bloqueia nova locação se exceder | Alta |
 
 **Entregável da fase:** comercial consegue fechar locação com **valor calculado** sem planilha externa.
@@ -529,12 +733,12 @@ Itens pequenos, discutidos e ainda **não implementados**, que complementam as f
 
 | # | Funcionalidade | Descrição | Prioridade |
 |---|----------------|-----------|------------|
-| 11.1 | **Títulos a receber** | Parcelas por locação, vencimentos, status (aberto/pago/atrasado) | Crítica |
-| 11.2 | **Relatório de inadimplência** | Aging (30/60/90 dias), por cliente | Crítica |
-| 11.3 | Baixa manual de pagamento | Data, forma, observação | Alta |
-| 11.4 | **Fluxo de caixa previsto** | Entradas por vencimento de títulos | Média |
+| 11.1 | **Títulos a receber** | Parcelas por locação, vencimentos, status (aberto/pago/atrasado) | ✅ Implementada |
+| 11.2 | **Relatório de inadimplência** | Aging (30/60/90 dias), por cliente | ✅ Implementada |
+| 11.3 | Baixa manual de pagamento | Data, forma, observação | ✅ Implementada |
+| 11.4 | **Fluxo de caixa previsto** | Entradas por vencimento de títulos | ✅ Implementada |
 | 11.5 | Contas a pagar básico | Fornecedores, oficina externa | Baixa |
-| 11.6 | Integração exportação contador | CSV/OFX ou API Omie / Conta Azul / Bling | Alta |
+| 11.6 | Integração exportação contador | CSV + layouts **Omie** e **Sisloc** (sem NF-e) | ✅ Implementada |
 | 11.7 | Boleto / PIX (gateway) | Asaas, Gerencianet, etc. | Média |
 | 11.8 | Conciliação bancária simples | Importação OFX | Baixa |
 
@@ -668,14 +872,16 @@ Legenda: **A** = fazer primeiro · **B** = próximo ciclo · **C** = quando oper
 
 | Área | Itens fase | Prioridade |
 |------|------------|------------|
-| Comercial / preço | 10.1 – 10.4, 10.10 | **A** |
-| Financeiro leve | 11.1 – 11.3, 11.6 | **A** |
-| Logística RMBH | 12.1, 12.3, 12.4, 12.7 | **A** |
-| Refino operação | P1 – P3, P7 | **A** |
+| Comercial / preço | 10.1 – 10.4 ✅, 10.10 | **A** |
+| Financeiro leve | 11.1 – 11.3, 11.6, bloqueio inadimplência (ex-15.3) | **A** |
+| Refino operação | P1 ✅, P2 ✅, P3, P6 ✅ PWA pátio, P7 ✅ runbook | **A** |
+| Testes / CI | Integração locação+OS, concorrência, PostgreSQL na CI | **A** |
+| Contrato / caução | 10.6 ✅, 10.9 ✅ | **B** |
 | Frota / ocupação | 13.1 – 13.3 | **B** |
 | Manutenção / estoque | 14.1, 14.2, 14.6 | **B** |
-| Contrato / caução | 10.6, 10.9 | **B** |
-| CRM / WhatsApp | 15.7, 15.3 | **B** |
+| Logística RMBH | 12.1, 12.3, 12.4, 12.7 — **adiar** se WhatsApp funciona | **C** |
+| CRM / pipeline | 15.1, 15.2 — após inadimplência controlada | **C** |
+| Notificações | 15.7, P3 e-mail | **B** |
 | Fiscal NFS-e | 16.1, 16.4 | **C** |
 | API / multi-filial | 17.1, 17.3, 17.8 | **B–C** |
 
@@ -684,12 +890,12 @@ Legenda: **A** = fazer primeiro · **B** = próximo ciclo · **C** = quando oper
 ## Roadmap — sequência sugerida de sprints
 
 ```
-Sprint 1–2   Fase 10 (preços + cálculo + prorrogação) + P7 produção
-Sprint 3–4   Fase 11 (títulos a receber + inadimplência) + P3 e-mail
-Sprint 5–6   Fase 12 (pátios + romaneio + agenda entrega)
-Sprint 7–8   Fase 13 (ocupação + calendário) + P4 estoque peças
-Sprint 9–10  Fase 14 (estoque OS) + 10.6 contrato PDF
-Sprint 11+   Fase 15 CRM + Fase 16 fiscal (ou integração) + Fase 17 API
+Sprint 1–2   ✅ Fase 10 + P7 runbook + testes integração + CI PostgreSQL
+Sprint 3–4   Fase 11 (títulos + inadimplência + bloqueio) + 10.6 contrato PDF
+Sprint 5–6   Fase 13 (ocupação) + P3 e-mail + P4 estoque peças
+Sprint 7–8   Fase 14 (estoque OS) + 10.10 limite de crédito
+Sprint 9+    Fase 12 fatiada (só quando WhatsApp virar gargalo)
+Sprint 11+   Fase 15 CRM (após caixa controlado) + Fase 16 fiscal + Fase 17 API
 ```
 
 ---
@@ -728,6 +934,10 @@ Sprint 11+   Fase 15 CRM + Fase 16 fiscal (ou integração) + Fase 17 API
 - Checklists de saída/retorno integrados ao status
 - Local da obra sincronizado com patrimônio
 - Campos personalizados sem customização de código
+- Modo **pátio mobile** (PWA + checklist QR)
+- **Copiloto** operacional com API e auditoria
+- **Orçamento** com validade e conversão em reserva
+- Exportação contábil **Omie / Sisloc**
 - Código aberto, adaptável à operação ACESSO / regional MG
 
 ---
@@ -736,13 +946,18 @@ Sprint 11+   Fase 15 CRM + Fase 16 fiscal (ou integração) + Fase 17 API
 
 Marque quando todos estiverem concluídos:
 
-- [ ] Tabela de preços e valor calculado automaticamente na locação
-- [ ] Títulos a receber com relatório de inadimplência
-- [ ] Romaneio / agenda de entrega e retirada
-- [ ] Contrato PDF padrão da empresa
-- [ ] Múltiplos pátios (BH + pelo menos 1 unidade regional)
+- [x] Tabela de preços e valor calculado automaticamente na locação
+- [x] Títulos a receber com relatório de inadimplência
+- [x] Bloqueio por inadimplência na nova locação
+- [x] Contrato PDF padrão da empresa
+- [x] Orçamento com validade → reserva
+- [x] Exportação contábil (CSV / Omie / Sisloc)
+- [x] Modo pátio mobile (QR + checklist)
+- [x] Copiloto operacional com auditoria
 - [ ] Notificações automáticas (e-mail ou WhatsApp) de retorno atrasado
-- [ ] Ambiente produção estável (PostgreSQL, fila, backup)
+- [x] Runbook produção (PostgreSQL, fila, backup) — ver `docs/PRODUCTION.md`
+- [ ] Deploy efetivo em servidor com Supervisor + backup cron ativos
 - [ ] Fiscal: integração ou NFS-e emitida pelo sistema
+- [ ] Romaneio / múltiplos pátios — **opcional** enquanto logística via WhatsApp atender
 
 Até lá, o Linha Leve funciona como **sistema operacional principal**, com **comercial/fiscal complementar** em planilha ou sistema legado.

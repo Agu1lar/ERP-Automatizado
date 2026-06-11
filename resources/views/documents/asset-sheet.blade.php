@@ -45,7 +45,7 @@
                             <td class="value">{{ $asset->localizacao ?? '—' }}</td>
                         </tr>
                         <tr>
-                            <td class="label">Data compra</td>
+                            <td class="label">Data aquisição</td>
                             <td class="value">{{ $asset->data_compra?->format('d/m/Y') ?? '—' }}</td>
                         </tr>
                     </table>
@@ -79,7 +79,7 @@
     @include('documents.partials.custom-fields')
 
     <div class="footer">
-        Documento gerado em {{ $generatedAt->format('d/m/Y H:i') }} — {{ $company['name'] ?? 'Linha Leve' }}
+        Documento gerado em {{ $generatedAt->format('d/m/Y H:i') }} — {{ \App\Support\BrandContext::documentFooter($company) }}
     </div>
 </div>
 </body>

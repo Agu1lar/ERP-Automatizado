@@ -10,6 +10,9 @@ use App\Models\Domain\Maintenance\MaintenancePart;
 use App\Models\User;
 use App\Services\MaintenanceOrderService;
 use App\Services\PartCatalogService;
+use App\Support\FlashMessage;
+use App\Support\RentalFichaNavigation;
+use App\Support\WorkflowNextStep;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -193,7 +196,7 @@ class MaintenanceOrderShow extends Component
         $this->part_search = '';
         $this->partSuggestions = [];
         $this->loadOrder($this->order);
-        session()->flash('success', 'Peça adicionada.');
+        $this->flashSuccess('Peça adicionada.');
     }
 
     public function removePart(int $partId, MaintenanceOrderService $service): void
@@ -211,7 +214,7 @@ class MaintenanceOrderShow extends Component
         }
 
         $this->loadOrder($this->order);
-        session()->flash('success', 'Peça removida.');
+        $this->flashSuccess('Peça removida.');
     }
 
     public function addLaborHour(MaintenanceOrderService $service): void
@@ -245,7 +248,7 @@ class MaintenanceOrderShow extends Component
         $this->labor_horas = '';
         $this->labor_descricao = '';
         $this->loadOrder($this->order);
-        session()->flash('success', 'Horas registradas.');
+        $this->flashSuccess('Horas registradas.');
     }
 
     public function removeLaborHour(int $hourId, MaintenanceOrderService $service): void
@@ -263,7 +266,7 @@ class MaintenanceOrderShow extends Component
         }
 
         $this->loadOrder($this->order);
-        session()->flash('success', 'Registro de horas removido.');
+        $this->flashSuccess('Registro de horas removido.');
     }
 
     public function start(MaintenanceOrderService $service): void
@@ -279,7 +282,10 @@ class MaintenanceOrderShow extends Component
         }
 
         $this->loadOrder($this->order);
-        session()->flash('success', 'OS iniciada.');
+        $this->flashWorkflowSuccess(
+            'OS em execução. Registre peças e horas nesta tela.',
+            WorkflowNextStep::maintenanceAfterStart($this->order),
+        );
     }
 
     public function openWaitModal(): void
@@ -303,7 +309,10 @@ class MaintenanceOrderShow extends Component
 
         $this->showWaitModal = false;
         $this->loadOrder($this->order);
-        session()->flash('success', 'OS marcada como aguardando peça.');
+        $this->flashWorkflowSuccess(
+            'OS aguardando peça. Retome a execução quando o material chegar.',
+            WorkflowNextStep::maintenanceAfterWait($this->order),
+        );
     }
 
     public function resume(MaintenanceOrderService $service): void
@@ -319,7 +328,10 @@ class MaintenanceOrderShow extends Component
         }
 
         $this->loadOrder($this->order);
-        session()->flash('success', 'OS retomada.');
+        $this->flashWorkflowSuccess(
+            'Execução retomada. Conclua a OS quando o serviço estiver finalizado.',
+            WorkflowNextStep::maintenanceAfterResume($this->order),
+        );
     }
 
     public function openCompleteModal(): void
@@ -343,7 +355,10 @@ class MaintenanceOrderShow extends Component
 
         $this->showCompleteModal = false;
         $this->loadOrder($this->order);
-        session()->flash('success', 'OS concluída.');
+        $this->flashWorkflowSuccess(
+            'OS concluída com sucesso.',
+            WorkflowNextStep::maintenanceAfterComplete($this->order),
+        );
     }
 
     public function openCancelModal(): void
@@ -369,7 +384,7 @@ class MaintenanceOrderShow extends Component
 
         $this->showCancelModal = false;
         $this->loadOrder($this->order);
-        session()->flash('success', 'OS cancelada.');
+        $this->flashSuccess('OS cancelada.');
     }
 
     public function render(): View
@@ -419,6 +434,19 @@ class MaintenanceOrderShow extends Component
             $this->part_valor_unitario = (string) $catalog->valor_unitario_padrao;
         }
         $this->part_search = $catalog->descricao;
+    }
+
+    private function flashSuccess(string $message): void
+    {
+        session()->flash('success', $message);
+        RentalFichaNavigation::flashReturnLink($this->order->rental);
+    }
+
+    /** @param  list<array{label: string, url: string, primary?: bool}>  $actions */
+    private function flashWorkflowSuccess(string $message, array $actions = []): void
+    {
+        FlashMessage::success($message, $actions);
+        RentalFichaNavigation::flashReturnLink($this->order->rental);
     }
 
     private function syncFormFields(): void

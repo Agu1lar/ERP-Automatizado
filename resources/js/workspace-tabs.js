@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'linha_leve_workspace_tabs';
+const STORAGE_KEY = 'gestao_acesso_workspace_tabs';
 
 const ROUTE_LABELS = {
     '/dashboard': 'Dashboard',
@@ -8,10 +8,15 @@ const ROUTE_LABELS = {
     '/manutencao/pecas': 'Catálogo de peças',
     '/manutencao/preventiva': 'Preventiva',
     '/relatorios/comercial': 'Relatório comercial',
+    '/relatorios/analise-financeira': 'Análise financeira',
+    '/financeiro/titulos': 'Títulos a receber',
+    '/financeiro/inadimplencia': 'Inadimplência',
+    '/financeiro/fluxo-caixa': 'Fluxo de caixa',
     '/clientes': 'Clientes',
     '/frota/categorias': 'Categorias',
     '/frota/modelos': 'Modelos',
     '/admin/usuarios': 'Usuários',
+    '/admin/empresas': 'Empresas (CNPJ)',
     '/admin/auditoria': 'Auditoria',
     '/profile': 'Perfil',
 };
@@ -319,3 +324,16 @@ document.addEventListener('alpine:init', () => {
         openLinkInNewTab(event, link);
     });
 });
+
+
+
+
+
+
+
+
+
+
+ 
+ 
+ 

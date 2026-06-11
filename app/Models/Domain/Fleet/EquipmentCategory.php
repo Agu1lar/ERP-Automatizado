@@ -2,15 +2,17 @@
 
 namespace App\Models\Domain\Fleet;
 
+use App\Models\Concerns\BelongsToOperatingCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class EquipmentCategory extends Model
 {
-    use SoftDeletes;
+    use BelongsToOperatingCompany, SoftDeletes;
 
     protected $fillable = [
+        'operating_company_id',
         'nome',
         'tipo_linha',
         'ativo',

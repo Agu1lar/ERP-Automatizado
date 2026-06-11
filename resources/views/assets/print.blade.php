@@ -19,14 +19,14 @@
     <button class="no-print" onclick="window.print()">Imprimir</button>
 
     <h1>{{ $asset->codigo_patrimonio }}</h1>
-    <p class="muted">{{ $asset->equipmentModel->category->nome }} — {{ $asset->equipmentModel->displayName() }}</p>
+    <p class="muted">{{ $asset->equipmentModel?->category?->nome ?? '—' }} — {{ $asset->equipmentDisplayName() }}</p>
 
     <div class="grid">
         <div class="box">
             <div class="row"><span class="label">Status:</span> {{ $asset->statusEnum()->label() }}</div>
             <div class="row"><span class="label">Série:</span> {{ $asset->serie ?? '—' }}</div>
             <div class="row"><span class="label">Localização:</span> {{ $asset->localizacao ?? '—' }}</div>
-            <div class="row"><span class="label">Data compra:</span> {{ $asset->data_compra?->format('d/m/Y') ?? '—' }}</div>
+            <div class="row"><span class="label">Data aquisição:</span> {{ $asset->data_compra?->format('d/m/Y') ?? '—' }}</div>
             @if($asset->observacoes)
                 <div class="row"><span class="label">Observações:</span> {{ $asset->observacoes }}</div>
             @endif
@@ -42,6 +42,6 @@
         </div>
     </div>
 
-    <p class="muted" style="margin-top:24px;font-size:11px;">Impresso em {{ now()->format('d/m/Y H:i') }} — Linha Leve</p>
+    <p class="muted" style="margin-top:24px;font-size:11px;">Impresso em {{ now()->format('d/m/Y H:i') }} — {{ \App\Support\BrandContext::documentFooter($company ?? null) }}</p>
 </body>
 </html>

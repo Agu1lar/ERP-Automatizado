@@ -5,7 +5,7 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             <div>
                 <h2 class="text-2xl font-bold text-gray-800">Relatório comercial</h2>
-                <p class="text-gray-500 mt-1">Faturamento por tipo de equipamento (modelo ou categoria), não por patrimônio individual.</p>
+                <p class="text-gray-500 mt-1">Faturamento por tipo de equipamento ou por responsável comercial da locação.</p>
             </div>
 
             <div class="bg-white rounded-lg shadow p-6">
@@ -23,6 +23,7 @@
                         <select wire:model.live="group_by" class="mt-1 w-full rounded-md border-gray-300 shadow-sm text-sm">
                             <option value="model">Modelo (ex.: Martelete Bosch, Betoneira 400L)</option>
                             <option value="category">Categoria (ex.: Marteletes, Betoneiras)</option>
+                            <option value="user">Usuário responsável (vendedor)</option>
                         </select>
                     </div>
                     <div class="md:text-right space-y-2">
@@ -42,7 +43,15 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo de equipamento</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                @if($group_by === 'user')
+                                    Usuário responsável
+                                @elseif($group_by === 'category')
+                                    Categoria
+                                @else
+                                    Modelo
+                                @endif
+                            </th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Locações</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Faturamento</th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ticket médio</th>
@@ -67,7 +76,9 @@
                 </table>
             </div>
 
-            <p class="text-xs text-gray-400">Considera locações concluídas pela data de conclusão. Informe o valor de faturamento na ficha de cada locação.</p>
+            <p class="text-xs text-gray-400">
+                Considera locações concluídas pela data de conclusão. O responsável comercial é definido automaticamente ao abrir a ficha e pode ser transferido após a conclusão por gestor ou administrador.
+            </p>
         </div>
     </div>
 </div>

@@ -76,6 +76,7 @@ class Phase6MaintenancePdfTest extends TestCase
             'customFieldRows' => [],
         ])->render();
 
+        $this->assertStringContainsString('size: 210mm 99mm', $html);
         $this->assertStringContainsString('ORDEM DE MANUTENÇÃO', $html);
         $this->assertStringContainsString('INDENIZAÇÃO', $html);
         $this->assertStringContainsString('220V', $html);
@@ -99,6 +100,14 @@ class Phase6MaintenancePdfTest extends TestCase
 
         $this->assertNotNull($logo);
         $this->assertStringStartsWith('data:image/', $logo);
+    }
+
+    public function test_maintenance_order_pdf_uses_one_third_a4_height(): void
+    {
+        $paper = config('documents.paper.maintenance_order');
+
+        $this->assertSame(210, $paper['width_mm']);
+        $this->assertSame(99, $paper['height_mm']);
     }
 
     public function test_maintenance_pdf_route_still_works(): void

@@ -416,7 +416,7 @@ class MaintenanceOrderService
 
     private function generateCodigo(): string
     {
-        $next = (MaintenanceOrder::query()->max('id') ?? 0) + 1;
+        $next = (MaintenanceOrder::withoutGlobalScope('operating_company')->max('id') ?? 0) + 1;
 
         return 'OS-'.str_pad((string) $next, 6, '0', STR_PAD_LEFT);
     }

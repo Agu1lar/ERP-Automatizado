@@ -4,9 +4,15 @@
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-4">
             <div class="flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-gray-800">Categorias de Equipamento</h2>
+                <h2 class="text-xl font-semibold text-gray-800 inline-flex items-center">
+                    Categorias de Equipamento
+                    <x-help-hint text="Agrupe equipamentos por tipo (ex.: Marteletes, Betoneiras). Cada patrimônio pertence a um modelo, e cada modelo a uma categoria." />
+                </h2>
                 @can('create', App\Models\Domain\Fleet\EquipmentCategory::class)
-                    <x-btn-primary wire:click="create">+ Nova categoria</x-btn-primary>
+                    <x-btn-primary wire:click="create">
+                        + Nova categoria
+                        <x-help-hint text="Crie um grupo para organizar modelos e patrimônios. O tipo de linha costuma ser 'linha_leve' neste sistema." class="ml-2" />
+                    </x-btn-primary>
                 @endcan
             </div>
             <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar categoria..." class="w-full max-w-md rounded-md border-gray-300 shadow-sm" />

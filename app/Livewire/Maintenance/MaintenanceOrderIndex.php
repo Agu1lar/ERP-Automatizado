@@ -432,7 +432,7 @@ class MaintenanceOrderIndex extends Component
 
                 'codigo' => $asset->codigo_patrimonio,
 
-                'modelo' => $asset->equipmentModel->displayName(),
+                'modelo' => $asset->equipmentDisplayName(),
 
                 'status' => $preview['status'],
 

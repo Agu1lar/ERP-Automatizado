@@ -10,7 +10,10 @@ use App\Models\Domain\Fleet\AssetStatusHistory;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
 use App\Services\PreventiveMaintenanceService;
+use App\Support\ActiveOperatingCompany;
+use App\Support\DelinquencyReportQuery;
 use App\Support\FichaCompleteness;
+use App\Support\FinanceDashboardQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Attributes\Layout;
@@ -97,6 +100,20 @@ class DashboardIndex extends Component
             ? Asset::query()->get()->filter(fn (Asset $a) => ! FichaCompleteness::isAssetComplete($a))->count()
             : 0;
 
+        $financeSummary = $user->can('finance.view')
+            ? app(DelinquencyReportQuery::class)->summary()
+            : null;
+
+        $financeDashboard = $user->can('finance.view')
+            ? app(FinanceDashboardQuery::class)
+            : null;
+
+        $receivableWeek = $financeDashboard?->receivableThisWeekSummary();
+        $receivableWeekTitles = $financeDashboard?->receivableThisWeekTitles() ?? collect();
+        $billingCycleDueCount = $financeDashboard?->billingCycleDueCount() ?? 0;
+        $billingCycleDueRentals = $financeDashboard?->billingCycleDueRentals() ?? collect();
+        $pendingRenewalQueueCount = $financeDashboard?->pendingRenewalQueueCount() ?? 0;
+
         return view('livewire.dashboard.dashboard-index', [
             'statusCounts' => $statusCounts,
             'blockedAssets' => $blockedAssets,
@@ -122,6 +139,13 @@ class DashboardIndex extends Component
             'preventiveDue' => $preventiveDue,
             'preventiveDueCount' => count($preventiveDue),
             'incompleteFichasCount' => $incompleteFichasCount,
+            'financeSummary' => $financeSummary,
+            'receivableWeek' => $receivableWeek,
+            'receivableWeekTitles' => $receivableWeekTitles,
+            'billingCycleDueCount' => $billingCycleDueCount,
+            'billingCycleDueRentals' => $billingCycleDueRentals,
+            'pendingRenewalQueueCount' => $pendingRenewalQueueCount,
+            'activeCompany' => ActiveOperatingCompany::current(),
         ]);
     }
 }

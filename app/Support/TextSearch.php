@@ -36,4 +36,26 @@ class TextSearch
 
         return false;
     }
+
+    /** Correspondência flexível (plural/singular e prefixo), útil para categorias e tipos de equipamento. */
+    public static function matchesFlexible(?string $haystack, string $needle): bool
+    {
+        if (self::matches($haystack, $needle)) {
+            return true;
+        }
+
+        $haystackNorm = self::normalize($haystack);
+        $needleNorm = self::normalize($needle);
+
+        if ($haystackNorm === '' || $needleNorm === '') {
+            return false;
+        }
+
+        $haystackSingular = rtrim($haystackNorm, 's');
+        $needleSingular = rtrim($needleNorm, 's');
+
+        return $haystackSingular === $needleSingular
+            || str_starts_with($haystackNorm, $needleSingular)
+            || str_starts_with($needleNorm, $haystackSingular);
+    }
 }

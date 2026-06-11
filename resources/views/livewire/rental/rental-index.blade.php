@@ -14,7 +14,10 @@
                     <p class="text-sm text-gray-500 mt-0.5">Painel operacional e listagem completa</p>
                 </div>
                 @can('reserve', App\Models\Domain\Rental\Rental::class)
-                    <x-btn-primary wire:click="openReserveForm">+ Nova locação</x-btn-primary>
+                    <x-btn-primary wire:click="openReserveForm" class="inline-flex items-center">
+                        + Nova locação
+                        <x-help-hint text="Reserve um patrimônio para um cliente: informe o código do equipamento, selecione o cliente e a data de retorno prevista. A saída efetiva é registrada depois." class="ml-2" />
+                    </x-btn-primary>
                 @endcan
             </div>
 
@@ -36,7 +39,24 @@
                 <div class="bg-white rounded-lg shadow p-6 space-y-4">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <h3 class="font-semibold text-gray-800">Equipamentos locados e filtros</h3>
-                        <span class="text-xs text-gray-400">Ordenação crescente por padrão na previsão de retorno</span>
+                        <div class="flex items-center gap-3">
+                            <a
+                                href="{{ route('rentals.panel.export', [
+                                    'search' => $panelSearch,
+                                    'status_scope' => $panelStatusScope,
+                                    'category_id' => $panelCategoryId ?: null,
+                                    'customer_id' => $panelCustomerId ?: null,
+                                    'valor_min' => $panelValorMin ?: null,
+                                    'valor_max' => $panelValorMax ?: null,
+                                    'sort_by' => $panelSortBy,
+                                    'sort_dir' => $panelSortDir,
+                                    'show_customer_history' => $showCustomerHistory ? 1 : 0,
+                                    'overdue_only' => $panelOverdueOnly ? 1 : 0,
+                                ]) }}"
+                                class="text-sm text-indigo-600 hover:underline"
+                            >Exportar CSV ↓</a>
+                            <span class="text-xs text-gray-400">Ordenação crescente por padrão na previsão de retorno</span>
+                        </div>
                     </div>
 
                     <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -194,6 +214,16 @@
                 <div class="bg-white rounded-lg shadow p-6">
 
                     <h3 class="text-lg font-semibold text-gray-800 mb-1">Nova locação</h3>
+
+                    @if($activeCompany)
+                        <p class="text-sm text-indigo-700 mb-2">
+                            Cadastrando em <strong>{{ $activeCompany->nome }}</strong>
+                            @if($activeCompany->formattedCnpj())
+                                (CNPJ {{ $activeCompany->formattedCnpj() }})
+                            @endif
+                            — o contrato e a ficha ficarão vinculados a esta empresa.
+                        </p>
+                    @endif
 
                     <p class="text-sm text-gray-500 mb-4">Cole ou digite o código do patrimônio — os dados da ficha serão preenchidos automaticamente.</p>
 

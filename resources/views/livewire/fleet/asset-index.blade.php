@@ -53,14 +53,14 @@
                             </div>
                             @can('fleet.assets.manage')
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700">Valor compra (R$)</label>
+                                    <label class="block text-sm font-medium text-gray-700">Valor de aquisição (R$)</label>
                                     <input wire:model="valor_compra" type="number" step="0.01" class="mt-1 w-full rounded-md border-gray-300 shadow-sm" />
                                 </div>
                             @endcan
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Data compra</label>
+                                <label class="block text-sm font-medium text-gray-700">Data de aquisição</label>
                                 <input wire:model="data_compra" type="date" class="mt-1 w-full rounded-md border-gray-300 shadow-sm" />
                             </div>
                             <div>
@@ -113,7 +113,7 @@
                         @foreach($assets as $asset)
                             <tr>
                                 <td class="px-4 py-3 text-sm font-medium">{{ $asset->codigo_patrimonio }}</td>
-                                <td class="px-4 py-3 text-sm">{{ $asset->equipmentModel->displayName() }}</td>
+                                <td class="px-4 py-3 text-sm">{{ $asset->equipmentDisplayName() }}</td>
                                 <td class="px-4 py-3 text-sm">
                                     <x-status-badge :status="$asset->statusEnum()" />
                                 </td>

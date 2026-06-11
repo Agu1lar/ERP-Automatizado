@@ -11,6 +11,9 @@ use App\Models\Domain\Rental\Rental;
 use App\Rules\ValidCpfCnpj;
 use App\Services\RentalPricingService;
 use App\Services\RentalService;
+use App\Support\FlashMessage;
+use App\Support\WorkflowNextStep;
+use App\Support\ActiveOperatingCompany;
 use App\Support\RentalFichaBuilder;
 use App\Support\RentalPanelQuery;
 use Carbon\Carbon;
@@ -260,6 +263,7 @@ class RentalIndex extends Component
             'telefone' => $data['quick_customer_telefone'] ?: null,
             'email' => $data['quick_customer_email'] ?: null,
             'ativo' => true,
+            'created_by' => auth()->id(),
         ]);
 
         $this->pickCustomer($customer->id);
@@ -315,13 +319,22 @@ class RentalIndex extends Component
                 $period,
             );
         } catch (\InvalidArgumentException $e) {
+            if ($this->isCustomerRentalBlockError($customer, $e->getMessage())) {
+                FlashMessage::error($e->getMessage(), WorkflowNextStep::customerBlocked($customer));
+
+                return;
+            }
+
             $this->addError('asset_id', $e->getMessage());
 
             return;
         }
 
         $this->resetReserveForm();
-        session()->flash('success', "Reserva {$rental->codigo} criada — ficha preenchida com dados do patrimônio.");
+        FlashMessage::success(
+            "Reserva {$rental->codigo} criada — ficha preenchida com dados do patrimônio.",
+            WorkflowNextStep::rentalAfterReserve($rental),
+        );
 
         $this->redirect(route('rentals.show', $rental), navigate: true);
     }
@@ -404,6 +417,7 @@ class RentalIndex extends Component
             'overdueReturnsCount' => Rental::query()->overdueReturns()->count(),
             'priceEstimate' => $priceEstimate,
             'pricingPeriodOptions' => RentalPricingPeriod::cases(),
+            'activeCompany' => ActiveOperatingCompany::current(),
         ]);
     }
 
@@ -489,7 +503,7 @@ class RentalIndex extends Component
         $this->assetSuggestions = $matches->map(fn (Asset $asset) => [
             'id' => $asset->id,
             'codigo' => $asset->codigo_patrimonio,
-            'modelo' => $asset->equipmentModel->displayName(),
+            'modelo' => $asset->equipmentDisplayName(),
             'status' => $asset->statusEnum()->label(),
             'disponivel' => $asset->isAvailableForRental(),
         ])->all();
@@ -537,6 +551,20 @@ class RentalIndex extends Component
             'documento' => $customer->formattedDocument(),
             'telefone' => $customer->telefone,
         ])->all();
+    }
+
+    private function isCustomerRentalBlockError(Customer $customer, string $message): bool
+    {
+        if ($customer->isManuallyBlocked() || $customer->hasOverdueTitles()) {
+            return true;
+        }
+
+        $lower = mb_strtolower($message);
+
+        return str_contains($lower, 'bloqueado')
+            || str_contains($lower, 'crédito')
+            || str_contains($lower, 'inadimpl')
+            || str_contains($lower, 'atraso');
     }
 
     private function resetReserveForm(): void

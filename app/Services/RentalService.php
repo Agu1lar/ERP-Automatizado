@@ -11,10 +11,12 @@ use App\Enums\RentalStatus;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Fleet\Asset;
 use App\Models\Domain\Rental\Rental;
+use App\Models\Domain\Rental\RentalAssetSubstitution;
 use App\Models\Domain\Rental\RentalChecklist;
 use App\Models\User;
 use App\Support\RentalFichaBuilder;
 use Carbon\CarbonInterface;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -41,6 +43,8 @@ class RentalService
         private readonly AuditService $auditService,
         private readonly MaintenanceOrderService $maintenanceOrderService,
         private readonly RentalPricingService $rentalPricingService,
+        private readonly ReceivableTitleService $receivableTitleService,
+        private readonly RentalBillingService $rentalBillingService,
     ) {}
 
     public function reserve(
@@ -54,6 +58,10 @@ class RentalService
     ): Rental {
         $user ??= auth()->user();
 
+        if ($this->assetHasActiveRental($asset->id)) {
+            throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
+        }
+
         if (! $asset->isAvailableForRental()) {
             throw new InvalidArgumentException('Patrimônio não está disponível para reserva.');
         }
@@ -62,26 +70,43 @@ class RentalService
             throw new InvalidArgumentException('Cliente inativo não pode receber locação.');
         }
 
-        if (Rental::query()->where('asset_id', $asset->id)->active()->exists()) {
-            throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
-        }
+        $this->receivableTitleService->assertCustomerCanReceiveRental($customer);
 
         return DB::transaction(function () use ($asset, $customer, $expectedReturn, $observacoes, $user, $localObra, $pricingPeriod) {
+            $asset = Asset::query()->whereKey($asset->id)->lockForUpdate()->firstOrFail();
+
+            if ($this->assetHasActiveRental($asset->id)) {
+                throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
+            }
+
+            if (! $asset->isAvailableForRental()) {
+                throw new InvalidArgumentException('Patrimônio não está disponível para reserva.');
+            }
+
             $ficha = RentalFichaBuilder::prefillForReservation($asset, $customer);
 
-            $rental = Rental::create([
-                'codigo' => $this->generateCodigo(),
-                'asset_id' => $asset->id,
-                'customer_id' => $customer->id,
-                'status' => RentalStatus::Reservado->value,
-                'reserved_at' => now(),
-                'reserved_by' => $user?->id,
-                'expected_return_at' => $expectedReturn,
-                'observacoes' => $observacoes,
-                'horimetro_saida' => $ficha['horimetro_saida'],
-                'ficha_descricao' => $ficha['ficha_descricao'],
-                'local_obra' => filled($localObra) ? trim($localObra) : $ficha['local_obra'],
-            ]);
+            try {
+                $rental = Rental::create([
+                    'codigo' => $this->generateCodigo(),
+                    'asset_id' => $asset->id,
+                    'customer_id' => $customer->id,
+                    'status' => RentalStatus::Reservado->value,
+                    'reserved_at' => now(),
+                    'reserved_by' => $user?->id,
+                    'commercial_user_id' => $user?->id,
+                    'expected_return_at' => $expectedReturn,
+                    'observacoes' => $observacoes,
+                    'horimetro_saida' => $ficha['horimetro_saida'],
+                    'ficha_descricao' => $ficha['ficha_descricao'],
+                    'local_obra' => filled($localObra) ? trim($localObra) : $ficha['local_obra'],
+                ]);
+            } catch (QueryException $exception) {
+                if ($this->isActiveRentalUniqueViolation($exception)) {
+                    throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
+                }
+
+                throw $exception;
+            }
 
             $this->assetStatusService->transition(
                 $asset,
@@ -103,7 +128,11 @@ class RentalService
                 $this->rentalPricingService->applyToRental($rental->fresh(), $pricingPeriod);
             }
 
-            return $rental->fresh(['asset', 'customer']);
+            $rental = $rental->fresh(['asset', 'customer']);
+            $estimatedAmount = $rental->valor_faturamento !== null ? (float) $rental->valor_faturamento : null;
+            $this->receivableTitleService->assertCustomerCanReceiveRental($customer->fresh(), $estimatedAmount);
+
+            return $rental;
         });
     }
 
@@ -147,8 +176,10 @@ class RentalService
 
             $rental = $rental->fresh(['asset', 'customer', 'checklists.items']);
             $this->rentalPricingService->applyToRental($rental);
+            $rental = $rental->fresh(['asset', 'customer', 'checklists.items']);
+            $this->rentalBillingService->initializeOnCheckout($rental, $user);
 
-            return $rental->fresh(['asset', 'customer', 'checklists.items']);
+            return $rental->fresh(['asset', 'customer', 'checklists.items', 'receivableTitles', 'items', 'billingQueueEntries']);
         });
     }
 
@@ -233,6 +264,8 @@ class RentalService
                 $user,
             );
 
+            $this->rentalBillingService->markItemsReturned($rental);
+
             $this->auditService->log(
                 AuditAction::StatusChanged,
                 'Rental',
@@ -242,7 +275,7 @@ class RentalService
                 $user,
             );
 
-            return $rental->fresh(['asset', 'customer', 'checklists.items']);
+            return $rental->fresh(['asset', 'customer', 'checklists.items', 'items']);
         });
     }
 
@@ -300,6 +333,70 @@ class RentalService
         });
     }
 
+    public function completeInspectionWithIndemnity(
+        Rental $rental,
+        string $motivo,
+        float $valorIndenizacao,
+        ?User $user = null,
+    ): Rental {
+        $user ??= auth()->user();
+        $this->assertStatus($rental, RentalStatus::EmInspecao);
+
+        if (blank($motivo)) {
+            throw new InvalidArgumentException('Motivo obrigatório para indenização.');
+        }
+
+        if ($valorIndenizacao <= 0) {
+            throw new InvalidArgumentException('Valor de indenização deve ser maior que zero.');
+        }
+
+        return DB::transaction(function () use ($rental, $motivo, $valorIndenizacao, $user) {
+            $before = ['status' => $rental->status];
+
+            $rental->update([
+                'status' => RentalStatus::Concluido->value,
+                'completed_at' => now(),
+                'completed_by' => $user?->id,
+            ]);
+
+            $this->restoreOriginLocation($rental->fresh(), $user);
+
+            $this->assetStatusService->transition(
+                $rental->asset->fresh(),
+                AssetStatus::EmManutencao,
+                "Indenização — locação {$rental->codigo}",
+                $user,
+            );
+
+            $order = $this->maintenanceOrderService->open(
+                $rental->asset->fresh(),
+                $motivo,
+                MaintenanceOrderType::Indenizacao,
+                rental: $rental,
+                user: $user,
+            );
+
+            $this->rentalBillingService->queueIndemnity(
+                $rental->fresh(),
+                $valorIndenizacao,
+                "Indenização — OS {$order->codigo}: {$motivo}",
+                invoiceImmediately: true,
+                user: $user,
+            );
+
+            $this->auditService->log(
+                AuditAction::StatusChanged,
+                'Rental',
+                $rental->id,
+                $before,
+                ['status' => RentalStatus::Concluido->value, 'completed_at' => $rental->completed_at],
+                $user,
+            );
+
+            return $rental->fresh(['asset', 'customer', 'checklists.items', 'maintenanceOrders', 'receivableTitles', 'billingQueueEntries']);
+        });
+    }
+
     public function cancel(Rental $rental, string $reason, ?User $user = null): Rental
     {
         $user ??= auth()->user();
@@ -350,7 +447,7 @@ class RentalService
 
     private function generateCodigo(): string
     {
-        $next = (Rental::query()->max('id') ?? 0) + 1;
+        $next = (Rental::withoutGlobalScope('operating_company')->max('id') ?? 0) + 1;
 
         return 'LOC-'.str_pad((string) $next, 6, '0', STR_PAD_LEFT);
     }
@@ -447,5 +544,135 @@ class RentalService
             "Retorno ao pátio — locação {$rental->codigo}",
             $user,
         );
+    }
+
+    public function substituteAsset(
+        Rental $rental,
+        Asset $newAsset,
+        ?string $motivo = null,
+        ?User $user = null,
+    ): Rental {
+        $user ??= auth()->user();
+
+        if (! in_array($rental->statusEnum(), [RentalStatus::Reservado, RentalStatus::Locado], true)) {
+            throw new InvalidArgumentException('Substituição permitida apenas em locações reservadas ou locadas.');
+        }
+
+        if ($newAsset->id === $rental->asset_id) {
+            throw new InvalidArgumentException('Selecione um patrimônio diferente do atual.');
+        }
+
+        if (! $newAsset->isAvailableForRental()) {
+            throw new InvalidArgumentException('O patrimônio substituto não está disponível.');
+        }
+
+        if ($this->assetHasActiveRental($newAsset->id)) {
+            throw new InvalidArgumentException('O patrimônio substituto já possui locação ativa.');
+        }
+
+        return DB::transaction(function () use ($rental, $newAsset, $motivo, $user) {
+            $rental = Rental::query()->whereKey($rental->id)->lockForUpdate()->firstOrFail();
+            $oldAsset = $rental->asset->fresh();
+            $newAsset = Asset::query()->whereKey($newAsset->id)->lockForUpdate()->firstOrFail();
+
+            if (! $newAsset->isAvailableForRental()) {
+                throw new InvalidArgumentException('O patrimônio substituto não está disponível.');
+            }
+
+            $before = ['asset_id' => $rental->asset_id];
+
+            RentalAssetSubstitution::create([
+                'rental_id' => $rental->id,
+                'from_asset_id' => $oldAsset->id,
+                'to_asset_id' => $newAsset->id,
+                'motivo' => $motivo,
+                'substituted_by' => $user?->id,
+                'substituted_at' => now(),
+            ]);
+
+            $rental->update(['asset_id' => $newAsset->id]);
+
+            if ($rental->statusEnum() === RentalStatus::Reservado) {
+                $this->assetStatusService->transition($oldAsset, AssetStatus::Disponivel, "Substituído na reserva {$rental->codigo}", $user);
+                $this->assetStatusService->transition($newAsset, AssetStatus::Reservado, "Substituição na reserva {$rental->codigo}", $user);
+            } else {
+                $this->assetStatusService->transition(
+                    $oldAsset,
+                    AssetStatus::EmManutencaoCampo,
+                    $motivo ?: "Substituído na locação {$rental->codigo}",
+                    $user,
+                );
+                $this->assetStatusService->transition($newAsset, AssetStatus::Locado, "Substituição na locação {$rental->codigo}", $user);
+                $this->applyWorkSiteLocation($rental->fresh(), $user);
+            }
+
+            $this->auditService->log(
+                AuditAction::Updated,
+                'Rental',
+                $rental->id,
+                $before,
+                [
+                    'asset_id' => $newAsset->id,
+                    'from_asset_id' => $oldAsset->id,
+                    'motivo' => $motivo,
+                ],
+                $user,
+            );
+
+            $rental = $rental->fresh(['asset.equipmentModel.category', 'customer', 'assetSubstitutions.fromAsset', 'assetSubstitutions.toAsset']);
+            $this->rentalBillingService->syncActiveItem($rental, $user);
+
+            return $rental->fresh(['items']);
+        });
+    }
+
+    public function transferCommercialUser(Rental $rental, User $newUser, ?User $actor = null): Rental
+    {
+        $actor ??= auth()->user();
+
+        if ($rental->statusEnum() !== RentalStatus::Concluido) {
+            throw new InvalidArgumentException('Só é possível transferir a responsabilidade comercial após a conclusão da locação.');
+        }
+
+        if (! $newUser->isActive()) {
+            throw new InvalidArgumentException('O usuário selecionado está inativo.');
+        }
+
+        if ($rental->commercial_user_id === $newUser->id) {
+            throw new InvalidArgumentException('Este usuário já é o responsável comercial da locação.');
+        }
+
+        return DB::transaction(function () use ($rental, $newUser, $actor) {
+            $before = ['commercial_user_id' => $rental->commercial_user_id];
+
+            $rental->update(['commercial_user_id' => $newUser->id]);
+
+            $this->auditService->log(
+                AuditAction::Updated,
+                'Rental',
+                $rental->id,
+                $before,
+                ['commercial_user_id' => $newUser->id],
+                $actor,
+            );
+
+            return $rental->fresh(['commercialUser']);
+        });
+    }
+
+    private function assetHasActiveRental(int $assetId): bool
+    {
+        return Rental::query()
+            ->withoutGlobalScope('operating_company')
+            ->where('asset_id', $assetId)
+            ->active()
+            ->exists();
+    }
+
+    private function isActiveRentalUniqueViolation(QueryException $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'rentals_one_active_per_asset');
     }
 }

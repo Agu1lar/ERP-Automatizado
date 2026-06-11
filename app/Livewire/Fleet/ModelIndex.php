@@ -34,6 +34,14 @@ class ModelIndex extends Component
 
     public bool $ativo = true;
 
+    public ?int $template_model_id = null;
+
+    public bool $showInlineCategoryForm = false;
+
+    public string $inline_category_nome = '';
+
+    public string $inline_category_tipo_linha = 'linha_leve';
+
     public function mount(): void
     {
         $this->authorize('viewAny', EquipmentModel::class);
@@ -58,6 +66,58 @@ class ModelIndex extends Component
         $this->authorize('create', EquipmentModel::class);
         $this->resetForm();
         $this->showForm = true;
+    }
+
+    public function updatedTemplateModelId(?int $value): void
+    {
+        if (! $value) {
+            return;
+        }
+
+        $template = EquipmentModel::query()->find($value);
+
+        if (! $template) {
+            return;
+        }
+
+        $this->equipment_category_id = $template->equipment_category_id;
+        $this->marca = $template->marca;
+        $this->modelo = $template->modelo;
+        $this->especificacoes = $template->especificacoes
+            ? json_encode($template->especificacoes, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+            : '';
+    }
+
+    public function openInlineCategoryForm(): void
+    {
+        $this->authorize('create', EquipmentCategory::class);
+        $this->inline_category_nome = '';
+        $this->inline_category_tipo_linha = 'linha_leve';
+        $this->showInlineCategoryForm = true;
+    }
+
+    public function saveInlineCategory(): void
+    {
+        $this->authorize('create', EquipmentCategory::class);
+
+        $data = $this->validate([
+            'inline_category_nome' => 'required|string|max:255',
+            'inline_category_tipo_linha' => 'required|string|max:100',
+        ], [], [
+            'inline_category_nome' => 'nome da categoria',
+            'inline_category_tipo_linha' => 'tipo de linha',
+        ]);
+
+        $category = EquipmentCategory::create([
+            'nome' => $data['inline_category_nome'],
+            'tipo_linha' => $data['inline_category_tipo_linha'],
+            'ativo' => true,
+        ]);
+
+        $this->equipment_category_id = $category->id;
+        $this->showInlineCategoryForm = false;
+        $this->inline_category_nome = '';
+        session()->flash('success', 'Categoria criada e selecionada.');
     }
 
     public function edit(int $id): void
@@ -130,6 +190,10 @@ class ModelIndex extends Component
         $this->modelo = '';
         $this->especificacoes = '';
         $this->ativo = true;
+        $this->template_model_id = null;
+        $this->showInlineCategoryForm = false;
+        $this->inline_category_nome = '';
+        $this->inline_category_tipo_linha = 'linha_leve';
         $this->resetValidation();
     }
 
@@ -167,7 +231,21 @@ class ModelIndex extends Component
         }
 
         $categories = EquipmentCategory::where('ativo', true)->orderBy('nome')->get();
+        $templateModels = EquipmentModel::query()
+            ->with('category')
+            ->where('ativo', true)
+            ->orderBy('marca')
+            ->orderBy('modelo')
+            ->get();
+        $existingBrands = EquipmentModel::query()->distinct()->orderBy('marca')->pluck('marca');
+        $existingModelNames = EquipmentModel::query()->distinct()->orderBy('modelo')->pluck('modelo');
 
-        return view('livewire.fleet.model-index', compact('models', 'categories'));
+        return view('livewire.fleet.model-index', compact(
+            'models',
+            'categories',
+            'templateModels',
+            'existingBrands',
+            'existingModelNames',
+        ));
     }
 }

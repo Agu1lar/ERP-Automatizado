@@ -35,6 +35,10 @@ class CustomerIndex extends Component
 
     public bool $ativo = true;
 
+    public bool $bloqueado = false;
+
+    public string $motivo_bloqueio = '';
+
     public function mount(): void
     {
         $this->authorize('viewAny', Customer::class);
@@ -65,7 +69,16 @@ class CustomerIndex extends Component
         $this->email = $customer->email ?? '';
         $this->endereco = $customer->endereco ?? '';
         $this->ativo = $customer->ativo;
+        $this->bloqueado = $customer->bloqueado;
+        $this->motivo_bloqueio = $customer->motivo_bloqueio ?? '';
         $this->showForm = true;
+    }
+
+    public function updatedBloqueado(bool $value): void
+    {
+        if (! $value) {
+            $this->motivo_bloqueio = '';
+        }
     }
 
     public function save(): void
@@ -78,9 +91,13 @@ class CustomerIndex extends Component
             'email' => 'nullable|email|max:255',
             'endereco' => 'nullable|string',
             'ativo' => 'boolean',
+            'bloqueado' => 'boolean',
+            'motivo_bloqueio' => 'required_if:bloqueado,true|nullable|string|max:2000',
         ]);
 
         $data['cpf_cnpj'] = preg_replace('/\D/', '', $data['cpf_cnpj']);
+        $data['motivo_bloqueio'] = filled($data['motivo_bloqueio'] ?? null) ? trim($data['motivo_bloqueio']) : null;
+        Customer::applyManualBlockPayload($data);
 
         if ($this->editingId) {
             $customer = Customer::findOrFail($this->editingId);
@@ -88,7 +105,10 @@ class CustomerIndex extends Component
             $customer->update($data);
         } else {
             $this->authorize('create', Customer::class);
-            Customer::create($data);
+            Customer::create([
+                ...$data,
+                'created_by' => auth()->id(),
+            ]);
         }
 
         $this->resetForm();
@@ -111,6 +131,8 @@ class CustomerIndex extends Component
         $this->email = '';
         $this->endereco = '';
         $this->ativo = true;
+        $this->bloqueado = false;
+        $this->motivo_bloqueio = '';
         $this->resetValidation();
     }
 

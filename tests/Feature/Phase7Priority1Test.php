@@ -28,6 +28,20 @@ class Phase7Priority1Test extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
+    public function test_nova_os_button_opens_form_on_operational_panel(): void
+    {
+        $gestor = $this->userWithRole(UserRole::Gestor);
+        $this->actingAs($gestor);
+
+        Livewire::test(\App\Livewire\Maintenance\MaintenanceOrderIndex::class)
+            ->assertSet('activeView', 'painel')
+            ->call('openForm')
+            ->assertSet('showForm', true)
+            ->assertSee('Nova ordem de serviço')
+            ->call('cancelForm')
+            ->assertSet('showForm', false);
+    }
+
     public function test_smart_os_opening_finds_asset_by_code(): void
     {
         $gestor = $this->userWithRole(UserRole::Gestor);

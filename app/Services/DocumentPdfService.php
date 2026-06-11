@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Enums\CustomFieldEntity;
 use App\Enums\DocumentType;
 use App\Models\Domain\Fleet\Asset;
+use App\Support\BrandContext;
 use App\Support\FichaCompleteness;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
+use App\Models\Domain\Rental\RentalBillingQueueEntry;
 use Barryvdh\DomPDF\PDF;
 use Illuminate\Support\Facades\Storage;
 
@@ -49,7 +51,8 @@ class DocumentPdfService
     {
         $rental->load([
             'asset.equipmentModel.category',
-            'customer',
+            'customer.createdByUser',
+            'commercialUser',
             'reservedByUser',
             'checkoutByUser',
             'returnedByUser',
@@ -71,6 +74,48 @@ class DocumentPdfService
                 ),
             ],
             "{$rental->codigo}.pdf",
+        );
+    }
+
+    public function rentalContract(Rental $rental): PDF
+    {
+        $rental->load([
+            'asset.equipmentModel.category',
+            'customer',
+            'commercialUser',
+            'checkoutByUser',
+            'assetSubstitutions.fromAsset',
+            'assetSubstitutions.toAsset',
+        ]);
+
+        return $this->render(
+            DocumentType::RentalContract,
+            [
+                'rental' => $rental,
+                'generatedAt' => now(),
+                'clauses' => config('documents.rental_contract_clauses', []),
+            ],
+            "{$rental->codigo}-contrato.pdf",
+        );
+    }
+
+    public function billingInvoice(RentalBillingQueueEntry $entry): PDF
+    {
+        $entry->load([
+            'customer',
+            'rental.asset.equipmentModel.category',
+            'rental.operatingCompany',
+            'receivableTitle',
+            'operatingCompany',
+        ]);
+
+        return $this->render(
+            DocumentType::BillingInvoice,
+            [
+                'entry' => $entry,
+                'generatedAt' => now(),
+            ],
+            "fatura-{$entry->codigo}.pdf",
         );
     }
 
@@ -98,28 +143,71 @@ class DocumentPdfService
     /** @param array<string, mixed> $data */
     private function render(DocumentType $type, array $data, string $filename): PDF
     {
+        $company = $this->resolveCompanyData($data);
+
         $viewData = array_merge($data, [
-            'company' => $this->companyData(),
+            'company' => $company,
             'documentTitle' => $type->label(),
-            'logoBase64' => $this->logoBase64(),
+            'logoBase64' => $this->logoBase64($company['logo_path'] ?? null),
         ]);
 
-        return app('dompdf.wrapper')
+        $pdf = app('dompdf.wrapper')
             ->loadView($type->template(), $viewData)
-            ->setPaper('a4', 'portrait')
             ->setOption('isRemoteEnabled', false)
             ->setOption('defaultFont', 'DejaVu Sans');
+
+        $paper = config("documents.paper.{$type->value}", [
+            'format' => 'a4',
+            'orientation' => 'portrait',
+        ]);
+
+        if (isset($paper['width_mm'], $paper['height_mm'])) {
+            $pdf->setPaper([
+                0,
+                0,
+                $this->mmToPoints((float) $paper['width_mm']),
+                $this->mmToPoints((float) $paper['height_mm']),
+            ]);
+        } else {
+            $pdf->setPaper($paper['format'] ?? 'a4', $paper['orientation'] ?? 'portrait');
+        }
+
+        return $pdf;
     }
 
+    private function mmToPoints(float $mm): float
+    {
+        return $mm * 72 / 25.4;
+    }
+
+    /** @param array<string, mixed> $data */
     /** @return array<string, string|null> */
-    private function companyData(): array
+    private function resolveCompanyData(array $data): array
     {
-        return config('documents.company', []);
+        foreach (['entry', 'rental', 'order', 'asset'] as $key) {
+            if (! isset($data[$key]) || ! is_object($data[$key])) {
+                continue;
+            }
+
+            $model = $data[$key];
+
+            if (! method_exists($model, 'operatingCompany')) {
+                continue;
+            }
+
+            $model->loadMissing('operatingCompany');
+
+            if ($model->operatingCompany) {
+                return $model->operatingCompany->documentHeader();
+            }
+        }
+
+        return BrandContext::documentHeader();
     }
 
-    private function logoBase64(): ?string
+    private function logoBase64(?string $path = null): ?string
     {
-        $path = config('documents.company.logo_path');
+        $path ??= config('documents.company.logo_path');
 
         if (blank($path)) {
             return null;

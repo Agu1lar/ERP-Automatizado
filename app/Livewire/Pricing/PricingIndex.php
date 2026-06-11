@@ -6,8 +6,10 @@ use App\Enums\RentalPricingPeriod;
 use App\Models\Domain\Fleet\EquipmentCategory;
 use App\Models\Domain\Fleet\EquipmentModel;
 use App\Models\Domain\Fleet\EquipmentPricing;
+use App\Services\EquipmentPricingService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use InvalidArgumentException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -16,6 +18,13 @@ use Livewire\WithPagination;
 class PricingIndex extends Component
 {
     use AuthorizesRequests, WithPagination;
+
+    public string $viewMode = 'categories';
+
+    public string $categorySearch = '';
+
+    /** @var array<int, array<string, string>> */
+    public array $categoryGrid = [];
 
     public string $search = '';
 
@@ -37,9 +46,15 @@ class PricingIndex extends Component
 
     public bool $ativo = true;
 
-    public function mount(): void
+    public function mount(EquipmentPricingService $pricingService): void
     {
         $this->authorize('viewAny', EquipmentPricing::class);
+        $this->loadCategoryGrid($pricingService);
+    }
+
+    public function updatedCategorySearch(): void
+    {
+        //
     }
 
     public function updatedSearch(): void
@@ -52,11 +67,57 @@ class PricingIndex extends Component
         $this->resetPage();
     }
 
+    public function setViewMode(string $mode): void
+    {
+        if (! in_array($mode, ['categories', 'advanced'], true)) {
+            return;
+        }
+
+        $this->viewMode = $mode;
+
+        if ($mode === 'categories') {
+            $this->loadCategoryGrid(app(EquipmentPricingService::class));
+        }
+    }
+
+    public function saveCategoryRow(int $categoryId, EquipmentPricingService $pricingService): void
+    {
+        $this->authorize('create', EquipmentPricing::class);
+
+        try {
+            $pricingService->syncCategoryPrices($categoryId, $this->categoryGrid[$categoryId] ?? []);
+        } catch (InvalidArgumentException $exception) {
+            $this->addError('categoryGrid.'.$categoryId, $exception->getMessage());
+
+            return;
+        }
+
+        $this->loadCategoryGrid($pricingService);
+        session()->flash('success', 'Preços da categoria atualizados.');
+    }
+
+    public function saveAllCategoryPrices(EquipmentPricingService $pricingService): void
+    {
+        $this->authorize('create', EquipmentPricing::class);
+
+        try {
+            $pricingService->syncAllCategoryPrices($this->categoryGrid);
+        } catch (InvalidArgumentException $exception) {
+            $this->addError('categoryGrid', $exception->getMessage());
+
+            return;
+        }
+
+        $this->loadCategoryGrid($pricingService);
+        session()->flash('success', 'Tabela de preços por categoria salva.');
+    }
+
     public function create(): void
     {
         $this->authorize('create', EquipmentPricing::class);
         $this->resetForm();
         $this->showForm = true;
+        $this->viewMode = 'advanced';
     }
 
     public function edit(int $id): void
@@ -72,9 +133,10 @@ class PricingIndex extends Component
         $this->valor = (string) $pricing->valor;
         $this->ativo = $pricing->ativo;
         $this->showForm = true;
+        $this->viewMode = 'advanced';
     }
 
-    public function save(): void
+    public function save(EquipmentPricingService $pricingService): void
     {
         $rules = [
             'target_type' => 'required|in:model,category',
@@ -109,6 +171,7 @@ class PricingIndex extends Component
         }
 
         $this->resetForm();
+        $this->loadCategoryGrid($pricingService);
         session()->flash('success', 'Preço salvo com sucesso.');
     }
 
@@ -117,7 +180,7 @@ class PricingIndex extends Component
         $this->resetForm();
     }
 
-    public function render(): View
+    public function render(EquipmentPricingService $pricingService): View
     {
         $pricings = EquipmentPricing::query()
             ->with(['equipmentModel.category', 'category'])
@@ -134,12 +197,30 @@ class PricingIndex extends Component
             ->orderBy('periodo')
             ->paginate(25);
 
+        $categoryRows = $pricingService->categoryGrid()
+            ->when($this->categorySearch, function ($rows) {
+                $term = mb_strtolower($this->categorySearch);
+
+                return $rows->filter(
+                    fn (array $row) => str_contains(mb_strtolower($row['category']->nome), $term)
+                );
+            })
+            ->values();
+
         return view('livewire.pricing.pricing-index', [
             'pricings' => $pricings,
+            'categoryRows' => $categoryRows,
             'periodOptions' => RentalPricingPeriod::cases(),
             'models' => EquipmentModel::query()->with('category')->where('ativo', true)->orderBy('marca')->get(),
             'categories' => EquipmentCategory::query()->where('ativo', true)->orderBy('nome')->get(),
         ]);
+    }
+
+    private function loadCategoryGrid(EquipmentPricingService $pricingService): void
+    {
+        $this->categoryGrid = $pricingService->categoryGrid()
+            ->mapWithKeys(fn (array $row) => [$row['category']->id => $row['prices']])
+            ->all();
     }
 
     private function resetForm(): void

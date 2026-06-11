@@ -36,6 +36,12 @@
                 <td class="label">Previsão retorno</td>
                 <td class="value">{{ $rental->expected_return_at?->format('d/m/Y') ?? '—' }}</td>
             </tr>
+            <tr>
+                <td class="label">Responsável comercial</td>
+                <td class="value">{{ $rental->commercialUser?->name ?? '—' }}</td>
+                <td class="label">Cliente cadastrado por</td>
+                <td class="value">{{ $rental->customer->createdByUser?->name ?? '—' }}</td>
+            </tr>
             @if($rental->local_obra)
             <tr>
                 <td class="label">Local da obra</td>
@@ -145,12 +151,12 @@
     <table class="signatures">
         <tr>
             <td><div class="sign-line">Cliente</div></td>
-            <td><div class="sign-line">Responsável Linha Leve</div></td>
+            <td><div class="sign-line">Responsável {{ $company['name'] ?? config('app.name') }}</div></td>
         </tr>
     </table>
 
     <div class="footer">
-        Documento gerado em {{ $generatedAt->format('d/m/Y H:i') }} — {{ $company['name'] ?? 'Linha Leve' }}
+        Documento gerado em {{ $generatedAt->format('d/m/Y H:i') }} — {{ \App\Support\BrandContext::documentFooter($company) }}
     </div>
 </div>
 </body>

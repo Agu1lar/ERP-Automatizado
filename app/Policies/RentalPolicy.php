@@ -2,6 +2,8 @@
 
 namespace App\Policies;
 
+use App\Enums\RentalStatus;
+use App\Enums\UserRole;
 use App\Models\Domain\Rental\Rental;
 use App\Models\User;
 
@@ -38,5 +40,16 @@ class RentalPolicy
             || $user->can('rentals.operate')
             || $user->can('rentals.reserve')
             || $user->can('customers.manage');
+    }
+
+    public function transferCommercialUser(User $user, Rental $rental): bool
+    {
+        return $rental->status === RentalStatus::Concluido->value
+            && $user->hasAnyRole([UserRole::Admin->value, UserRole::Gestor->value]);
+    }
+
+    public function manageAttachments(User $user, Rental $rental): bool
+    {
+        return $user->can('updateFicha', $rental);
     }
 }

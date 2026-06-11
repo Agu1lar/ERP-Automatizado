@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\AssetStatus;
+use App\Enums\MaintenanceOrderStatus;
 use App\Enums\MaintenanceOrderType;
 use App\Enums\RentalStatus;
 use App\Enums\UserRole;
@@ -10,8 +11,12 @@ use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Fleet\Asset;
 use App\Models\Domain\Fleet\EquipmentCategory;
 use App\Models\Domain\Fleet\EquipmentModel;
+use App\Models\Domain\Finance\ReceivableTitle;
 use App\Models\Domain\Fleet\EquipmentPricing;
 use App\Enums\RentalPricingPeriod;
+use App\Enums\ReceivableTitleStatus;
+use App\Services\ReceivableTitleService;
+use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Maintenance\PartCatalogItem;
 use App\Models\Domain\Rental\Rental;
 use App\Models\User;
@@ -96,6 +101,8 @@ class LargeDemoSeeder extends Seeder
     $this->seedPricing();
     $this->seedPartCatalog();
     $this->seedRentals($admin, $customers, $assets);
+    $this->seedReceivableTitles();
+    $this->seedFinancialAnalysisHistory($admin);
 
     $this->command?->info(sprintf(
       'Demo: %d clientes, %d patrimônios, %d locações (%d locadas).',
@@ -146,6 +153,7 @@ class LargeDemoSeeder extends Seeder
         'email' => 'contato'.($index + 1).'@demo-cliente.com.br',
         'endereco' => 'Rua Demo '.($index + 1).', '.$data['cidade'].' — SP',
         'ativo' => true,
+        'created_by' => User::query()->where('email', 'admin@acesso.local')->value('id'),
       ]);
     }
 
@@ -295,6 +303,36 @@ class LargeDemoSeeder extends Seeder
 
   }
 
+  private function seedReceivableTitles(): void
+  {
+    $service = app(ReceivableTitleService::class);
+
+    Rental::query()
+      ->whereNotNull('valor_faturamento')
+      ->where('valor_faturamento', '>', 0)
+      ->whereDoesntHave('receivableTitles')
+      ->each(function (Rental $rental) use ($service) {
+        try {
+          $service->generateForRental($rental);
+        } catch (\InvalidArgumentException) {
+          // já possui títulos ou sem valor
+        }
+      });
+
+    ReceivableTitle::query()
+      ->open()
+      ->inRandomOrder()
+      ->limit(10)
+      ->get()
+      ->each(function (ReceivableTitle $title, int $index) {
+        if ($index < 6) {
+          $title->update(['vencimento' => now()->subDays(rand(5, 85))->toDateString()]);
+        }
+      });
+
+    Customer::query()->skip(5)->limit(3)->update(['limite_credito' => 15000]);
+  }
+
   private function seedPartCatalog(): void
   {
     $parts = [
@@ -427,8 +465,9 @@ class LargeDemoSeeder extends Seeder
         $admin,
       );
 
-      $checkoutAt = now()->subDays(rand(20, 60));
-      $returnAt = $checkoutAt->copy()->addDays(rand(3, 15));
+      $completedAt = now()->subDays(1 + ($i % 89));
+      $returnAt = $completedAt->copy()->subHours(rand(2, 48));
+      $checkoutAt = $returnAt->copy()->subDays(rand(3, 15));
 
       $rental = $rentalService->checkout($rental, $saidaChecked, null, $admin);
       $rental->update(['checkout_at' => $checkoutAt]);
@@ -439,8 +478,77 @@ class LargeDemoSeeder extends Seeder
       $rental = $rentalService->completeInspection($rental, false, null, $admin);
       $rental->update([
         'valor_faturamento' => $valorBase[($i + 2) % count($valorBase)],
-        'completed_at' => $returnAt->copy()->addHours(rand(2, 48)),
+        'completed_at' => $completedAt,
       ]);
+    }
+  }
+
+  private function seedFinancialAnalysisHistory(User $admin): void
+  {
+    $maintenanceService = app(MaintenanceOrderService::class);
+    $parts = PartCatalogItem::query()->where('ativo', true)->get();
+
+    if ($parts->isEmpty()) {
+      return;
+    }
+
+    $completedRentals = Rental::query()
+      ->where('status', RentalStatus::Concluido->value)
+      ->with('asset.equipmentModel')
+      ->orderBy('id')
+      ->get()
+      ->unique('asset_id');
+
+    $byCategory = $completedRentals->groupBy(
+      fn (Rental $rental) => $rental->asset->equipmentModel->equipment_category_id,
+    );
+
+    $dayOffset = 2;
+
+    foreach ($byCategory as $rentals) {
+      foreach ($rentals->take(3) as $rental) {
+        $asset = $rental->asset->fresh();
+
+        if ($asset->status !== AssetStatus::Disponivel->value) {
+          continue;
+        }
+
+        if (MaintenanceOrder::query()
+          ->where('asset_id', $asset->id)
+          ->where('status', '!=', MaintenanceOrderStatus::Cancelada->value)
+          ->whereNull('completed_at')
+          ->exists()) {
+          continue;
+        }
+
+        try {
+          $order = $maintenanceService->open(
+            $asset,
+            'Revisão pós-locação (demo análise financeira)',
+            MaintenanceOrderType::Corretiva,
+            user: $admin,
+          );
+          $maintenanceService->start($order, $admin);
+
+          $part = $parts[$dayOffset % $parts->count()];
+          $maintenanceService->addPart(
+            $order,
+            $part->descricao,
+            (float) rand(1, 3),
+            $part->codigo_peca,
+            (float) $part->valor_unitario_padrao,
+          );
+
+          $maintenanceService->complete($order->fresh(), 'Concluída para demonstração.', $admin);
+          $order->fresh()->update([
+            'completed_at' => now()->subDays($dayOffset % 88 + 1),
+          ]);
+
+          $dayOffset += 11;
+        } catch (\InvalidArgumentException) {
+          continue;
+        }
+      }
     }
   }
 

@@ -28,6 +28,14 @@ new #[Layout('layouts.guest')] class extends Component
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
+    @if(app()->environment('local'))
+        <div class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+            <p class="font-medium">Acesso local (após <code class="text-xs">php artisan db:seed</code>)</p>
+            <p class="mt-1"><strong>E-mail:</strong> admin@acesso.local</p>
+            <p><strong>Senha:</strong> Acesso@2026</p>
+        </div>
+    @endif
+
     <form wire:submit="login">
         <!-- Email Address -->
         <div>

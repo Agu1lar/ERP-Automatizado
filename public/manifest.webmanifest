@@ -1,0 +1,18 @@
+{
+  "name": "Gestão Acesso — Pátio",
+  "short_name": "Pátio",
+  "description": "Scan QR e checklist de saída/retorno no pátio",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

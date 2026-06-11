@@ -86,6 +86,27 @@ class AssetShow extends Component
         $this->redirect(route('maintenance.show', $order), navigate: true);
     }
 
+    public function openCorrectiveOrder(): void
+    {
+        $this->authorize('create', MaintenanceOrder::class);
+
+        if (MaintenanceOrder::query()->where('asset_id', $this->asset->id)->open()->exists()) {
+            session()->flash('error', 'Este patrimônio já possui OS aberta.');
+
+            return;
+        }
+
+        $order = app(MaintenanceOrderService::class)->open(
+            $this->asset,
+            'Manutenção corretiva aberta pela ficha do patrimônio',
+            \App\Enums\MaintenanceOrderType::Corretiva,
+        );
+
+        $this->loadAsset($this->asset->fresh());
+        session()->flash('success', "OS corretiva {$order->codigo} aberta.");
+        $this->redirect(route('maintenance.show', $order), navigate: true);
+    }
+
     public function saveFicha(): void
     {
         $this->authorize('update', $this->asset);

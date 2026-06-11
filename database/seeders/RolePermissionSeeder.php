@@ -24,11 +24,15 @@ class RolePermissionSeeder extends Seeder
         'fleet.assets.attachments',
         'customers.view',
         'customers.manage',
+        'people.view',
+        'people.manage',
         'rentals.view',
         'rentals.reserve',
         'rentals.operate',
         'pricing.view',
         'pricing.manage',
+        'finance.view',
+        'finance.manage',
         'maintenance.view',
         'maintenance.manage',
         'maintenance.operate',
@@ -37,7 +41,9 @@ class RolePermissionSeeder extends Seeder
         'records.edit',
         'admin.users.view',
         'admin.users.manage',
+        'admin.companies.manage',
         'audit.view',
+        'agent.api',
     ];
 
     public function run(): void
@@ -54,8 +60,10 @@ class RolePermissionSeeder extends Seeder
             'fleet.models.view',
             'fleet.assets.view',
             'customers.view',
+            'people.view',
             'rentals.view',
             'pricing.view',
+            'finance.view',
             'maintenance.view',
         ];
 
@@ -64,6 +72,7 @@ class RolePermissionSeeder extends Seeder
             ...$viewAll,
             'dashboard.analytics',
             'customers.manage',
+            'people.manage',
             'rentals.reserve',
             'rentals.operate',
             'maintenance.operate',
@@ -78,10 +87,12 @@ class RolePermissionSeeder extends Seeder
             UserRole::Gestor->value => [
                 ...$operationalBase,
                 'pricing.manage',
+                'finance.manage',
                 'custom_fields.manage',
                 'custom_fields.hide',
                 'maintenance.manage',
                 'audit.view',
+                'agent.api',
             ],
 
             UserRole::Comercial->value => $operationalBase,

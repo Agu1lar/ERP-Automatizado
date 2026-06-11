@@ -48,6 +48,27 @@
                             <input wire:model="ativo" type="checkbox" class="rounded border-gray-300" />
                             <span class="text-sm">Ativo</span>
                         </label>
+
+                        <div class="rounded-lg border border-red-100 bg-red-50/40 p-4 space-y-3">
+                            <p class="text-xs text-red-700">Bloqueio manual — decisão do comercial ou gestor. Inadimplência não bloqueia automaticamente.</p>
+                            <label class="flex items-center gap-2">
+                                <input wire:model.live="bloqueado" type="checkbox" class="rounded border-red-300 text-red-600" />
+                                <span class="text-sm font-medium text-red-800">Cliente bloqueado</span>
+                            </label>
+                            @if($bloqueado)
+                                <div>
+                                    <label class="block text-sm font-medium text-red-800">Justificativa do bloqueio *</label>
+                                    <textarea
+                                        wire:model="motivo_bloqueio"
+                                        rows="3"
+                                        class="mt-1 w-full rounded-md border-red-200 shadow-sm text-sm"
+                                        placeholder="Ex.: Inadimplência das parcelas 3 e 4 (venc. 15/03/2026) · Nome no SPC"
+                                    ></textarea>
+                                    @error('motivo_bloqueio') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                                </div>
+                            @endif
+                        </div>
+
                         <div class="flex gap-2">
                             <x-btn-primary type="submit">Salvar</x-btn-primary>
                             <x-btn-secondary type="button" wire:click="cancel">Cancelar</x-btn-secondary>
@@ -69,13 +90,27 @@
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                         @foreach($customers as $customer)
-                            <tr>
-                                <td class="px-4 py-3 text-sm font-medium">
-                                    <a href="{{ route('customers.show', $customer) }}" wire:navigate data-tab-title="{{ $customer->nome }}" class="text-indigo-600 hover:underline">{{ $customer->nome }}</a>
+                            <tr @class(['bg-red-50/40' => $customer->isBlockedForDisplay()])>
+                                <td class="px-4 py-3 text-sm">
+                                    <x-customer-blocked-name
+                                        :name="$customer->nome"
+                                        :blocked="$customer->isBlockedForDisplay()"
+                                        :reason="$customer->rentalBlockReason()"
+                                        :href="route('customers.show', $customer)"
+                                        :tab-title="$customer->nome"
+                                    />
                                 </td>
                                 <td class="px-4 py-3 text-sm">{{ $customer->formattedDocument() }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $customer->telefone ?? '—' }}</td>
-                                <td class="px-4 py-3 text-sm">{{ $customer->ativo ? 'Ativo' : 'Inativo' }}</td>
+                                <td class="px-4 py-3 text-sm">
+                                    @if($customer->isManuallyBlocked())
+                                        <span class="text-red-700 font-medium">Bloqueado</span>
+                                    @elseif($customer->isBlockedForDisplay())
+                                        <span class="text-amber-700">Inadimplente</span>
+                                    @else
+                                        {{ $customer->ativo ? 'Ativo' : 'Inativo' }}
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-right">
                                     @can('update', $customer)
                                         <button wire:click="edit({{ $customer->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
