@@ -34,12 +34,19 @@ class RentalIndex extends Component
 
     public string $search = '';
 
+    #[Url(as: 'q')]
+    public string $searchQuery = '';
+
+    #[Url(as: 'status')]
     public string $statusFilter = '';
 
+    #[Url(as: 'busca')]
     public string $panelSearch = '';
 
+    #[Url(as: 'escopo')]
     public string $panelStatusScope = 'locado';
 
+    #[Url(as: 'categoria')]
     public string $panelCategoryId = '';
 
     public string $panelCustomerId = '';
@@ -104,6 +111,10 @@ class RentalIndex extends Component
     public function mount(): void
     {
         $this->authorize('viewAny', Rental::class);
+
+        if ($this->searchQuery !== '' && $this->search === '') {
+            $this->search = $this->searchQuery;
+        }
 
         if (! in_array($this->activeView, ['painel', 'lista'], true)) {
             $this->activeView = 'painel';

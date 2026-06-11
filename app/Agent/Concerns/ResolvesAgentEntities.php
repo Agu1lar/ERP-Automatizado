@@ -6,6 +6,9 @@ use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Fleet\Asset;
 use App\Models\Domain\Rental\Rental;
 use App\Models\Domain\Rental\RentalBillingQueueEntry;
+use App\Models\Domain\Rental\RentalQuote;
+use App\Models\Domain\Person\Company;
+use App\Models\Domain\Person\Person;
 use App\Models\Domain\Finance\ReceivableTitle;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use InvalidArgumentException;
@@ -138,5 +141,157 @@ trait ResolvesAgentEntities
     }
 
     throw new InvalidArgumentException('Informe order_id ou order_codigo.');
+  }
+
+  /** @param  array<string, mixed>  $input */
+  protected function resolveQuote(array $input): RentalQuote
+  {
+    if (! empty($input['quote_id'])) {
+      return RentalQuote::query()->findOrFail((int) $input['quote_id']);
+    }
+
+    if (! empty($input['quote_codigo'])) {
+      $quote = RentalQuote::query()->where('codigo', $input['quote_codigo'])->first();
+
+      if ($quote) {
+        return $quote;
+      }
+    }
+
+    throw new InvalidArgumentException('Informe quote_id ou quote_codigo.');
+  }
+
+  /** @param  array<string, mixed>  $input */
+  protected function resolvePerson(array $input): Person
+  {
+    if (! empty($input['person_id'])) {
+      return Person::query()->findOrFail((int) $input['person_id']);
+    }
+
+    $digits = preg_replace('/\D/', '', (string) ($input['person_cpf'] ?? ''));
+
+    if ($digits !== '') {
+      $person = Person::query()->where('cpf', $digits)->first();
+
+      if ($person) {
+        return $person;
+      }
+    }
+
+    throw new InvalidArgumentException('Informe person_id ou person_cpf.');
+  }
+
+  /** @param  array<string, mixed>  $input */
+  protected function resolveCompany(array $input): Company
+  {
+    if (! empty($input['company_id'])) {
+      return Company::query()->findOrFail((int) $input['company_id']);
+    }
+
+    $digits = preg_replace('/\D/', '', (string) ($input['company_cnpj'] ?? ''));
+
+    if ($digits !== '') {
+      $company = Company::query()->where('cnpj', $digits)->first();
+
+      if ($company) {
+        return $company;
+      }
+    }
+
+    throw new InvalidArgumentException('Informe company_id ou company_cnpj.');
+  }
+
+  /** @param  array<string, mixed>  $input @return list<array{type: string, id: int}> */
+  protected function affectedResourcesForRental(array $input): array
+  {
+    try {
+      $rental = $this->resolveRental($input);
+      $resources = [['type' => 'rental', 'id' => $rental->id]];
+
+      if ($rental->asset_id) {
+        $resources[] = ['type' => 'asset', 'id' => (int) $rental->asset_id];
+      }
+
+      return $resources;
+    } catch (\Throwable) {
+      return [];
+    }
+  }
+
+  /** @param  array<string, mixed>  $input @return list<array{type: string, id: int}> */
+  protected function affectedResourcesForMaintenanceOrder(array $input): array
+  {
+    try {
+      $order = $this->resolveMaintenanceOrder($input);
+      $resources = [['type' => 'maintenance_order', 'id' => $order->id]];
+
+      if ($order->asset_id) {
+        $resources[] = ['type' => 'asset', 'id' => (int) $order->asset_id];
+      }
+
+      if ($order->rental_id) {
+        $resources[] = ['type' => 'rental', 'id' => (int) $order->rental_id];
+      }
+
+      return $resources;
+    } catch (\Throwable) {
+      return [];
+    }
+  }
+
+  /** @param  array<string, mixed>  $input @return list<array{type: string, id: int}> */
+  protected function affectedResourcesForBillingEntry(array $input): array
+  {
+    try {
+      $entry = $this->resolveBillingEntry($input);
+      $resources = [['type' => 'billing_entry', 'id' => $entry->id]];
+
+      if ($entry->rental_id) {
+        $resources[] = ['type' => 'rental', 'id' => (int) $entry->rental_id];
+      }
+
+      return $resources;
+    } catch (\Throwable) {
+      return [];
+    }
+  }
+
+  /** @param  array<string, mixed>  $input @return list<array{type: string, id: int}> */
+  protected function affectedResourcesForReceivableTitle(array $input): array
+  {
+    try {
+      $title = $this->resolveReceivableTitle($input);
+      $resources = [['type' => 'receivable_title', 'id' => $title->id]];
+
+      if ($title->customer_id) {
+        $resources[] = ['type' => 'customer', 'id' => (int) $title->customer_id];
+      }
+
+      if ($title->rental_id) {
+        $resources[] = ['type' => 'rental', 'id' => (int) $title->rental_id];
+      }
+
+      return $resources;
+    } catch (\Throwable) {
+      return [];
+    }
+  }
+
+  /** @param  array<string, mixed>  $input @return list<array{type: string, id: int}> */
+  protected function affectedResourcesForAssetOpenMaintenance(array $input): array
+  {
+    try {
+      $asset = $this->resolveAsset($input);
+      $resources = [['type' => 'asset', 'id' => $asset->id]];
+
+      if (! empty($input['rental_id']) || ! empty($input['rental_codigo'])) {
+        $rental = $this->resolveRental($input);
+        $resources[] = ['type' => 'rental', 'id' => $rental->id];
+      }
+
+      return $resources;
+    } catch (\Throwable) {
+      return [];
+    }
   }
 }

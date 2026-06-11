@@ -4,9 +4,12 @@ namespace App\Agent;
 
 use App\Enums\RentalBillingQueueStatus;
 use App\Models\Domain\Customer\Customer;
+use App\Models\Domain\Finance\ReceivableTitle;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
+use App\Models\Domain\Rental\RentalQuote;
 use App\Services\ReceivableTitleService;
+use App\Support\CopilotNavigationLinks;
 use App\Support\DelinquencyReportQuery;
 use App\Support\FinanceDashboardQuery;
 use App\Support\RentalWorkflow;
@@ -132,6 +135,66 @@ class AgentContextBuilder
   }
 
   /** @return array<string, mixed> */
+  public function asset(\App\Models\Domain\Fleet\Asset $asset): array
+  {
+    $asset->load([
+      'equipmentModel.category',
+      'yard',
+    ]);
+
+    $status = $asset->statusEnum();
+    $activeRental = $asset->activeRental()?->load('customer');
+    $activeOrder = $asset->activeMaintenanceOrder();
+    $category = $asset->equipmentModel?->category;
+
+    return [
+      'entity' => 'asset',
+      'asset' => [
+        'id' => $asset->id,
+        'codigo_patrimonio' => $asset->codigo_patrimonio,
+        'equipamento' => $asset->equipmentDisplayName(),
+        'categoria' => $category?->nome ?? '—',
+        'status' => $status->value,
+        'status_label' => $status->label(),
+        'localizacao' => $asset->localizacao ?? '—',
+        'yard' => $asset->yard?->nome,
+        'horimetro' => $asset->horimetro,
+      ],
+      'active_rental' => $activeRental ? [
+        'id' => $activeRental->id,
+        'codigo' => $activeRental->codigo,
+        'status' => $activeRental->status,
+        'status_label' => $activeRental->statusEnum()->label(),
+        'customer_nome' => $activeRental->customer?->nome,
+        'expected_return_at' => $activeRental->expected_return_at?->toDateString(),
+        'url' => route('rentals.show', $activeRental),
+      ] : null,
+      'active_maintenance_order' => $activeOrder ? [
+        'id' => $activeOrder->id,
+        'codigo' => $activeOrder->codigo,
+        'status' => $activeOrder->status,
+        'status_label' => $activeOrder->statusEnum()->label(),
+        'descricao_problema' => $activeOrder->descricao_problema,
+        'url' => route('maintenance.show', $activeOrder),
+      ] : null,
+      'suggested_commands' => array_values(array_filter([
+        $activeRental && $activeRental->statusEnum()->value === 'reservado'
+          ? ['command' => 'rental.checkout', 'params' => ['rental_id' => $activeRental->id]]
+          : null,
+        $activeRental && $activeRental->statusEnum()->value === 'locado'
+          ? ['command' => 'rental.return', 'params' => ['rental_id' => $activeRental->id]]
+          : null,
+        ! $activeOrder && $status->value !== 'locado'
+          ? ['command' => 'maintenance.open', 'params' => ['asset_id' => $asset->id, 'descricao' => 'Solicitação via copiloto']]
+          : null,
+      ])),
+      'urls' => [
+        'ficha' => route('assets.show', $asset),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
   public function maintenanceOrder(MaintenanceOrder $order): array
   {
     $order->load(['asset.equipmentModel', 'rental.customer', 'assignedToUser']);
@@ -162,6 +225,88 @@ class AgentContextBuilder
       },
       'urls' => [
         'ficha' => route('maintenance.show', $order),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function quote(RentalQuote $quote): array
+  {
+    $quote->load(['asset.equipmentModel.category', 'customer', 'rental']);
+    $status = $quote->statusEnum();
+
+    return [
+      'entity' => 'rental_quote',
+      'quote' => [
+        'id' => $quote->id,
+        'codigo' => $quote->codigo,
+        'status' => $status->value,
+        'status_label' => $status->label(),
+        'valid_until' => $quote->valid_until?->toDateString(),
+        'expired' => $quote->isExpired(),
+        'days_until_expiry' => $quote->daysUntilExpiry(),
+        'valor_estimado' => $quote->valor_estimado !== null ? (float) $quote->valor_estimado : null,
+        'expected_return_at' => $quote->expected_return_at?->toDateString(),
+        'local_obra' => $quote->local_obra,
+        'pricing_period' => $quote->pricing_period,
+      ],
+      'customer' => [
+        'id' => $quote->customer_id,
+        'nome' => $quote->customer?->nome,
+      ],
+      'asset' => [
+        'id' => $quote->asset_id,
+        'codigo_patrimonio' => $quote->asset?->codigo_patrimonio,
+        'equipamento' => $quote->asset?->equipmentDisplayName(),
+        'categoria' => $quote->asset?->equipmentModel?->category?->nome,
+      ],
+      'rental' => $quote->rental ? [
+        'id' => $quote->rental->id,
+        'codigo' => $quote->rental->codigo,
+        'url' => route('rentals.show', $quote->rental),
+      ] : null,
+      'suggested_commands' => $status->canConvert()
+        ? [['command' => 'quote.convert', 'params' => ['quote_id' => $quote->id]]]
+        : [],
+      'urls' => [
+        'lista' => CopilotNavigationLinks::quotes(['q' => $quote->codigo]),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function receivableTitle(ReceivableTitle $title): array
+  {
+    $title->load(['customer', 'rental']);
+
+    return [
+      'entity' => 'receivable_title',
+      'title' => [
+        'id' => $title->id,
+        'codigo' => $title->codigo,
+        'status' => $title->status,
+        'status_label' => $title->statusEnum()->label(),
+        'valor' => (float) $title->valor,
+        'vencimento' => $title->vencimento->toDateString(),
+        'overdue' => $title->isOverdue(),
+        'days_overdue' => $title->daysOverdue(),
+        'parcel_label' => $title->parcelLabel(),
+        'exported_to_erp' => $title->isExportedToErp(),
+      ],
+      'customer' => [
+        'id' => $title->customer_id,
+        'nome' => $title->customer?->nome,
+      ],
+      'rental' => $title->rental ? [
+        'id' => $title->rental->id,
+        'codigo' => $title->rental->codigo,
+        'url' => route('rentals.show', $title->rental),
+      ] : null,
+      'suggested_commands' => $title->statusEnum()->value === 'aberto'
+        ? [['command' => 'receivable.mark_paid', 'params' => ['title_id' => $title->id, 'payment_method' => 'pix']]]
+        : [],
+      'urls' => [
+        'lista' => CopilotNavigationLinks::financeReceivables($title->codigo),
       ],
     ];
   }

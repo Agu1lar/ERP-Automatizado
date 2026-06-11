@@ -34,6 +34,17 @@ class BillingAuthorizeEntryCommand extends AbstractAgentCommand implements Suppo
     return 'finance.manage';
   }
 
+  /** @return list<array{type: string, id: int}> */
+  public function affectedResources(array $input): array
+  {
+    return $this->affectedResourcesForBillingEntry($input);
+  }
+
+  protected function declaredResourceTypes(): array
+  {
+    return ['billing_entry', 'rental'];
+  }
+
   public function inputSchema(): array
   {
     return [

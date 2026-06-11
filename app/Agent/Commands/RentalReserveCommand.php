@@ -2,16 +2,17 @@
 
 namespace App\Agent\Commands;
 
-use App\Agent\Concerns\ResolvesAgentEntities;
 use App\Agent\AgentCommandResult;
 use App\Agent\AgentContextBuilder;
+use App\Agent\Concerns\ResolvesAgentEntities;
+use App\Agent\Contracts\SupportsDryRun;
 use App\Enums\RentalPricingPeriod;
 use App\Models\User;
 use App\Services\RentalService;
 use App\Support\WorkflowNextStep;
 use Carbon\Carbon;
 
-class RentalReserveCommand extends AbstractAgentCommand
+class RentalReserveCommand extends AbstractAgentCommand implements SupportsDryRun
 {
   use ResolvesAgentEntities;
 
@@ -33,6 +34,27 @@ class RentalReserveCommand extends AbstractAgentCommand
   public function permission(): string
   {
     return 'rentals.reserve';
+  }
+
+  /** @return list<array{type: string, id: int}> */
+  public function affectedResources(array $input): array
+  {
+    try {
+      $asset = $this->resolveAsset($input);
+      $customer = $this->resolveCustomer($input);
+
+      return [
+        ['type' => 'asset', 'id' => $asset->id],
+        ['type' => 'customer', 'id' => $customer->id],
+      ];
+    } catch (\Throwable) {
+      return [];
+    }
+  }
+
+  protected function declaredResourceTypes(): array
+  {
+    return ['asset', 'customer'];
   }
 
   public function inputSchema(): array
@@ -87,6 +109,17 @@ class RentalReserveCommand extends AbstractAgentCommand
         ],
         ...WorkflowNextStep::rentalAfterReserve($rental),
       ],
+    );
+  }
+
+  public function dryRun(array $input, User $user): AgentCommandResult
+  {
+    $assetCode = $input['asset_codigo'] ?? $input['asset_id'] ?? '?';
+    $customer = $input['customer_cpf_cnpj'] ?? $input['customer_id'] ?? '?';
+
+    return AgentCommandResult::preview(
+      "Simulação: reservar patrimônio **{$assetCode}** para cliente **{$customer}**.",
+      ['entity' => 'rental', 'dry_run' => true],
     );
   }
 }

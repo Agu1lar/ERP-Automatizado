@@ -34,6 +34,40 @@ class AgentSessionService
         ]);
     }
 
+    /** @param  array<string, mixed>  $input */
+    public function setPendingExecution(AgentSession $session, string $command, array $input): void
+    {
+        $session->update([
+            'pending_execution' => [
+                'command' => $command,
+                'input' => $input,
+                'updated_at' => now()->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /** @return array{command: string, input: array<string, mixed>}|null */
+    public function getPendingExecution(AgentSession $session): ?array
+    {
+        $pending = $session->fresh()->pending_execution;
+
+        if (! is_array($pending) || empty($pending['command'])) {
+            return null;
+        }
+
+        return [
+            'command' => (string) $pending['command'],
+            'input' => is_array($pending['input'] ?? null) ? $pending['input'] : [],
+        ];
+    }
+
+    public function clearPendingExecution(AgentSession $session): void
+    {
+        if ($session->pending_execution !== null) {
+            $session->update(['pending_execution' => null]);
+        }
+    }
+
     /** @param  array<string, mixed>|null  $meta */
     public function logMessage(AgentSession $session, string $role, string $content, ?array $meta = null): AgentMessage
     {

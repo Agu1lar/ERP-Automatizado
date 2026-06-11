@@ -5,7 +5,7 @@ namespace App\Agent\Commands;
 use App\Models\Domain\Customer\Customer;
 use App\Models\User;
 
-class CustomerSearchCommand extends AbstractAgentCommand
+class CustomerSearchCommand extends AbstractReadAgentCommand
 {
     public static function name(): string
     {

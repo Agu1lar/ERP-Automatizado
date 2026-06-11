@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\Agent;
 
 use App\Agent\AgentSessionService;
+use App\Agent\Chat\AgentChatOptions;
 use App\Agent\Chat\AgentChatOrchestrator;
+use App\Enums\CopilotMode;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,12 +18,15 @@ class ChatController extends Controller
     AgentSessionService $sessionService,
   ): JsonResponse {
     $data = $request->validate([
-      'message' => 'required|string|max:4000',
+      'message' => 'nullable|string|max:4000',
       'confirmed' => 'sometimes|boolean',
+      'mode' => 'nullable|in:ask,agent',
       'command' => 'nullable|string',
       'input' => 'nullable|array',
       'session_id' => 'nullable|integer|exists:agent_sessions,id',
     ]);
+
+    $mode = CopilotMode::tryFrom($data['mode'] ?? 'ask') ?? CopilotMode::Ask;
 
     $session = null;
 
@@ -37,22 +42,31 @@ class ChatController extends Controller
         $data['input'] ?? [],
         $request->user(),
         $session,
+        $mode,
       );
 
       return response()->json(array_merge($response->toArray(), [
         'session_id' => $session->id,
+        'mode' => $mode->value,
       ]));
     }
 
+    $options = new AgentChatOptions(
+      confirmed: (bool) ($data['confirmed'] ?? false),
+      mode: $mode,
+    );
+
     $response = $orchestrator->handle(
-      $data['message'],
+      (string) ($data['message'] ?? ''),
       $request->user(),
-      (bool) ($data['confirmed'] ?? false),
       $session,
+      $options,
     );
 
     return response()->json(array_merge($response->toArray(), [
       'session_id' => $session->id,
+      'mode' => $mode->value,
     ]));
   }
 }
+

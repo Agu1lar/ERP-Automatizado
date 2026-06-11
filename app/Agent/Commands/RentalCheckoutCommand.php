@@ -38,6 +38,17 @@ class RentalCheckoutCommand extends AbstractAgentCommand
     return 'rentals.operate';
   }
 
+  /** @return list<array{type: string, id: int}> */
+  public function affectedResources(array $input): array
+  {
+    return $this->affectedResourcesForRental($input);
+  }
+
+  protected function declaredResourceTypes(): array
+  {
+    return ['rental', 'asset'];
+  }
+
   public function inputSchema(): array
   {
     return [

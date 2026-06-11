@@ -14,6 +14,7 @@ class AgentSession extends Model
         'user_id',
         'operating_company_id',
         'channel',
+        'pending_execution',
         'last_activity_at',
     ];
 
@@ -21,6 +22,7 @@ class AgentSession extends Model
     {
         return [
             'last_activity_at' => 'datetime',
+            'pending_execution' => 'array',
         ];
     }
 

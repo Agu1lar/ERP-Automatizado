@@ -23,6 +23,7 @@ class RentalSeeder extends Seeder
         $cust2 = Customer::query()->where('cpf_cnpj', '11222333000181')->first();
 
         $assetA = Asset::withoutGlobalScope('operating_company')->where('codigo_patrimonio', 'AC-1001')->first();
+        $assetBetoneira = Asset::withoutGlobalScope('operating_company')->where('codigo_patrimonio', 'AC-1003')->first();
         $assetS = Asset::withoutGlobalScope('operating_company')->where('codigo_patrimonio', 'SM-2001')->first();
 
         if ($assetA && $cust1) {
@@ -44,6 +45,29 @@ class RentalSeeder extends Seeder
                 'descricao' => 'Escavadeira 320D',
                 'quantidade' => 1,
                 'valor_locacao' => 1500.00,
+                'ativo' => true,
+            ]);
+        }
+
+        if ($assetBetoneira && $cust1) {
+            $rentalBet = Rental::create([
+                'operating_company_id' => $acesso->id,
+                'codigo' => 'LOC-AC-'.Str::upper(Str::random(6)),
+                'asset_id' => $assetBetoneira->id,
+                'customer_id' => $cust1->id,
+                'status' => RentalStatus::Locado->value,
+                'reserved_at' => Carbon::now()->subDays(5),
+                'checkout_at' => Carbon::now()->subDays(4),
+                'expected_return_at' => Carbon::now()->addDays(3)->toDateString(),
+                'valor_faturamento' => 450.00,
+            ]);
+
+            RentalItem::create([
+                'rental_id' => $rentalBet->id,
+                'asset_id' => $assetBetoneira->id,
+                'descricao' => 'Betoneira 400L',
+                'quantidade' => 1,
+                'valor_locacao' => 450.00,
                 'ativo' => true,
             ]);
         }

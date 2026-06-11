@@ -33,6 +33,17 @@ class ReceivableMarkPaidCommand extends AbstractAgentCommand implements Supports
     return 'finance.manage';
   }
 
+  /** @return list<array{type: string, id: int}> */
+  public function affectedResources(array $input): array
+  {
+    return $this->affectedResourcesForReceivableTitle($input);
+  }
+
+  protected function declaredResourceTypes(): array
+  {
+    return ['receivable_title', 'customer', 'rental'];
+  }
+
   public function inputSchema(): array
   {
     return [

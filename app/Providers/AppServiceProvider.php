@@ -18,9 +18,11 @@ use App\Models\Domain\Person\Company;
 use App\Models\Domain\Person\Person;
 use App\Models\Domain\Organization\OperatingCompany;
 use App\Models\Domain\Rental\Rental;
+use App\Models\Domain\Rental\RentalBillingQueueEntry;
 use App\Models\Domain\Rental\RentalQuote;
 use App\Agent\AgentCommandRegistry;
 use App\Models\User;
+use App\Services\AgentTaskService;
 use App\Observers\AssetObserver;
 use App\Observers\CompanyObserver;
 use App\Observers\CustomerObserver;
@@ -93,5 +95,16 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Login::class, function (Login $event) {
             $event->user->update(['ultimo_login' => now()]);
         });
+
+        $invalidateAgentTasks = function (string $type, object $model): void {
+            app(AgentTaskService::class)->notifyResourceChanged($type, (int) $model->getKey());
+        };
+
+        Event::listen('eloquent.updated: '.Rental::class, fn (Rental $r) => $invalidateAgentTasks('rental', $r));
+        Event::listen('eloquent.updated: '.Asset::class, fn (Asset $a) => $invalidateAgentTasks('asset', $a));
+        Event::listen('eloquent.updated: '.Customer::class, fn (Customer $c) => $invalidateAgentTasks('customer', $c));
+        Event::listen('eloquent.updated: '.MaintenanceOrder::class, fn (MaintenanceOrder $o) => $invalidateAgentTasks('maintenance_order', $o));
+        Event::listen('eloquent.updated: '.RentalBillingQueueEntry::class, fn (RentalBillingQueueEntry $e) => $invalidateAgentTasks('billing_entry', $e));
+        Event::listen('eloquent.updated: '.ReceivableTitle::class, fn (ReceivableTitle $t) => $invalidateAgentTasks('receivable_title', $t));
     }
 }

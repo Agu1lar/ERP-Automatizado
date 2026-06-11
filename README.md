@@ -9,6 +9,8 @@ ERP interno para controle de frota, patrimônios, clientes, locação, manutenç
 | Documento | Conteúdo |
 |-----------|----------|
 | [docs/VISAO_PRODUTO.md](docs/VISAO_PRODUTO.md) | Visão de produto — jornadas, funcionalidades, limites |
+| [docs/IA.md](docs/IA.md) | **Copiloto / IA** — personalidade, fluxos, modos, API, configuração |
+| [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) | Arquitetura técnica do agente (camadas, concorrência) |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | Deploy, fila, cron, backup |
 | `.env.example` | Variáveis (copiloto/LLM, exportação contábil Omie/Sisloc, documentos PDF) |
 
@@ -116,7 +118,7 @@ Depois acesse http://localhost:8000 e entre com `admin@acesso.local` / `Acesso@2
 | Manutenção | `/manutencao` · painel: `?aba=painel` |
 | Financeiro | `/financeiro/titulos` · a faturar · inadimplência · fluxo de caixa |
 | Relatórios | `/relatorios/comercial` · `/relatorios/analise-financeira` |
-| Copiloto | `/copiloto` (permissão `agent.api`) |
+| Copiloto | Painel flutuante (todas as telas) + `/copiloto` (permissão `agent.api`) |
 | Busca global | `/busca` |
 | Admin | `/admin/usuarios` · empresas · auditoria · copiloto-logs |
 
@@ -170,7 +172,10 @@ php artisan test --configuration=phpunit.pgsql.xml
 | `tests/Feature/Integration/RentalReservationConcurrencyTest.php` | Dupla reserva bloqueada (lock + índice único parcial) |
 | `tests/Feature/Phase12FeaturesTest.php` | Export contábil Omie, PWA pátio, orçamento → reserva |
 | `tests/Feature/AgentApiTest.php` | API do agente (manifest, comandos, contexto) |
-| `tests/Feature/AgentCopilotTest.php` | Copiloto, dry-run, sessões auditáveis |
+| `tests/Feature/AgentCopilotTest.php` | Copiloto UI, dry-run, sessões, documentos |
+| `tests/Feature/AgentInputPauseTest.php` | Pausa por dados incompletos, retomada, cancelamento |
+| `tests/Feature/AgentLlmFallbackTest.php` | Fallback quando LLM falha (quota, degradação) |
+| `tests/Feature/CopilotUserMessengerTest.php` | Mensagens amigáveis ao usuário |
 
 **Proteção no banco:** índice único parcial `rentals_one_active_per_asset` — no máximo uma locação ativa (`reservado`, `locado`, `em_inspecao`) por patrimônio.
 
@@ -624,27 +629,40 @@ Exportação de **títulos a receber** em layout fixo — **não emite NF-e**; d
 
 ## Fase 12D — Copiloto operacional e API do agente (implementada)
 
+Documentação completa da IA: **[docs/IA.md](docs/IA.md)** · arquitetura: [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md)
+
 ### Copiloto (UI)
-- Menu **Copiloto** (`/copiloto`) — permissão `agent.api` (Gestor/Admin)
-- Interpretação heurística (PT) ou **LLM opcional** (`AGENT_LLM_*` no `.env`)
-- Confirmação obrigatória antes de comandos de escrita
-- **Dry-run** em ações financeiras (prévia antes de faturar/baixar título)
+- **Painel flutuante** em todas as telas + página `/copiloto` — permissão `agent.api` (Gestor/Admin)
+- Modos **Pergunta** (só consulta) e **Agente** (execução com confirmação ou background)
+- **~56 comandos** atômicos (locação, orçamento, faturamento, OS, CRM, financeiro, logística)
+- **LLM-first** com OpenAI-compatible (`AGENT_LLM_*`); heurísticas PT como fallback
+- **Pausa inteligente**: pede dados faltantes no chat antes de confirmar (ex.: abrir contrato → patrimônio + cliente)
+- **Confirmação** + **dry-run** em ações sensíveis; execução em **background** com detecção de conflito
+- **Análise de documentos** (PDF/imagem) — extração e plano de ações no modo Agente
+- **Contexto de tela** automático (ficha aberta) + Context API HTTP
+- **Mensagens amigáveis** — sem JSON/erro técnico para o usuário (`CopilotUserMessenger`)
+- **Degradação explícita** quando a IA falha (quota, timeout): banner + aviso de “modo regras básicas”
+- Personalidade **Acesso Equipamentos** / criador **José** — tom Jarvis/Rocket (~30% humor, 70% resolver)
 
 ### API (Sanctum)
-- `GET /api/agent/manifest` — comandos disponíveis
-- `POST /api/agent/commands/{name}` — executar (suporta `dry_run`, `session_id`)
-- `POST /api/agent/chat` — chat com confirmação
-- `GET /api/agent/context/{rental|customer|system|maintenance}` — contexto estruturado
+- `GET /api/agent/manifest` — comandos, modos, identidade, superfícies
+- `POST /api/agent/commands/{name}` — executar (`dry_run`, `session_id`)
+- `POST /api/agent/chat` — chat (`mode`: `ask` | `agent`, anexos, `llm_degraded`)
+- `GET /api/agent/context/{rental|customer|asset|quote|receivable|maintenance|system}`
+- `POST /api/agent/tasks` · `GET /api/agent/tasks/{id}` — fila background
 
-### Comandos registrados (exemplos)
-`rental.get`, `rental.list`, `rental.reserve`, `rental.checkout`, `rental.return`, `customer.search`, `billing.list_pending`, `billing.invoice_entry`, `receivable.mark_paid`, `maintenance.open/start/wait_part/resume/complete`, `finance.summary`
+### Comandos registrados (amostra)
+**Leitura:** `rental.list`, `rental.stats`, `asset.get`, `quote.get`, `billing.get`, `finance.summary`, `finance.delinquency`, `search.global`, `logistics.daily`, `yard.list`, `receivable.list`
+
+**Escrita:** `quote.create`, `rental.reserve/checkout/return`, `customer.create`, `billing.invoice_entry`, `receivable.mark_paid`, `maintenance.open/complete`, `person.create`, `document.apply_plan`
 
 ### Auditoria do copiloto
-- Sessões, mensagens e log de comandos (`agent_sessions`, `agent_command_logs`)
+- Sessões, mensagens, `pending_execution`, log de comandos (`agent_sessions`, `agent_command_logs`, `agent_tasks`)
 - Admin → **Copiloto (logs)** (`/admin/copiloto-logs`)
 
 ```bash
 php artisan agent:manifest   # JSON dos comandos no terminal
+php artisan test --filter=Agent
 ```
 
 ---

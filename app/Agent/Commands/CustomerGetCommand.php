@@ -6,7 +6,7 @@ use App\Agent\AgentContextBuilder;
 use App\Agent\Concerns\ResolvesAgentEntities;
 use App\Models\User;
 
-class CustomerGetCommand extends AbstractAgentCommand
+class CustomerGetCommand extends AbstractReadAgentCommand
 {
     use ResolvesAgentEntities;
 

@@ -13,6 +13,8 @@ class EquipmentCategorySeeder extends Seeder
         $categories = [
             ['nome' => 'Escavadeira', 'tipo_linha' => 'pesada'],
             ['nome' => 'Mini Escavadeira', 'tipo_linha' => 'leve'],
+            ['nome' => 'Betoneira', 'tipo_linha' => 'linha_leve'],
+            ['nome' => 'Martelete', 'tipo_linha' => 'linha_leve'],
         ];
 
         foreach (OperatingCompany::query()->where('ativo', true)->orderBy('id')->get() as $company) {

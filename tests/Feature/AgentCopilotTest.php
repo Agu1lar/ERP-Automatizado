@@ -24,7 +24,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
 use App\Livewire\Admin\AgentLogIndex;
-use App\Livewire\Copilot\CopilotIndex;
+use App\Livewire\Copilot\CopilotPanel;
 use Tests\TestCase;
 
 class AgentCopilotTest extends TestCase
@@ -52,11 +52,269 @@ class AgentCopilotTest extends TestCase
     $this->assertSame('LOC-000042', $parsed['input']['rental_codigo'] ?? null);
   }
 
+  public function test_heuristic_parser_detects_quote_convert(): void
+  {
+    $parsed = app(AgentHeuristicParser::class)->parse('Converter orçamento ORC-000001 em reserva');
+
+    $this->assertSame('quote.convert', $parsed['command'] ?? null);
+    $this->assertSame('ORC-000001', $parsed['input']['quote_codigo'] ?? null);
+  }
+
+  public function test_heuristic_parser_detects_rental_cancel(): void
+  {
+    $parsed = app(AgentHeuristicParser::class)->parse('Cancelar reserva LOC-000010 motivo: cliente desistiu');
+
+    $this->assertSame('rental.cancel', $parsed['command'] ?? null);
+    $this->assertSame('LOC-000010', $parsed['input']['rental_codigo'] ?? null);
+  }
+
+  public function test_heuristic_parser_detects_customer_block(): void
+  {
+    $parsed = app(AgentHeuristicParser::class)->parse('Bloquear cliente Obra Central motivo: inadimplência');
+
+    $this->assertSame('customer.update', $parsed['command'] ?? null);
+    $this->assertTrue($parsed['input']['bloqueado'] ?? false);
+  }
+
   public function test_heuristic_parser_detects_billing_list_pending(): void
   {
     $parsed = app(AgentHeuristicParser::class)->parse('Mostrar pendências a faturar');
 
     $this->assertSame('billing.list_pending', $parsed['command'] ?? null);
+  }
+
+  public function test_heuristic_parser_detects_logistics_daily(): void
+  {
+    $parsed = app(AgentHeuristicParser::class)->parse('Lista do dia logística — entregas de hoje');
+
+    $this->assertSame('logistics.daily', $parsed['command'] ?? null);
+    $this->assertSame('entregas', $parsed['input']['section'] ?? null);
+  }
+
+  public function test_heuristic_parser_detects_rental_filter_for_betoneiras(): void
+  {
+    $parsed = app(AgentHeuristicParser::class)->parse(
+      'Quero que você filtre os contratos que tem betoneiras locadas',
+    );
+
+    $this->assertSame('rental.list', $parsed['command'] ?? null);
+    $this->assertSame('locado', $parsed['input']['status'] ?? null);
+  }
+
+  public function test_rental_list_betoneiras_returns_panel_navigation_link(): void
+  {
+    $user = $this->agentUser();
+    $this->actingAs($user);
+
+    $category = EquipmentCategory::create([
+      'nome' => 'Betoneira',
+      'tipo_linha' => 'linha_leve',
+      'ativo' => true,
+    ]);
+
+    $model = EquipmentModel::create([
+      'equipment_category_id' => $category->id,
+      'marca' => 'M',
+      'modelo' => '400L',
+      'ativo' => true,
+    ]);
+
+    $customer = Customer::create([
+      'nome' => 'Obra Betoneira',
+      'cpf_cnpj' => '39053344705',
+      'ativo' => true,
+    ]);
+
+    $asset = app(AssetStatusService::class)->createWithInitialStatus(new Asset([
+      'codigo_patrimonio' => 'PAT-BET-1',
+      'equipment_model_id' => $model->id,
+      'localizacao' => 'Pátio',
+    ]), AssetStatus::Disponivel);
+
+    $rental = app(RentalService::class)->reserve($asset, $customer, now()->addDays(5));
+    app(RentalService::class)->checkout(
+      $rental,
+      array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
+    );
+
+    Sanctum::actingAs($user);
+
+    $response = $this->postJson('/api/agent/chat', [
+      'message' => 'Filtrar contratos com betoneiras locadas',
+    ])->assertOk();
+
+    $response->assertJsonPath('executed', true);
+    $response->assertJsonPath('command', 'rental.list');
+
+    $actions = $response->json('actions') ?? [];
+    $panelAction = collect($actions)->first(fn ($a) => str_contains($a['url'] ?? '', 'aba=painel'));
+
+    $this->assertNotNull($panelAction);
+    $this->assertStringContainsString('escopo=locado', $panelAction['url']);
+    $this->assertStringContainsString('categoria='.$category->id, $panelAction['url']);
+    $this->assertTrue($panelAction['primary'] ?? false);
+  }
+
+  public function test_rental_index_deep_link_applies_panel_filters(): void
+  {
+    $user = $this->agentUser();
+    $this->actingAs($user);
+
+    $category = EquipmentCategory::create([
+      'nome' => 'Betoneira',
+      'tipo_linha' => 'linha_leve',
+      'ativo' => true,
+    ]);
+
+    Livewire::withQueryParams([
+      'aba' => 'painel',
+      'escopo' => 'locado',
+      'categoria' => (string) $category->id,
+    ])
+      ->test(\App\Livewire\Rental\RentalIndex::class)
+      ->assertSet('activeView', 'painel')
+      ->assertSet('panelStatusScope', 'locado')
+      ->assertSet('panelCategoryId', (string) $category->id);
+  }
+
+  public function test_rental_filter_without_category_does_not_return_unrelated_equipment(): void
+  {
+    $user = $this->agentUser();
+    $this->actingAs($user);
+
+    $escavadeira = EquipmentCategory::create([
+      'nome' => 'Escavadeira',
+      'tipo_linha' => 'pesada',
+      'ativo' => true,
+    ]);
+
+    $model = EquipmentModel::create([
+      'equipment_category_id' => $escavadeira->id,
+      'marca' => 'CAT',
+      'modelo' => '320D',
+      'ativo' => true,
+    ]);
+
+    $customer = Customer::create([
+      'nome' => 'Cliente Escav',
+      'cpf_cnpj' => '52998224725',
+      'ativo' => true,
+    ]);
+
+    $asset = app(AssetStatusService::class)->createWithInitialStatus(new Asset([
+      'codigo_patrimonio' => 'PAT-ESC-1',
+      'equipment_model_id' => $model->id,
+      'localizacao' => 'Pátio',
+    ]), AssetStatus::Disponivel);
+
+    $rental = app(RentalService::class)->reserve($asset, $customer, now()->addDays(5));
+    app(RentalService::class)->checkout(
+      $rental,
+      array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
+    );
+
+    Sanctum::actingAs($user);
+
+    $response = $this->postJson('/api/agent/chat', [
+      'message' => 'Quero que você filtre os contratos que tem betoneiras locadas',
+    ])->assertOk();
+
+    $response->assertJsonPath('executed', true);
+    $reply = (string) $response->json('reply');
+    $this->assertStringContainsString('Betoneira', $reply);
+    $this->assertStringNotContainsString('CAT 320D', $reply);
+    $this->assertSame(0, $response->json('result.data.count'));
+  }
+
+  public function test_asset_get_returns_status_and_open_orders(): void
+  {
+    $user = $this->agentUser();
+    $this->actingAs($user);
+
+    $category = EquipmentCategory::create([
+      'nome' => 'Gerador',
+      'tipo_linha' => 'linha_leve',
+      'ativo' => true,
+    ]);
+
+    $model = EquipmentModel::create([
+      'equipment_category_id' => $category->id,
+      'marca' => 'Yanmar',
+      'modelo' => 'YDG',
+      'ativo' => true,
+    ]);
+
+    app(AssetStatusService::class)->createWithInitialStatus(new Asset([
+      'codigo_patrimonio' => 'AC-TEST-1',
+      'equipment_model_id' => $model->id,
+      'localizacao' => 'Pátio central',
+    ]), AssetStatus::Disponivel);
+
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/agent/chat', [
+      'message' => 'Me fale a situação do patrimônio AC-TEST-1',
+    ])
+      ->assertOk()
+      ->assertJsonPath('executed', true)
+      ->assertJsonPath('command', 'asset.get')
+      ->assertJsonPath('result.data.asset.codigo_patrimonio', 'AC-TEST-1');
+  }
+
+  public function test_rental_stats_by_category_in_period(): void
+  {
+    $user = $this->agentUser();
+    $this->actingAs($user);
+
+    $category = EquipmentCategory::create([
+      'nome' => 'Martelete',
+      'tipo_linha' => 'linha_leve',
+      'ativo' => true,
+    ]);
+
+    Sanctum::actingAs($user);
+
+    $parsed = app(AgentHeuristicParser::class)->parse('Quantos marteletes foram locados este mês?');
+    $this->assertSame('rental.stats', $parsed['command'] ?? null);
+
+    $this->postJson('/api/agent/chat', [
+      'message' => 'Quantos marteletes foram locados este mês?',
+    ])
+      ->assertOk()
+      ->assertJsonPath('command', 'rental.stats')
+      ->assertJsonPath('executed', true);
+  }
+
+  public function test_ask_mode_blocks_mutating_command_execution(): void
+  {
+    Sanctum::actingAs($this->agentUser());
+
+    $response = $this->postJson('/api/agent/chat', [
+      'message' => 'Registrar retorno da LOC-000099',
+      'mode' => 'ask',
+    ])->assertOk();
+
+    $this->assertStringContainsString('Agente', (string) $response->json('reply'));
+    $this->assertFalse((bool) $response->json('executed'));
+  }
+
+  public function test_copilot_document_requires_llm_configuration(): void
+  {
+    $user = $this->agentUser();
+    $this->actingAs($user);
+
+    Livewire::test(CopilotPanel::class)
+      ->call('togglePanel')
+      ->set('mode', 'ask')
+      ->set('queuedAttachments', [[
+        'path' => 'agent-intake/test/sample.txt',
+        'mime' => 'text/plain',
+        'original_name' => 'contrato.txt',
+      ]])
+      ->set('prompt', 'Extraia os dados do cliente')
+      ->call('sendMessage')
+      ->assertSet('isOpen', true)
+      ->assertSee('não consigo ler documentos anexos');
   }
 
   public function test_heuristic_parser_detects_customer_billing_batch(): void
@@ -78,6 +336,7 @@ class AgentCopilotTest extends TestCase
 
     $this->postJson('/api/agent/chat', [
       'message' => "Faturar ciclos pendentes da {$customer->nome}",
+      'mode' => 'agent',
     ])
       ->assertOk()
       ->assertJsonPath('requires_confirmation', true)
@@ -100,6 +359,7 @@ class AgentCopilotTest extends TestCase
 
     $this->postJson('/api/agent/chat', [
       'message' => 'Registrar retorno da LOC-000099',
+      'mode' => 'agent',
     ])
       ->assertOk()
       ->assertJsonPath('requires_confirmation', true)
@@ -107,13 +367,38 @@ class AgentCopilotTest extends TestCase
       ->assertJsonStructure(['session_id']);
   }
 
-  public function test_copilot_page_loads_for_gestor(): void
+  public function test_copilot_floating_panel_loads_for_gestor(): void
   {
     $this->actingAs($this->agentUser());
 
-    Livewire::test(CopilotIndex::class)
-      ->assertSee('Copiloto')
-      ->assertSee('resumo financeiro');
+    Livewire::test(CopilotPanel::class)
+      ->assertSee('Abrir copiloto')
+      ->call('togglePanel')
+      ->assertSet('isOpen', true)
+      ->assertSee('Pergunta')
+      ->assertSee('Agente');
+  }
+
+  public function test_copilot_tracks_page_context_on_rental_show(): void
+  {
+    $user = $this->agentUser();
+    $rental = $this->createRentalWithBillingEntry();
+
+    $this->actingAs($user);
+
+    Livewire::withQueryParams([])
+      ->test(CopilotPanel::class)
+      ->call('syncPageContext', route('rentals.show', $rental))
+      ->assertSet('pageRoute', 'rentals.show')
+      ->assertSet('pageLabel', 'Ficha da locação')
+      ->assertSet('pageDetail', $rental->codigo);
+  }
+
+  public function test_legacy_copilot_route_redirects_to_dashboard(): void
+  {
+    $this->actingAs($this->agentUser())
+      ->get('/copiloto')
+      ->assertRedirect('/dashboard?copilot=1');
   }
 
   public function test_finance_summary_via_chat_executes_immediately(): void
@@ -152,6 +437,7 @@ class AgentCopilotTest extends TestCase
 
     $this->postJson('/api/agent/chat', [
       'message' => "Faturar {$entry->codigo}",
+      'mode' => 'agent',
     ])
       ->assertOk()
       ->assertJsonPath('requires_confirmation', true)

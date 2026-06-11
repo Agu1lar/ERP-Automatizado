@@ -2,7 +2,9 @@
 
 namespace App\Agent;
 
+use App\Agent\Commands\AbstractAgentCommand;
 use App\Agent\Contracts\AgentCommand;
+use App\Enums\AgentCommandSurface;
 use InvalidArgumentException;
 
 class AgentCommandRegistry
@@ -50,5 +52,30 @@ class AgentCommandRegistry
   public function names(): array
   {
     return array_keys($this->commands);
+  }
+
+  public function isVisualizationCommand(string $name): bool
+  {
+    return $this->commandSurface($name) === AgentCommandSurface::Visualization;
+  }
+
+  public function isExecutionCommand(string $name): bool
+  {
+    return $this->commandSurface($name) === AgentCommandSurface::Execution;
+  }
+
+  public function commandSurface(string $name): ?AgentCommandSurface
+  {
+    if (! isset($this->commands[$name])) {
+      return null;
+    }
+
+    $command = $this->commands[$name];
+
+    if ($command instanceof AbstractAgentCommand) {
+      return $command->commandSurface();
+    }
+
+    return null;
   }
 }

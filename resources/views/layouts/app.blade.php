@@ -36,6 +36,12 @@
             <main>
                 {{ $slot }}
             </main>
+
+            @auth
+                @can('agent.api')
+                    <livewire:copilot.copilot-panel />
+                @endcan
+            @endauth
         </div>
     </body>
 </html>

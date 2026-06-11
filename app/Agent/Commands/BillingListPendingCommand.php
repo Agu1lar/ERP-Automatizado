@@ -4,8 +4,9 @@ namespace App\Agent\Commands;
 
 use App\Models\Domain\Rental\RentalBillingQueueEntry;
 use App\Models\User;
+use App\Support\CopilotNavigationLinks;
 
-class BillingListPendingCommand extends AbstractAgentCommand
+class BillingListPendingCommand extends AbstractReadAgentCommand
 {
     public static function name(): string
     {
@@ -46,7 +47,8 @@ class BillingListPendingCommand extends AbstractAgentCommand
         $totalCar = round((float) $entries->sum('valor_car'), 2);
 
         return $this->success(
-            "{$entries->count()} pendência(s) a faturar — total R$ ".number_format($totalCar, 2, ',', '.').'.',
+            "**{$entries->count()}** pendência(s) a faturar — total **R$ ".number_format($totalCar, 2, ',', '.')."**.\n\n"
+            .'Abra a fila para autorizar ou faturar em lote, ou diga "faturar FAT-…" para uma pendência específica.',
             [
                 'entity' => 'billing_pending',
                 'count' => $entries->count(),
@@ -61,6 +63,9 @@ class BillingListPendingCommand extends AbstractAgentCommand
                     'customer_nome' => $e->customer?->nome,
                     'title_codigo' => $e->receivableTitle?->codigo,
                 ])->all(),
+            ],
+            [
+                ['label' => 'Abrir fila a faturar', 'url' => CopilotNavigationLinks::billingQueue(), 'primary' => true],
             ],
         );
     }

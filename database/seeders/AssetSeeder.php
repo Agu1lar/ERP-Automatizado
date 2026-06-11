@@ -17,9 +17,15 @@ class AssetSeeder extends Seeder
 
         $modelAcesso = EquipmentModel::withoutGlobalScope('operating_company')
             ->where('operating_company_id', $acesso->id)
+            ->whereHas('category', fn ($q) => $q->where('nome', 'Escavadeira'))
+            ->first();
+        $modelBetoneiraAcesso = EquipmentModel::withoutGlobalScope('operating_company')
+            ->where('operating_company_id', $acesso->id)
+            ->whereHas('category', fn ($q) => $q->where('nome', 'Betoneira'))
             ->first();
         $modelSuper = EquipmentModel::withoutGlobalScope('operating_company')
             ->where('operating_company_id', $super->id)
+            ->whereHas('category', fn ($q) => $q->where('nome', 'Escavadeira'))
             ->first();
 
         if (! $modelAcesso || ! $modelSuper) {
@@ -32,6 +38,18 @@ class AssetSeeder extends Seeder
             ], [
                 'operating_company_id' => $acesso->id,
                 'equipment_model_id' => $modelAcesso->id,
+                'serie' => Str::upper(Str::random(8)),
+                'status' => 'disponivel',
+                'localizacao' => 'Depósito AC',
+            ]);
+        }
+
+        if ($modelBetoneiraAcesso) {
+            Asset::withoutGlobalScope('operating_company')->firstOrCreate([
+                'codigo_patrimonio' => 'AC-1003',
+            ], [
+                'operating_company_id' => $acesso->id,
+                'equipment_model_id' => $modelBetoneiraAcesso->id,
                 'serie' => Str::upper(Str::random(8)),
                 'status' => 'disponivel',
                 'localizacao' => 'Depósito AC',

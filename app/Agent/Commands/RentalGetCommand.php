@@ -7,7 +7,7 @@ use App\Agent\AgentContextBuilder;
 use App\Agent\Concerns\ResolvesAgentEntities;
 use App\Models\User;
 
-class RentalGetCommand extends AbstractAgentCommand
+class RentalGetCommand extends AbstractReadAgentCommand
 {
   use ResolvesAgentEntities;
 
@@ -47,10 +47,19 @@ class RentalGetCommand extends AbstractAgentCommand
   public function execute(array $input, User $user): AgentCommandResult
   {
     $rental = $this->resolveRental($input);
+    $context = $this->contextBuilder->rental($rental);
+    $data = $context['rental'] ?? [];
 
-    return $this->success(
-      "Contexto da locação {$rental->codigo}.",
-      $this->contextBuilder->rental($rental),
-    );
+    $message = "**Locação {$data['codigo']}** — {$data['status_label']}\n"
+      .'• Cliente: **'.($data['customer']['nome'] ?? '—')."**\n"
+      .'• Equipamento: **'.($data['asset']['descricao'] ?? '—')."**\n"
+      .'• Retorno previsto: '.($data['expected_return_at'] ?? '—')."\n\n"
+      .'Diga **saída**, **retorno**, **faturar** ou use os atalhos.';
+
+    $nextSteps = [
+      ['label' => 'Abrir ficha', 'url' => $context['urls']['ficha'] ?? route('rentals.show', $rental), 'primary' => true],
+    ];
+
+    return $this->success($message, $context, $nextSteps);
   }
 }

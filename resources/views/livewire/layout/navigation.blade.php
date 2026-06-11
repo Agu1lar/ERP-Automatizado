@@ -66,9 +66,6 @@ new class extends Component
                 <div class="hidden items-center gap-1 md:flex">
                     @can('viewAny', App\Models\Domain\Fleet\Asset::class)
                         <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" wire:navigate data-tab-title="Dashboard">Dashboard</x-nav-link>
-                        @can('agent.api')
-                            <x-nav-link :href="route('copilot.index')" :active="request()->routeIs('copilot.*')" wire:navigate data-tab-title="Copiloto">Copiloto</x-nav-link>
-                        @endcan
                         <x-nav-link :href="route('assets.index')" :active="request()->routeIs('assets.*')" wire:navigate data-tab-title="Patrimônios">Patrimônios</x-nav-link>
                     @endcan
                     @if($navShowComercial)

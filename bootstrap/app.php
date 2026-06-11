@@ -37,4 +37,20 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        $exceptions->renderable(function (
+            \Livewire\Mechanisms\HandleComponents\CorruptComponentPayloadException $e,
+            Request $request
+        ) {
+            if ($request->expectsJson() || $request->hasHeader('X-Livewire')) {
+                return response()->json([
+                    'message' => 'A página expirou. Recarregue (F5) e tente novamente.',
+                    'redirect' => url()->previous() ?: route('dashboard'),
+                ], 419);
+            }
+
+            return redirect()
+                ->to(url()->previous() ?: route('dashboard'))
+                ->with('error', 'A sessão da página expirou (comum após atualizar o sistema). Recarregue com F5 e tente de novo.');
+        });
     })->create();

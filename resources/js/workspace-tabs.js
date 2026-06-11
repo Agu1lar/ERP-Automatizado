@@ -4,6 +4,8 @@ const ROUTE_LABELS = {
     '/dashboard': 'Dashboard',
     '/patrimonios': 'Patrimônios',
     '/locacoes': 'Locações',
+    '/logistica/lista-do-dia': 'Lista do dia',
+    '/logistica/patios': 'Pátios',
     '/manutencao': 'Manutenção',
     '/manutencao/pecas': 'Catálogo de peças',
     '/manutencao/preventiva': 'Preventiva',

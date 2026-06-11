@@ -23,7 +23,6 @@ use App\Livewire\Admin\AgentLogIndex;
 use App\Livewire\Admin\AuditIndex;
 use App\Livewire\Admin\OperatingCompanyIndex;
 use App\Livewire\Admin\UserIndex;
-use App\Livewire\Copilot\CopilotIndex;
 use App\Livewire\Customer\CustomerIndex;
 use App\Livewire\Customer\CustomerShow;
 use App\Livewire\Person\CompanyIndex;
@@ -61,7 +60,7 @@ Route::middleware(['auth'])->group(function () {
     })->name('operating-company.set');
     Route::get('dashboard', DashboardIndex::class)->name('dashboard');
 
-    Route::get('copiloto', CopilotIndex::class)
+    Route::redirect('copiloto', '/dashboard?copilot=1')
         ->middleware('permission:agent.api')
         ->name('copilot.index');
 

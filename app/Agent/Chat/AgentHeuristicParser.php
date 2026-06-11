@@ -2,6 +2,8 @@
 
 namespace App\Agent\Chat;
 
+use App\Support\EquipmentCategoryResolver;
+
 class AgentHeuristicParser
 {
   /**
@@ -10,17 +12,118 @@ class AgentHeuristicParser
   public function parse(string $message): array
   {
     $lower = mb_strtolower($message);
-    $rentalCodigo = $this->matchCode($message, '/\b(LOC-[0-9]+)\b/i');
+    $rentalCodigo = $this->matchCode($message, '/\b(LOC-[0-9A-Z-]+)\b/i');
     $orderCodigo = $this->matchCode($message, '/\b(OS-[0-9]+)\b/i');
     $fatCodigo = $this->matchCode($message, '/\b(FAT-[0-9]+)\b/i');
     $titCodigo = $this->matchCode($message, '/\b(TIT-[0-9]+)\b/i');
     $patCodigo = $this->matchCode($message, '/\b(PAT-[A-Z0-9-]+)\b/i');
+    $assetCodigo = $patCodigo ?? $this->matchCode($message, '/\b((?:AC|SM|PRT)-[A-Z0-9-]+)\b/i');
+    $quoteCodigo = $this->matchCode($message, '/\b(ORC-[0-9]+)\b/i');
+
+    if ($this->containsAny($lower, ['bloquear cliente', 'bloqueie cliente', 'cliente bloqueado'])) {
+      $query = $this->extractCustomerNameForBilling($message) ?? $this->extractSearchQuery($message, ['bloquear cliente', 'bloqueie cliente']);
+
+      if ($query) {
+        return [
+          'command' => 'customer.update',
+          'input' => [
+            'customer_name' => $query,
+            'bloqueado' => true,
+            'motivo_bloqueio' => $this->extractAfter($message, ['motivo:', 'por:']) ?? 'Bloqueio solicitado via copiloto',
+          ],
+          'reply' => "Bloquear cliente {$query}.",
+        ];
+      }
+    }
+
+    if ($this->containsAny($lower, ['desbloquear cliente', 'desbloqueie cliente', 'liberar cliente'])) {
+      $query = $this->extractCustomerNameForBilling($message) ?? $this->extractSearchQuery($message, ['desbloquear cliente', 'desbloqueie cliente', 'liberar cliente']);
+
+      if ($query) {
+        return [
+          'command' => 'customer.update',
+          'input' => [
+            'customer_name' => $query,
+            'bloqueado' => false,
+          ],
+          'reply' => "Remover bloqueio do cliente {$query}.",
+        ];
+      }
+    }
+
+    if ($this->containsAny($lower, ['export contábil', 'export contabil', 'exportar contábil', 'exportar contabil', 'exportação contábil', 'exportacao contabil'])) {
+      $format = null;
+
+      foreach (['omie', 'bling', 'sisloc', 'csv'] as $candidate) {
+        if (str_contains($lower, $candidate)) {
+          $format = $candidate;
+          break;
+        }
+      }
+
+      return [
+        'command' => 'finance.accounting_export',
+        'input' => array_filter([
+          'format' => $format,
+          'status' => $this->containsAny($lower, ['pago', 'pagos']) ? 'pago' : 'aberto',
+          'overdue' => $this->containsAny($lower, ['vencid', 'atrasad', 'inadimpl']) ? true : null,
+        ]),
+        'reply' => 'Montando exportação contábil — mostro quantos títulos entram no lote e o link para download.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['buscar', 'procurar', 'pesquisar']) && ! $this->containsAny($lower, ['cliente', 'pessoa', 'contato crm'])) {
+      $query = $this->extractSearchQuery($message, ['buscar', 'procurar', 'pesquisar']);
+
+      if ($query && mb_strlen($query) >= 2) {
+        return [
+          'command' => 'search.global',
+          'input' => ['q' => $query],
+          'reply' => "Busca global: {$query}.",
+        ];
+      }
+    }
+
+    if ($this->containsAny($lower, ['inadimplência detalhada', 'inadimplencia detalhada', 'relatório inadimplência', 'relatorio inadimplencia', 'aging inadimpl'])) {
+      $query = $this->extractCustomerNameForBilling($message);
+
+      return [
+        'command' => 'finance.delinquency',
+        'input' => array_filter(['q' => $query]),
+        'reply' => 'Consultando inadimplência com aging por cliente.',
+      ];
+    }
+
+    if ($fatCodigo && $this->containsAny($lower, ['detalhe', 'detalhes', 'consultar', 'ver pendência', 'ver pendencia'])) {
+      return [
+        'command' => 'billing.get',
+        'input' => ['entry_codigo' => $fatCodigo],
+        'reply' => "Consultar pendência {$fatCodigo}.",
+      ];
+    }
 
     if ($this->containsAny($lower, ['resumo financeiro', 'financeiro', 'inadimplência', 'a receber'])) {
       return [
         'command' => 'finance.summary',
         'input' => [],
-        'reply' => 'Consultando resumo financeiro da empresa ativa.',
+        'reply' => 'Consultando resumo financeiro da empresa ativa. Em seguida mostro os números e um atalho para a tela correspondente.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['lista do dia', 'logística do dia', 'logistica do dia', 'romaneio', 'entregas hoje', 'entregas de hoje', 'recolhidas hoje'])) {
+      $date = $this->extractDateFromMessage($message);
+
+      return [
+        'command' => 'logistics.daily',
+        'input' => array_filter([
+          'date' => $date,
+          'section' => $this->containsAny($lower, ['entrega', 'entregar']) && ! $this->containsAny($lower, ['retir', 'recolh', 'devolv'])
+            ? 'entregas'
+            : ($this->containsAny($lower, ['recolh', 'retirada']) ? 'retiradas' : null),
+        ]),
+        'reply' => $date
+          ? "Lista logística do dia {$date}."
+          : 'Lista logística de hoje — entregas, retiradas e movimentações no pátio.',
       ];
     }
 
@@ -28,7 +131,7 @@ class AgentHeuristicParser
       return [
         'command' => 'billing.list_pending',
         'input' => [],
-        'reply' => 'Listando pendências na fila a faturar.',
+        'reply' => 'Listando pendências na fila a faturar. Você pode abrir a fila completa pelo atalho.',
       ];
     }
 
@@ -45,6 +148,69 @@ class AgentHeuristicParser
           'reply' => "Processar pendências de faturamento de {$customerQuery}.",
         ];
       }
+    }
+
+    if ($this->containsAny($lower, ['criar orçamento', 'criar orcamento', 'novo orçamento', 'novo orcamento', 'abrir contrato', 'criar contrato', 'novo contrato', 'abrir um contrato'])) {
+      return [
+        'command' => 'quote.create',
+        'input' => array_filter([
+          'asset_codigo' => $assetCodigo,
+          'customer_name' => $this->extractCustomerNameForBilling($message),
+          'local_obra' => $this->extractAfter($message, ['obra:', 'local obra:', 'local da obra:']),
+        ]),
+        'reply' => 'Vou preparar um orçamento/pré-contrato — informe patrimônio e cliente se ainda não estiverem claros.',
+      ];
+    }
+
+    if ($this->isRentalStatsIntent($lower)) {
+      $category = EquipmentCategoryResolver::resolveFromText($message);
+      $categoryTerm = EquipmentCategoryResolver::detectTermFromText($message);
+      [$dateFrom, $dateTo] = $this->extractPeriod($message);
+
+      return [
+        'command' => 'rental.stats',
+        'input' => array_filter([
+          'category_id' => $category?->id,
+          'category_name' => $category?->nome,
+          'category_query' => $category ? null : $categoryTerm,
+          'date_from' => $dateFrom,
+          'date_to' => $dateTo,
+          'status' => $this->containsAny($lower, ['locad', 'em campo']) ? 'locado' : null,
+        ]),
+        'reply' => $category || $categoryTerm
+          ? 'Contando locações por categoria no período informado.'
+          : 'Contando locações no período informado.',
+      ];
+    }
+
+    if ($assetCodigo && $this->isAssetSituationIntent($lower)) {
+      return [
+        'command' => 'asset.get',
+        'input' => ['asset_codigo' => $assetCodigo],
+        'reply' => "Consultando situação do patrimônio {$assetCodigo}.",
+      ];
+    }
+
+    if ($this->isRentalFilterIntent($lower)) {
+      $category = EquipmentCategoryResolver::resolveFromText($message);
+      $categoryTerm = EquipmentCategoryResolver::detectTermFromText($message);
+      $status = $this->containsAny($lower, ['locad', 'contrato', 'em campo', 'ativas']) ? 'locado' : null;
+
+      return [
+        'command' => 'rental.list',
+        'input' => array_filter([
+          'status' => $status ?? 'locado',
+          'category_id' => $category?->id,
+          'category_name' => $category?->nome,
+          'category_query' => $category ? null : $categoryTerm,
+          'limit' => 25,
+        ]),
+        'reply' => $category
+          ? "Filtrando locações locadas de {$category->nome}."
+          : ($categoryTerm
+            ? 'Filtrando locações — vou usar a categoria pedida se estiver cadastrada.'
+            : 'Filtrando locações conforme pedido.'),
+      ];
     }
 
     if ($this->containsAny($lower, ['listar locações', 'listar locacoes', 'locações ativas', 'locacoes ativas', 'locações locadas'])) {
@@ -68,6 +234,105 @@ class AgentHeuristicParser
           'reply' => "Buscando clientes: {$query}.",
         ];
       }
+    }
+
+    if ($quoteCodigo && $this->containsAny($lower, ['converter', 'converta', 'virar reserva', 'transformar em reserva'])) {
+      return [
+        'command' => 'quote.convert',
+        'input' => ['quote_codigo' => $quoteCodigo],
+        'reply' => "Converter orçamento {$quoteCodigo} em reserva.",
+      ];
+    }
+
+    if ($quoteCodigo && $this->containsAny($lower, ['enviar orçamento', 'enviar orcamento', 'envia orçamento', 'envia orcamento'])) {
+      return [
+        'command' => 'quote.send',
+        'input' => ['quote_codigo' => $quoteCodigo],
+        'reply' => "Enviar orçamento {$quoteCodigo}.",
+      ];
+    }
+
+    if ($quoteCodigo && $this->containsAny($lower, ['cancelar orçamento', 'cancelar orcamento', 'cancela orçamento'])) {
+      return [
+        'command' => 'quote.cancel',
+        'input' => ['quote_codigo' => $quoteCodigo],
+        'reply' => "Cancelar orçamento {$quoteCodigo}.",
+      ];
+    }
+
+    if ($rentalCodigo && $this->containsAny($lower, ['renovação faturamento', 'renovacao faturamento', 'gerar renovação', 'gerar renovacao', 'renovar faturamento'])) {
+      return [
+        'command' => 'billing.create_renewal',
+        'input' => ['rental_codigo' => $rentalCodigo],
+        'reply' => "Gerar renovação de faturamento para {$rentalCodigo}.",
+      ];
+    }
+
+    if ($this->containsAny($lower, ['buscar pessoa', 'procurar pessoa', 'contato crm'])) {
+      $query = $this->extractSearchQuery($message, ['buscar pessoa', 'procurar pessoa', 'contato crm']);
+
+      if ($query) {
+        return [
+          'command' => 'person.search',
+          'input' => ['q' => $query],
+          'reply' => "Buscando pessoas CRM: {$query}.",
+        ];
+      }
+    }
+
+    if ($assetCodigo && $this->containsAny($lower, ['mover patrim', 'mover para', 'transferir para pátio', 'transferir para patio', 'localização patrim'])) {
+      $destino = $this->extractAfter($message, ['para:', 'para ']);
+
+      return [
+        'command' => 'asset.move_location',
+        'input' => array_filter([
+          'asset_codigo' => $assetCodigo,
+          'destino' => $destino,
+        ]),
+        'reply' => $destino
+          ? "Mover {$assetCodigo} para {$destino}."
+          : "Mover {$assetCodigo} — informe o destino.",
+      ];
+    }
+
+    if ($rentalCodigo && $this->containsAny($lower, ['cancelar', 'cancela reserva', 'cancelar reserva'])) {
+      return [
+        'command' => 'rental.cancel',
+        'input' => [
+          'rental_codigo' => $rentalCodigo,
+          'reason' => $this->extractAfter($message, ['motivo:', 'por:']) ?? 'Cancelamento solicitado via copiloto',
+        ],
+        'reply' => "Cancelar reserva {$rentalCodigo}.",
+      ];
+    }
+
+    if ($rentalCodigo && $this->containsAny($lower, ['prorrogar', 'prorrogação', 'prorrogacao', 'estender prazo', 'estender locação', 'estender locacao'])) {
+      $date = $this->extractDateFromMessage($message);
+
+      return [
+        'command' => 'rental.extend',
+        'input' => array_filter([
+          'rental_codigo' => $rentalCodigo,
+          'new_expected_return_at' => $date,
+        ]),
+        'reply' => $date
+          ? "Prorrogar {$rentalCodigo} até {$date}."
+          : "Prorrogar {$rentalCodigo} — informe a nova data de retorno (YYYY-MM-DD).",
+      ];
+    }
+
+    if ($rentalCodigo && $this->containsAny($lower, ['substituir', 'substituição', 'substituicao', 'trocar equipamento', 'trocar patrim'])) {
+      return [
+        'command' => 'rental.substitute',
+        'input' => array_filter([
+          'rental_codigo' => $rentalCodigo,
+          'new_asset_codigo' => $this->extractSubstituteAssetCode($message, $assetCodigo),
+          'motivo' => $this->extractAfter($message, ['motivo:', 'por:']),
+        ]),
+        'reply' => $this->extractSubstituteAssetCode($message, $assetCodigo)
+          ? 'Substituir equipamento na '.$rentalCodigo.' por '.$this->extractSubstituteAssetCode($message, $assetCodigo).'.'
+          : "Substituir patrimônio na {$rentalCodigo} — informe o código do novo equipamento.",
+      ];
     }
 
     if ($rentalCodigo && $this->containsAny($lower, ['ficha', 'contexto', 'status', 'detalhe', 'mostrar', 'ver loc'])) {
@@ -179,6 +444,17 @@ class AgentHeuristicParser
       ];
     }
 
+    if ($assetCodigo && $this->containsAny($lower, ['abrir os', 'nova os', 'ordem de serviço', 'manutenção', 'manutencao'])) {
+      return [
+        'command' => 'maintenance.open',
+        'input' => [
+          'asset_codigo' => $assetCodigo,
+          'descricao' => $this->extractAfter($message, ['problema:', 'motivo:', 'defeito:']) ?? 'Solicitação via copiloto',
+        ],
+        'reply' => "Abrir OS para patrimônio {$assetCodigo}.",
+      ];
+    }
+
     if ($rentalCodigo) {
       return [
         'command' => 'rental.get',
@@ -188,8 +464,71 @@ class AgentHeuristicParser
     }
 
     return [
-      'reply' => 'Mencione códigos como LOC-000001, OS-000001, FAT-000001 ou TIT-000001. Ex.: "resumo financeiro", "retorno LOC-000012", "faturar FAT-000003".',
+      'reply' => 'Posso **consultar** (filtros, fichas, patrimônio, resumos) ou **executar** ações (saída, retorno, faturar) — sempre com confirmação quando altera dados.'."\n\n"
+        .'Exemplos:'."\n"
+        .'• "Filtrar contratos com betoneiras locadas"'."\n"
+        .'• "Quantos marteletes foram locados este mês?"'."\n"
+        .'• "Situação do patrimônio AC-1001"'."\n"
+        .'• "Resumo financeiro"'."\n"
+        .'• "Retorno LOC-000012"',
     ];
+  }
+
+  private function isRentalStatsIntent(string $lower): bool
+  {
+    return $this->containsAny($lower, ['quantos', 'quantas', 'quantidade', 'contagem', 'total de'])
+      && $this->containsAny($lower, ['locad', 'locaç', 'locac', 'alugad', 'contrato', 'locação', 'locacao']);
+  }
+
+  private function isAssetSituationIntent(string $lower): bool
+  {
+    return $this->containsAny($lower, [
+      'situação do patrim', 'situacao do patrim', 'situação do pat', 'situacao do pat',
+      'status do patrim', 'como está o patrim', 'como esta o patrim', 'me fale a situação',
+      'me fale a situacao', 'me diga a situação', 'me diga a situacao',
+    ]) || (
+      $this->containsAny($lower, ['patrimônio', 'patrimonio', 'pat '])
+      && $this->containsAny($lower, ['situação', 'situacao', 'status', 'como está', 'como esta', 'me fale', 'me diga'])
+    );
+  }
+
+  /** @return array{0: string, 1: string} */
+  private function extractPeriod(string $message): array
+  {
+    $lower = mb_strtolower($message);
+    $now = now();
+
+    if (str_contains($lower, 'mês passado') || str_contains($lower, 'mes passado')) {
+      $start = $now->copy()->subMonth()->startOfMonth();
+      $end = $now->copy()->subMonth()->endOfMonth();
+    } elseif (str_contains($lower, 'este mês') || str_contains($lower, 'este mes')) {
+      $start = $now->copy()->startOfMonth();
+      $end = $now->copy()->endOfMonth();
+    } elseif (str_contains($lower, 'este ano')) {
+      $start = $now->copy()->startOfYear();
+      $end = $now->copy()->endOfYear();
+    } elseif (preg_match('/últimos?\s+(\d+)\s+dias/u', $lower, $matches)) {
+      $start = $now->copy()->subDays((int) $matches[1])->startOfDay();
+      $end = $now->copy()->endOfDay();
+    } else {
+      $start = $now->copy()->subDays(30)->startOfDay();
+      $end = $now->copy()->endOfDay();
+    }
+
+    return [$start->toDateString(), $end->toDateString()];
+  }
+
+  private function isRentalFilterIntent(string $lower): bool
+  {
+    $hasFilterVerb = $this->containsAny($lower, [
+      'filtr', 'filtro', 'mostr', 'listar', 'ver contrato', 'ver loca', 'quero que você', 'quero que voce',
+    ]);
+
+    $hasCategory = EquipmentCategoryResolver::detectTermFromText($lower) !== null
+      || $this->containsAny($lower, ['categoria', 'equipamento']);
+
+    return ($hasFilterVerb && ($hasCategory || str_contains($lower, 'contrato') || str_contains($lower, 'loca')))
+      || ($hasCategory && $this->containsAny($lower, ['locad', 'contrato', 'ativas', 'em campo']));
   }
 
   private function matchCode(string $message, string $pattern): ?string
@@ -262,5 +601,27 @@ class AgentHeuristicParser
     }
 
     return null;
+  }
+
+  private function extractDateFromMessage(string $message): ?string
+  {
+    if (preg_match('/\b(\d{4}-\d{2}-\d{2})\b/', $message, $m)) {
+      return $m[1];
+    }
+
+    if (preg_match('/\b(\d{2})\/(\d{2})\/(\d{4})\b/', $message, $m)) {
+      return sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+    }
+
+    return null;
+  }
+
+  private function extractSubstituteAssetCode(string $message, ?string $fallbackAssetCode): ?string
+  {
+    if (preg_match('/\b(?:por|substituir por|trocar por)\s+((?:AC|SM|PRT|PAT)-[A-Z0-9-]+)\b/i', $message, $m)) {
+      return strtoupper($m[1]);
+    }
+
+    return $fallbackAssetCode;
   }
 }
