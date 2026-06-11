@@ -17,9 +17,11 @@
                             Exportar contábil ▾
                         </button>
                         <div x-show="open" @click.outside="open = false" x-cloak class="absolute right-0 mt-1 w-48 rounded-md border border-gray-200 bg-white shadow-lg z-10 py-1">
-                            <a href="{{ route('finance.accounting.export', ['format' => 'csv']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">CSV padrão</a>
-                            <a href="{{ route('finance.accounting.export', ['format' => 'omie']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Omie</a>
-                            <a href="{{ route('finance.accounting.export', ['format' => 'sisloc']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Sisloc</a>
+                            <a href="{{ route('finance.accounting.export', ['format' => 'csv', 'status' => 'aberto']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">CSV padrão</a>
+                            <a href="{{ route('finance.accounting.export', ['format' => 'omie', 'status' => 'aberto']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Omie</a>
+                            <a href="{{ route('finance.accounting.export', ['format' => 'bling', 'status' => 'aberto']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Bling</a>
+                            <a href="{{ route('finance.accounting.export', ['format' => 'sisloc', 'status' => 'aberto']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Sisloc (legado)</a>
+                            <p class="px-4 py-2 text-xs text-gray-400 border-t border-gray-100 mt-1">Somente títulos abertos — evita duplicar no ERP fiscal.</p>
                         </div>
                     </div>
                 </div>

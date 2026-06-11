@@ -13,6 +13,12 @@ use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'password', 'ativo', 'ultimo_login'])]
 #[Hidden(['password', 'remember_token'])]
+/**
+ * Credencial de login dos operadores internos (pátio, comercial, financeiro).
+ *
+ * Entidade separada de {@see \App\Models\Domain\Customer\Customer} (cliente da locação)
+ * e de {@see \App\Models\Domain\Person\Person} (contato CRM). Permissões via Spatie Roles.
+ */
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */

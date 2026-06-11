@@ -25,6 +25,11 @@ class BillingQueueIndex extends Component
     #[Url(as: 'status')]
     public string $statusFilter = 'pendente';
 
+    /** @var list<int> */
+    public array $selectedEntryIds = [];
+
+    public bool $selectAllPending = false;
+
     public ?int $highlightBillingEntryId = null;
 
     public function mount(): void
@@ -84,6 +89,102 @@ class BillingQueueIndex extends Component
     public function dismissBillingHighlight(): void
     {
         $this->highlightBillingEntryId = null;
+    }
+
+    public function updatedSelectAllPending(bool $value): void
+    {
+        if (! $value) {
+            $this->selectedEntryIds = [];
+
+            return;
+        }
+
+        $this->selectedEntryIds = RentalBillingQueueEntry::query()
+            ->pendingInvoice()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    public function authorizeSelected(RentalBillingService $billingService): void
+    {
+        $this->authorize('create', ReceivableTitle::class);
+
+        $entries = $this->resolveSelectedEntries();
+        if ($entries->isEmpty()) {
+            session()->flash('error', 'Selecione ao menos uma pendência.');
+
+            return;
+        }
+
+        $authorized = 0;
+
+        foreach ($entries as $entry) {
+            if ($entry->statusEnum() !== RentalBillingQueueStatus::Pendente) {
+                continue;
+            }
+
+            try {
+                $billingService->authorizeEntry($entry);
+                $authorized++;
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+        }
+
+        $this->selectedEntryIds = [];
+        $this->selectAllPending = false;
+        $this->statusFilter = RentalBillingQueueStatus::Autorizado->value;
+
+        FlashMessage::success("{$authorized} pendência(s) autorizada(s).");
+    }
+
+    public function invoiceSelected(RentalBillingService $billingService): void
+    {
+        $this->authorize('create', ReceivableTitle::class);
+
+        $entries = $this->resolveSelectedEntries();
+        if ($entries->isEmpty()) {
+            session()->flash('error', 'Selecione ao menos uma pendência.');
+
+            return;
+        }
+
+        $invoiced = 0;
+        $lastEntry = null;
+
+        foreach ($entries as $entry) {
+            try {
+                $lastEntry = $billingService->authorizeAndInvoice($entry);
+                $invoiced++;
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+        }
+
+        $this->selectedEntryIds = [];
+        $this->selectAllPending = false;
+
+        if ($lastEntry) {
+            $this->finishInvoiceAction($lastEntry->fresh(['customer', 'rental', 'receivableTitle']));
+        }
+
+        if ($invoiced > 1) {
+            FlashMessage::success("{$invoiced} fatura(s) gerada(s).");
+        }
+    }
+
+    /** @return \Illuminate\Support\Collection<int, RentalBillingQueueEntry> */
+    private function resolveSelectedEntries()
+    {
+        if ($this->selectedEntryIds === []) {
+            return collect();
+        }
+
+        return RentalBillingQueueEntry::query()
+            ->with(['customer', 'rental', 'receivableTitle'])
+            ->whereIn('id', $this->selectedEntryIds)
+            ->get();
     }
 
     protected function afterBillingPaymentConfirmed(ReceivableTitle $title): void

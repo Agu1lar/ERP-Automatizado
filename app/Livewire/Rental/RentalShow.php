@@ -81,6 +81,10 @@ class RentalShow extends Component
 
     public string $ficha_local_obra = '';
 
+    public string $ficha_valor_frete_entrega = '';
+
+    public string $ficha_valor_frete_recolhida = '';
+
     public string $asset_descricao = '';
 
     public string $asset_horimetro = '';
@@ -174,6 +178,8 @@ class RentalShow extends Component
             'ficha_observacoes' => 'nullable|string|max:2000',
             'ficha_valor_faturamento' => 'nullable|numeric|min:0',
             'ficha_local_obra' => 'nullable|string|max:2000',
+            'ficha_valor_frete_entrega' => 'nullable|numeric|min:0',
+            'ficha_valor_frete_recolhida' => 'nullable|numeric|min:0',
             'asset_descricao' => 'nullable|string|max:5000',
             'asset_horimetro' => 'nullable|numeric|min:0',
             'asset_serie' => 'nullable|string|max:255',
@@ -196,7 +202,11 @@ class RentalShow extends Component
             'horimetro_retorno' => $data['ficha_horimetro_retorno'] !== '' ? $data['ficha_horimetro_retorno'] : null,
             'observacoes' => $data['ficha_observacoes'] ?: null,
             'valor_faturamento' => $data['ficha_valor_faturamento'] !== '' ? $data['ficha_valor_faturamento'] : null,
+            'valor_frete_entrega' => $data['ficha_valor_frete_entrega'] !== '' ? $data['ficha_valor_frete_entrega'] : null,
+            'valor_frete_recolhida' => $data['ficha_valor_frete_recolhida'] !== '' ? $data['ficha_valor_frete_recolhida'] : null,
         ]);
+
+        app(RentalBillingService::class)->syncContractRateFromRental($this->rental->fresh());
 
         app(RentalService::class)->updateLocalObra(
             $this->rental,
@@ -243,8 +253,14 @@ class RentalShow extends Component
             'ficha_observacoes' => $this->rental->update([
                 'observacoes' => $this->validateOnly('ficha_observacoes', ['ficha_observacoes' => 'nullable|string|max:2000'])['ficha_observacoes'] ?: null,
             ]),
-            'ficha_valor_faturamento' => $this->rental->update([
+            'ficha_valor_faturamento' => tap($this->rental->update([
                 'valor_faturamento' => ($v = $this->validateOnly('ficha_valor_faturamento', ['ficha_valor_faturamento' => 'nullable|numeric|min:0'])['ficha_valor_faturamento']) !== '' ? $v : null,
+            ]), fn () => app(RentalBillingService::class)->syncContractRateFromRental($this->rental->fresh())),
+            'ficha_valor_frete_entrega' => $this->rental->update([
+                'valor_frete_entrega' => ($v = $this->validateOnly('ficha_valor_frete_entrega', ['ficha_valor_frete_entrega' => 'nullable|numeric|min:0'])['ficha_valor_frete_entrega']) !== '' ? $v : null,
+            ]),
+            'ficha_valor_frete_recolhida' => $this->rental->update([
+                'valor_frete_recolhida' => ($v = $this->validateOnly('ficha_valor_frete_recolhida', ['ficha_valor_frete_recolhida' => 'nullable|numeric|min:0'])['ficha_valor_frete_recolhida']) !== '' ? $v : null,
             ]),
             'ficha_local_obra' => app(RentalService::class)->updateLocalObra(
                 $this->rental,
@@ -976,6 +992,8 @@ class RentalShow extends Component
         $this->ficha_horimetro_retorno = $this->rental->horimetro_retorno !== null ? (string) $this->rental->horimetro_retorno : '';
         $this->ficha_observacoes = $this->rental->observacoes ?? '';
         $this->ficha_valor_faturamento = $this->rental->valor_faturamento !== null ? (string) $this->rental->valor_faturamento : '';
+        $this->ficha_valor_frete_entrega = $this->rental->valor_frete_entrega !== null ? (string) $this->rental->valor_frete_entrega : '';
+        $this->ficha_valor_frete_recolhida = $this->rental->valor_frete_recolhida !== null ? (string) $this->rental->valor_frete_recolhida : '';
         $this->ficha_local_obra = $this->rental->local_obra ?? '';
 
         $this->asset_descricao = $asset->descricao ?? '';

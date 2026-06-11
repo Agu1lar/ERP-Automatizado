@@ -8,6 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * Empresa no cadastro CRM (fornecedores, parceiros, contatos comerciais).
+ *
+ * Não confundir com {@see \App\Models\Domain\Organization\OperatingCompany}
+ * (CNPJ operacional / multi-empresa) nem com {@see \App\Models\Domain\Customer\Customer}.
+ */
 class Company extends Model
 {
     use SoftDeletes;

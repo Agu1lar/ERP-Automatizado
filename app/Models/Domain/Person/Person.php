@@ -8,6 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * Pessoa física no cadastro CRM (contatos ligados a {@see Company}).
+ *
+ * Não autentica no sistema e não substitui {@see \App\Models\Domain\Customer\Customer}
+ * na ficha de locação ou financeiro.
+ */
 class Person extends Model
 {
     use SoftDeletes;

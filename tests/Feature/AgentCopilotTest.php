@@ -59,6 +59,33 @@ class AgentCopilotTest extends TestCase
     $this->assertSame('billing.list_pending', $parsed['command'] ?? null);
   }
 
+  public function test_heuristic_parser_detects_customer_billing_batch(): void
+  {
+    $parsed = app(AgentHeuristicParser::class)->parse('Copiloto, faturar ciclos pendentes da Construtora X');
+
+    $this->assertSame('billing.process_customer_pending', $parsed['command'] ?? null);
+    $this->assertSame('Construtora X', $parsed['input']['customer_name'] ?? null);
+    $this->assertSame('authorize_and_invoice', $parsed['input']['action'] ?? null);
+  }
+
+  public function test_process_customer_pending_dry_run_via_chat(): void
+  {
+    $user = $this->agentUser();
+    $rental = $this->createRentalWithBillingEntry();
+    $customer = $rental->customer;
+
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/agent/chat', [
+      'message' => "Faturar ciclos pendentes da {$customer->nome}",
+    ])
+      ->assertOk()
+      ->assertJsonPath('requires_confirmation', true)
+      ->assertJsonPath('command', 'billing.process_customer_pending')
+      ->assertJsonPath('dry_run_preview.ok', true)
+      ->assertJsonPath('dry_run_preview.dry_run', true);
+  }
+
   public function test_heuristic_parser_detects_customer_search(): void
   {
     $parsed = app(AgentHeuristicParser::class)->parse('Buscar cliente João Silva');

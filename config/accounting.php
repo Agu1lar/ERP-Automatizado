@@ -16,6 +16,10 @@ return [
             'label' => 'Omie',
             'description' => 'Layout fixo para importação de contas a receber no Omie',
         ],
+        'bling' => [
+            'label' => 'Bling',
+            'description' => 'Planilha modelo Bling — Contas a Receber (CSV ;)',
+        ],
         'sisloc' => [
             'label' => 'Sisloc',
             'description' => 'Layout fixo para integração Sisloc (CAR)',
@@ -27,6 +31,12 @@ return [
     'omie' => [
         'categoria' => env('ACCOUNTING_OMIE_CATEGORIA', '1.01.01'),
         'conta_corrente' => env('ACCOUNTING_OMIE_CONTA_CORRENTE', '1'),
+    ],
+
+    'bling' => [
+        'categoria' => env('ACCOUNTING_BLING_CATEGORIA', 'Receitas de locação'),
+        'portador' => env('ACCOUNTING_BLING_PORTADOR', 'Caixa'),
+        'forma_pagamento' => env('ACCOUNTING_BLING_FORMA_PAGAMENTO', 'Transferência'),
     ],
 
     'sisloc' => [

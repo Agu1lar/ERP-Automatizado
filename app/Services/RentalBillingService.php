@@ -44,7 +44,7 @@ class RentalBillingService
         ]);
 
         $this->syncActiveItem($rental, $user);
-        $amount = $this->resolvePeriodAmount($rental);
+        $amount = $this->firstCycleAmount($rental);
 
         if ($amount > 0) {
             $dueDate = $titleDueDate
@@ -63,29 +63,46 @@ class RentalBillingService
         }
     }
 
-    public function syncActiveItem(Rental $rental, ?User $user = null): RentalItem
+    public function syncActiveItem(Rental $rental, ?User $user = null, ?\App\Models\Domain\Fleet\Asset $previousAsset = null): RentalItem
     {
-        $rental->loadMissing('asset.equipmentModel.category');
+        $rental->loadMissing('asset.equipmentModel.category', 'items');
 
         $asset = $rental->asset;
         $descricao = $asset->equipmentDisplayName()
             .($asset->equipmentModel?->category ? ' — '.$asset->equipmentModel->category->nome : '');
 
-        $active = $rental->items()->where('ativo', true)->first();
+        $active = $rental->items->firstWhere('ativo', true);
+        $contractRate = $this->initialContractRate($rental, $active);
 
         if ($active && $active->asset_id === $asset->id) {
-            $active->update([
+            $updates = [
                 'descricao' => $descricao,
                 'local_entrega' => $rental->local_obra,
-                'valor_locacao' => (float) ($rental->valor_calculado ?? $rental->valor_faturamento ?? 0),
+                'valor_locacao' => $contractRate,
                 'valor_indenizacao' => $asset->valor_compra,
-            ]);
+            ];
+
+            if ($active->valor_contratado === null && $contractRate > 0) {
+                $updates['valor_contratado'] = $contractRate;
+            }
+
+            if ($active->horimetro_entrada === null && $asset->horimetro !== null) {
+                $updates['horimetro_entrada'] = $asset->horimetro;
+            }
+
+            $active->update($updates);
 
             return $active->fresh();
         }
 
         if ($active) {
-            $active->update(['ativo' => false]);
+            $oldAsset = $previousAsset ?? \App\Models\Domain\Fleet\Asset::query()->find($active->asset_id);
+            $contractRate = $active->billingRate();
+
+            $active->update([
+                'ativo' => false,
+                'horimetro_saida' => $oldAsset?->horimetro ?? $active->horimetro_saida,
+            ]);
         }
 
         return RentalItem::create([
@@ -93,22 +110,46 @@ class RentalBillingService
             'asset_id' => $asset->id,
             'descricao' => $descricao,
             'quantidade' => 1,
-            'valor_locacao' => (float) ($rental->valor_calculado ?? $rental->valor_faturamento ?? 0),
+            'valor_locacao' => $contractRate,
+            'valor_contratado' => $contractRate > 0 ? $contractRate : null,
             'valor_indenizacao' => $asset->valor_compra,
             'local_entrega' => $rental->local_obra,
+            'horimetro_entrada' => $asset->horimetro,
             'ativo' => true,
+        ]);
+    }
+
+    public function syncContractRateFromRental(Rental $rental): void
+    {
+        $rate = $this->initialContractRate($rental->fresh(['items']));
+
+        if ($rate <= 0) {
+            return;
+        }
+
+        $rental->items()->where('ativo', true)->update([
+            'valor_contratado' => $rate,
+            'valor_locacao' => $rate,
         ]);
     }
 
     public function markItemsReturned(Rental $rental): void
     {
+        $rental->loadMissing('asset');
+
+        $updates = [
+            'devolvido' => true,
+            'devolvido_em' => now(),
+        ];
+
+        if ($rental->asset->horimetro !== null) {
+            $updates['horimetro_saida'] = $rental->asset->horimetro;
+        }
+
         $rental->items()
             ->where('ativo', true)
             ->where('devolvido', false)
-            ->update([
-                'devolvido' => true,
-                'devolvido_em' => now(),
-            ]);
+            ->update($updates);
     }
 
     public function createRenewalIfDue(Rental $rental, ?User $user = null): ?RentalBillingQueueEntry
@@ -137,17 +178,12 @@ class RentalBillingService
         $cycleDays = max(1, (int) ($rental->billing_cycle_days ?: 28));
         $end = $start->copy()->addDays($cycleDays - 1);
 
-        $this->pricingService->applyToRental($rental->fresh());
-        $amount = $this->resolvePeriodAmount($rental->fresh());
+        $amount = $this->contractPeriodAmount($rental->fresh(['items']));
 
         $rental->update([
             'billing_period_start' => $start,
             'billing_period_end' => $end,
             'next_billing_at' => $end->copy()->addDay(),
-        ]);
-
-        $rental->items()->where('ativo', true)->update([
-            'valor_locacao' => $amount,
         ]);
 
         return $this->createQueueEntry(
@@ -248,6 +284,59 @@ class RentalBillingService
         return $this->invoiceEntry($entry, $user);
     }
 
+    /** @return Collection<int, RentalBillingQueueEntry> */
+    public function authorizeEntries(Collection $entries, ?User $user = null): Collection
+    {
+        return $entries->map(function (RentalBillingQueueEntry $entry) use ($user) {
+            if ($entry->statusEnum() === RentalBillingQueueStatus::Pendente) {
+                return $this->authorizeEntry($entry, $user);
+            }
+
+            return $entry;
+        });
+    }
+
+    /** @return Collection<int, RentalBillingQueueEntry> */
+    public function invoiceEntries(Collection $entries, ?User $user = null): Collection
+    {
+        return $entries->map(fn (RentalBillingQueueEntry $entry) => $this->authorizeAndInvoice($entry, $user));
+    }
+
+    /** @return Collection<int, RentalBillingQueueEntry> */
+    public function pendingEntriesForCustomer(int $customerId): Collection
+    {
+        return RentalBillingQueueEntry::query()
+            ->with(['customer', 'rental', 'receivableTitle'])
+            ->where('customer_id', $customerId)
+            ->pendingInvoice()
+            ->orderBy('gerado_em')
+            ->get();
+    }
+
+    public function queueFreightRecolhida(Rental $rental, ?User $user = null): ?RentalBillingQueueEntry
+    {
+        $user ??= auth()->user();
+        $amount = round((float) ($rental->valor_frete_recolhida ?? 0), 2);
+
+        if ($amount <= 0) {
+            return null;
+        }
+
+        return RentalBillingQueueEntry::create([
+            'codigo' => $this->generateCodigo(),
+            'rental_id' => $rental->id,
+            'customer_id' => $rental->customer_id,
+            'tipo' => RentalBillingQueueType::FreteRecolhida->value,
+            'periodo_inicio' => now()->toDateString(),
+            'periodo_fim' => now()->toDateString(),
+            'valor_nf' => $amount,
+            'valor_car' => $amount,
+            'status' => RentalBillingQueueStatus::Pendente->value,
+            'gerado_em' => now(),
+            'observacoes' => 'Frete de recolhida — '.$rental->codigo,
+        ])->fresh(['customer', 'rental']);
+    }
+
     public function updateBillingSettings(
         Rental $rental,
         int $cycleDays,
@@ -343,16 +432,57 @@ class RentalBillingService
         return $entry->fresh(['receivableTitle']);
     }
 
-    private function resolvePeriodAmount(Rental $rental): float
+    private function firstCycleAmount(Rental $rental): float
     {
-        if ($rental->valor_calculado !== null && (float) $rental->valor_calculado > 0) {
-            return round((float) $rental->valor_calculado, 2);
+        $period = $this->contractPeriodAmount($rental);
+        $frete = round((float) ($rental->valor_frete_entrega ?? 0), 2);
+
+        return round($period + $frete, 2);
+    }
+
+    private function contractPeriodAmount(Rental $rental): float
+    {
+        $rental->loadMissing('items');
+        $active = $rental->items->firstWhere('ativo', true);
+
+        if ($active && $active->billingRate() > 0) {
+            return $active->billingRate();
         }
 
         if ($rental->valor_faturamento !== null && (float) $rental->valor_faturamento > 0) {
             return round((float) $rental->valor_faturamento, 2);
         }
 
+        if ($rental->valor_calculado !== null && (float) $rental->valor_calculado > 0) {
+            return round((float) $rental->valor_calculado, 2);
+        }
+
+        return $this->resolvePeriodAmountFromPricing($rental);
+    }
+
+    private function initialContractRate(Rental $rental, ?RentalItem $active = null): float
+    {
+        if ($rental->valor_faturamento !== null && (float) $rental->valor_faturamento > 0) {
+            return round((float) $rental->valor_faturamento, 2);
+        }
+
+        if ($active && $active->valor_contratado !== null && (float) $active->valor_contratado > 0) {
+            return round((float) $active->valor_contratado, 2);
+        }
+
+        if ($active && (float) $active->valor_locacao > 0) {
+            return round((float) $active->valor_locacao, 2);
+        }
+
+        if ($rental->valor_calculado !== null && (float) $rental->valor_calculado > 0) {
+            return round((float) $rental->valor_calculado, 2);
+        }
+
+        return $this->resolvePeriodAmountFromPricing($rental);
+    }
+
+    private function resolvePeriodAmountFromPricing(Rental $rental): float
+    {
         $start = $rental->billing_period_start ?? $rental->checkout_at ?? $rental->reserved_at ?? now();
         $cycleDays = max(1, (int) ($rental->billing_cycle_days ?: 28));
         $end = $rental->billing_period_end ?? $start->copy()->addDays($cycleDays - 1);

@@ -64,7 +64,26 @@ trait ResolvesAgentEntities
       }
     }
 
-    throw new InvalidArgumentException('Informe customer_id ou customer_cpf_cnpj.');
+    if (! empty($input['customer_name'])) {
+      $name = trim((string) $input['customer_name']);
+      $matches = Customer::query()
+        ->where('nome', 'like', '%'.$name.'%')
+        ->orderBy('nome')
+        ->limit(2)
+        ->get();
+
+      if ($matches->count() === 1) {
+        return $matches->first();
+      }
+
+      if ($matches->count() > 1) {
+        throw new InvalidArgumentException("Múltiplos clientes encontrados para \"{$name}\". Informe customer_id ou customer_cpf_cnpj.");
+      }
+
+      throw new InvalidArgumentException("Nenhum cliente encontrado para \"{$name}\".");
+    }
+
+    throw new InvalidArgumentException('Informe customer_id, customer_cpf_cnpj ou customer_name.');
   }
 
   /** @param  array<string, mixed>  $input */

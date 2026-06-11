@@ -15,6 +15,7 @@ use App\Support\ActiveOperatingCompany;
 use Database\Seeders\OperatingCompanySeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class OperatingCompanyTest extends TestCase
@@ -123,6 +124,21 @@ class OperatingCompanyTest extends TestCase
         $this->assertSame($this->super->id, $rental->operating_company_id);
         $this->assertStringContainsString('Super Máquinas', $header['name']);
         $this->assertSame('98.765.432/0001-10', $header['document']);
+    }
+
+    public function test_scoped_tables_have_operating_company_composite_indexes(): void
+    {
+        $expected = [
+            'rentals' => 'rentals_oc_status_idx',
+            'receivable_titles' => 'recv_titles_oc_status_idx',
+            'rental_billing_queue' => 'billing_queue_oc_status_idx',
+            'assets' => 'assets_oc_status_idx',
+        ];
+
+        foreach ($expected as $table => $indexName) {
+            $names = collect(Schema::getIndexes($table))->map->name->all();
+            $this->assertContains($indexName, $names, "Missing index {$indexName} on {$table}");
+        }
     }
 
     private function createAssetForCompany(OperatingCompany $company, string $code): Asset

@@ -318,6 +318,24 @@
                                 wire:model="ficha_valor_faturamento"
                                 placeholder="0,00"
                             />
+                            <x-inline-field
+                                label="Frete de entrega"
+                                :display="$rental->valor_frete_entrega ? 'R$ '.number_format($rental->valor_frete_entrega, 2, ',', '.') : null"
+                                type="currency"
+                                :editable="true"
+                                save="saveRentalField('ficha_valor_frete_entrega')"
+                                wire:model="ficha_valor_frete_entrega"
+                                placeholder="0,00"
+                            />
+                            <x-inline-field
+                                label="Frete de recolhida"
+                                :display="$rental->valor_frete_recolhida ? 'R$ '.number_format($rental->valor_frete_recolhida, 2, ',', '.') : null"
+                                type="currency"
+                                :editable="true"
+                                save="saveRentalField('ficha_valor_frete_recolhida')"
+                                wire:model="ficha_valor_frete_recolhida"
+                                placeholder="0,00"
+                            />
                             @if($pricingBreakdown || $rental->valor_calculado)
                                 <div class="md:col-span-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
                                     <p class="font-medium text-gray-800">Cálculo automático</p>
@@ -355,6 +373,12 @@
                                 — <strong>{{ $sub->fromAsset->codigo_patrimonio }}</strong>
                                 → <strong>{{ $sub->toAsset->codigo_patrimonio }}</strong>
                                 @if($sub->motivo)<span class="text-gray-600"> · {{ $sub->motivo }}</span>@endif
+                                @if($sub->horimetro_saida !== null || $sub->horimetro_entrada !== null)
+                                    <span class="text-xs text-gray-500 block mt-0.5">
+                                        Horímetro saída: {{ $sub->horimetro_saida !== null ? number_format($sub->horimetro_saida, 1, ',', '.') : '—' }}
+                                        → entrada: {{ $sub->horimetro_entrada !== null ? number_format($sub->horimetro_entrada, 1, ',', '.') : '—' }}
+                                    </span>
+                                @endif
                                 @if($sub->substitutedByUser)<span class="text-xs text-gray-400 block mt-0.5">por {{ $sub->substitutedByUser->name }}</span>@endif
                             </li>
                         @endforeach

@@ -597,12 +597,14 @@ Exportação de **títulos a receber** em layout fixo — **não emite NF-e**; d
 | Formato | Uso |
 |---------|-----|
 | `csv` | Planilha genérica contábil |
-| `omie` | Colunas para importação de contas a receber no Omie |
-| `sisloc` | Layout CAR Sisloc |
+| `omie` | Colunas para importação de contas a receber no Omie (**destino fiscal recomendado**) |
+| `bling` | Planilha modelo Bling — Contas a Receber |
+| `sisloc` | Layout CAR Sisloc (**legado / transição**) |
 
-- Rota: `/financeiro/exportar-contabil?format=csv|omie|sisloc`
-- Botão **Exportar contábil** em Financeiro → Títulos
+- Rota: `/financeiro/exportar-contabil?format=csv|omie|bling|sisloc&status=aberto`
+- Botão **Exportar contábil** em Financeiro → Títulos (padrão: só títulos **abertos**)
 - Config: `config/accounting.php` e variáveis `ACCOUNTING_*` no `.env`
+- Runbook transição Sisloc → Omie/Bling: [`docs/TRANSICAO_FISCAL.md`](docs/TRANSICAO_FISCAL.md)
 
 ## Fase 12B — PWA e modo pátio (implementada)
 
@@ -658,7 +660,7 @@ php artisan agent:manifest   # JSON dos comandos no terminal
 | Sisloc — produto completo | ~55–65% |
 | Protheus — ERP completo | ~15–25% |
 
-**Estratégia recomendada:** Linha Leve = **operação + comercial**; fiscal/contábil pesado via integração (Omie, Conta Azul, Bling) ou módulo fiscal em fase posterior.
+**Estratégia recomendada:** Gestão Acesso = **pátio + comercial + títulos operacionais**; fiscal/NF via **Omie ou Bling** (exportação CSV Fase 12A). Sisloc permanece em **paralelo** até a ponte fiscal validada — ver [`docs/TRANSICAO_FISCAL.md`](docs/TRANSICAO_FISCAL.md).
 
 ---
 
@@ -680,7 +682,7 @@ php artisan agent:manifest   # JSON dos comandos no terminal
 | 11B | Fila a faturar, ciclos, renovações, multa/juros, próximo passo UX | Implementada |
 | 11C | Multi-empresa operacional (CNPJ) | Implementada |
 | 11D | Pessoas, empresas, busca global, validação pt_BR | Implementada |
-| 12A | Exportação contábil CSV / Omie / Sisloc | Implementada |
+| 12A | Exportação contábil CSV / Omie / Bling / Sisloc | Implementada |
 | 12B | PWA + modo pátio (QR → checklist) | Implementada |
 | 12C | Orçamento com validade → reserva | Implementada |
 | 12D | Copiloto + API agente + auditoria | Implementada |
@@ -937,7 +939,7 @@ Sprint 11+   Fase 15 CRM (após caixa controlado) + Fase 16 fiscal + Fase 17 API
 - Modo **pátio mobile** (PWA + checklist QR)
 - **Copiloto** operacional com API e auditoria
 - **Orçamento** com validade e conversão em reserva
-- Exportação contábil **Omie / Sisloc**
+- Exportação contábil **Omie / Bling / Sisloc** — [`docs/TRANSICAO_FISCAL.md`](docs/TRANSICAO_FISCAL.md)
 - Código aberto, adaptável à operação ACESSO / regional MG
 
 ---
@@ -951,7 +953,8 @@ Marque quando todos estiverem concluídos:
 - [x] Bloqueio por inadimplência na nova locação
 - [x] Contrato PDF padrão da empresa
 - [x] Orçamento com validade → reserva
-- [x] Exportação contábil (CSV / Omie / Sisloc)
+- [x] Exportação contábil (CSV / Omie / Bling / Sisloc)
+- [ ] Transição fiscal validada em paralelo (checklist `docs/TRANSICAO_FISCAL.md`)
 - [x] Modo pátio mobile (QR + checklist)
 - [x] Copiloto operacional com auditoria
 - [ ] Notificações automáticas (e-mail ou WhatsApp) de retorno atrasado

@@ -369,6 +369,208 @@ class RentalBillingTest extends TestCase
             ->assertSee('Gerar fatura agora');
     }
 
+    public function test_substitution_preserves_contract_rate_on_renewal(): void
+    {
+        $user = $this->user(UserRole::Gestor);
+        $customer = $this->customer();
+
+        $category = EquipmentCategory::create([
+            'nome' => 'Martelete',
+            'tipo_linha' => 'linha_leve',
+            'ativo' => true,
+        ]);
+
+        $model5kg = EquipmentModel::create([
+            'equipment_category_id' => $category->id,
+            'marca' => 'Marca',
+            'modelo' => '5kg',
+            'ativo' => true,
+        ]);
+
+        $model10kg = EquipmentModel::create([
+            'equipment_category_id' => $category->id,
+            'marca' => 'Marca',
+            'modelo' => '10kg',
+            'ativo' => true,
+        ]);
+
+        EquipmentPricing::create([
+            'equipment_model_id' => $model5kg->id,
+            'periodo' => RentalPricingPeriod::Diaria->value,
+            'valor' => 100,
+            'ativo' => true,
+        ]);
+
+        EquipmentPricing::create([
+            'equipment_model_id' => $model10kg->id,
+            'periodo' => RentalPricingPeriod::Diaria->value,
+            'valor' => 250,
+            'ativo' => true,
+        ]);
+
+        $original = app(AssetStatusService::class)->createWithInitialStatus(new Asset([
+            'codigo_patrimonio' => 'PAT-5KG',
+            'equipment_model_id' => $model5kg->id,
+            'localizacao' => 'Pátio',
+            'horimetro' => 120.5,
+        ]), AssetStatus::Disponivel);
+
+        $replacement = app(AssetStatusService::class)->createWithInitialStatus(new Asset([
+            'codigo_patrimonio' => 'PAT-10KG',
+            'equipment_model_id' => $model10kg->id,
+            'localizacao' => 'Pátio',
+            'horimetro' => 45.0,
+        ]), AssetStatus::Disponivel);
+
+        $this->actingAs($user);
+
+        $rental = app(RentalService::class)->reserve($original, $customer, now()->addDays(30));
+        $rental->update(['valor_faturamento' => 500]);
+        $rental = app(RentalService::class)->checkout(
+            $rental->fresh(),
+            array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
+        );
+
+        $item = RentalItem::query()->where('rental_id', $rental->id)->where('ativo', true)->first();
+        $this->assertSame('500.00', $item->valor_contratado);
+
+        $rental = app(RentalService::class)->substituteAsset($rental, $replacement, 'Troca por indisponibilidade');
+
+        $newItem = RentalItem::query()->where('rental_id', $rental->id)->where('ativo', true)->first();
+        $this->assertSame('500.00', $newItem->valor_contratado);
+        $this->assertSame('45.00', $newItem->horimetro_entrada);
+
+        $oldItem = RentalItem::query()->where('rental_id', $rental->id)->where('ativo', false)->first();
+        $this->assertSame('120.50', $oldItem->horimetro_saida);
+
+        $rental->update([
+            'next_billing_at' => now()->subDay(),
+            'billing_period_end' => now()->subDays(2),
+        ]);
+
+        app(RentalBillingService::class)->createRenewalIfDue($rental->fresh());
+
+        $renewal = RentalBillingQueueEntry::query()
+            ->where('rental_id', $rental->id)
+            ->where('tipo', RentalBillingQueueType::Renovacao->value)
+            ->first();
+
+        $this->assertNotNull($renewal);
+        $this->assertSame('500.00', $renewal->valor_car);
+    }
+
+    public function test_checkout_includes_frete_entrega_in_first_cycle(): void
+    {
+        $user = $this->user(UserRole::Gestor);
+        $customer = $this->customer();
+        $asset = $this->asset('PAT-FRETE-1', AssetStatus::Disponivel);
+
+        EquipmentPricing::create([
+            'equipment_model_id' => $asset->equipment_model_id,
+            'periodo' => RentalPricingPeriod::Diaria->value,
+            'valor' => 100,
+            'ativo' => true,
+        ]);
+
+        $this->actingAs($user);
+
+        $rental = app(RentalService::class)->reserve($asset, $customer, now()->addDays(5));
+        $rental->update([
+            'valor_faturamento' => 400,
+            'valor_frete_entrega' => 85,
+        ]);
+
+        $rental = app(RentalService::class)->checkout(
+            $rental->fresh(),
+            array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
+        );
+
+        $entry = RentalBillingQueueEntry::query()->where('rental_id', $rental->id)->first();
+        $this->assertSame('485.00', $entry->valor_car);
+    }
+
+    public function test_return_queues_frete_recolhida(): void
+    {
+        $user = $this->user(UserRole::Comercial);
+        $customer = $this->customer();
+        $asset = $this->asset('PAT-FRETE-2', AssetStatus::Disponivel);
+
+        $this->actingAs($user);
+
+        $rental = app(RentalService::class)->reserve($asset, $customer, now()->addDays(3));
+        $rental->update(['valor_frete_recolhida' => 120]);
+        $rental = app(RentalService::class)->checkout(
+            $rental->fresh(),
+            array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
+        );
+
+        app(RentalService::class)->registerReturn(
+            $rental,
+            array_fill_keys(array_keys(RentalService::CHECKLIST_RETORNO), true),
+        );
+
+        $entry = RentalBillingQueueEntry::query()
+            ->where('rental_id', $rental->id)
+            ->where('tipo', RentalBillingQueueType::FreteRecolhida->value)
+            ->first();
+
+        $this->assertNotNull($entry);
+        $this->assertSame('120.00', $entry->valor_car);
+        $this->assertSame(RentalBillingQueueStatus::Pendente->value, $entry->status);
+    }
+
+    public function test_bulk_authorize_selected_entries(): void
+    {
+        $user = $this->user(UserRole::Gestor);
+        $customer = $this->customer();
+        $asset = $this->asset('PAT-BULK-1', AssetStatus::Disponivel);
+
+        EquipmentPricing::create([
+            'equipment_model_id' => $asset->equipment_model_id,
+            'periodo' => RentalPricingPeriod::Diaria->value,
+            'valor' => 50,
+            'ativo' => true,
+        ]);
+
+        $this->actingAs($user);
+
+        $rental1 = app(RentalService::class)->reserve($asset, $customer, now()->addDays(2));
+        $rental1 = app(RentalService::class)->checkout(
+            $rental1,
+            array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
+        );
+
+        $asset2 = $this->asset('PAT-BULK-2', AssetStatus::Disponivel);
+        EquipmentPricing::create([
+            'equipment_model_id' => $asset2->equipment_model_id,
+            'periodo' => RentalPricingPeriod::Diaria->value,
+            'valor' => 50,
+            'ativo' => true,
+        ]);
+
+        $rental2 = app(RentalService::class)->reserve($asset2, $customer, now()->addDays(2));
+        $rental2 = app(RentalService::class)->checkout(
+            $rental2,
+            array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
+        );
+
+        $ids = RentalBillingQueueEntry::query()
+            ->whereIn('rental_id', [$rental1->id, $rental2->id])
+            ->pluck('id')
+            ->all();
+
+        Livewire::actingAs($user)
+            ->test(BillingQueueIndex::class)
+            ->set('selectedEntryIds', $ids)
+            ->call('authorizeSelected')
+            ->assertSet('statusFilter', RentalBillingQueueStatus::Autorizado->value);
+
+        $this->assertSame(2, RentalBillingQueueEntry::query()
+            ->whereIn('id', $ids)
+            ->where('status', RentalBillingQueueStatus::Autorizado->value)
+            ->count());
+    }
+
     private function user(UserRole $role): User
     {
         $user = User::factory()->create(['ativo' => true]);

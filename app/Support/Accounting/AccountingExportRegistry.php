@@ -10,6 +10,7 @@ class AccountingExportRegistry
     private array $formatters = [
         'csv' => GenericAccountingExporter::class,
         'omie' => OmieAccountingExporter::class,
+        'bling' => BlingAccountingExporter::class,
         'sisloc' => SislocAccountingExporter::class,
     ];
 

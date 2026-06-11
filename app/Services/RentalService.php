@@ -175,7 +175,10 @@ class RentalService
             );
 
             $rental = $rental->fresh(['asset', 'customer', 'checklists.items']);
-            $this->rentalPricingService->applyToRental($rental);
+            $this->rentalPricingService->applyToRental(
+                $rental,
+                overwriteFaturamento: $rental->valor_faturamento === null,
+            );
             $rental = $rental->fresh(['asset', 'customer', 'checklists.items']);
             $this->rentalBillingService->initializeOnCheckout($rental, $user);
 
@@ -265,6 +268,7 @@ class RentalService
             );
 
             $this->rentalBillingService->markItemsReturned($rental);
+            $this->rentalBillingService->queueFreightRecolhida($rental->fresh(), $user);
 
             $this->auditService->log(
                 AuditAction::StatusChanged,
@@ -586,6 +590,8 @@ class RentalService
                 'from_asset_id' => $oldAsset->id,
                 'to_asset_id' => $newAsset->id,
                 'motivo' => $motivo,
+                'horimetro_saida' => $oldAsset->horimetro,
+                'horimetro_entrada' => $newAsset->horimetro,
                 'substituted_by' => $user?->id,
                 'substituted_at' => now(),
             ]);
@@ -620,7 +626,7 @@ class RentalService
             );
 
             $rental = $rental->fresh(['asset.equipmentModel.category', 'customer', 'assetSubstitutions.fromAsset', 'assetSubstitutions.toAsset']);
-            $this->rentalBillingService->syncActiveItem($rental, $user);
+            $this->rentalBillingService->syncActiveItem($rental, $user, $oldAsset);
 
             return $rental->fresh(['items']);
         });

@@ -53,12 +53,53 @@ class Phase12FeaturesTest extends TestCase
             'status' => 'aberto',
         ]);
 
-        $response = $this->actingAs($user)->get(route('finance.accounting.export', ['format' => 'omie']));
+        $response = $this->actingAs($user)->get(route('finance.accounting.export', ['format' => 'omie', 'status' => 'aberto']));
 
         $response->assertOk();
         $content = $response->streamedContent();
         $this->assertStringContainsString('codigo_lancamento_integracao', $content);
         $this->assertStringContainsString('TIT-EXP-001', $content);
+    }
+
+    public function test_accounting_export_bling_format(): void
+    {
+        $user = $this->commercialUser();
+        $customer = Customer::create([
+            'nome' => 'Construtora BH',
+            'cpf_cnpj' => '39053344705',
+            'ativo' => true,
+        ]);
+
+        ReceivableTitle::create([
+            'codigo' => 'TIT-BLING-001',
+            'customer_id' => $customer->id,
+            'parcela' => 1,
+            'total_parcelas' => 1,
+            'valor' => 850,
+            'vencimento' => now()->addDays(15),
+            'status' => 'aberto',
+        ]);
+
+        ReceivableTitle::create([
+            'codigo' => 'TIT-PAID-001',
+            'customer_id' => $customer->id,
+            'parcela' => 1,
+            'total_parcelas' => 1,
+            'valor' => 200,
+            'vencimento' => now()->subDays(5),
+            'status' => 'pago',
+        ]);
+
+        $response = $this->actingAs($user)->get(route('finance.accounting.export', ['format' => 'bling', 'status' => 'aberto']));
+
+        $response->assertOk();
+        $content = $response->streamedContent();
+        $this->assertStringContainsString('Data de Vencimento', $content);
+        $this->assertStringContainsString('Valor do Documento', $content);
+        $this->assertStringContainsString('TIT-BLING-001', $content);
+        $this->assertStringNotContainsString('TIT-PAID-001', $content);
+        $this->assertStringContainsString('aberto', $content);
+        $this->assertStringContainsString('Construtora BH', $content);
     }
 
     public function test_asset_scan_redirects_operators_to_yard(): void

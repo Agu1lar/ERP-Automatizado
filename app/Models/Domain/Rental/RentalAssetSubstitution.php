@@ -14,6 +14,8 @@ class RentalAssetSubstitution extends Model
         'from_asset_id',
         'to_asset_id',
         'motivo',
+        'horimetro_saida',
+        'horimetro_entrada',
         'substituted_by',
         'substituted_at',
     ];
@@ -22,6 +24,8 @@ class RentalAssetSubstitution extends Model
     {
         return [
             'substituted_at' => 'datetime',
+            'horimetro_saida' => 'decimal:2',
+            'horimetro_entrada' => 'decimal:2',
         ];
     }
 

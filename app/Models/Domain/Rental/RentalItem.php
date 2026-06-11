@@ -14,10 +14,13 @@ class RentalItem extends Model
         'descricao',
         'quantidade',
         'valor_locacao',
+        'valor_contratado',
         'valor_indenizacao',
         'devolvido',
         'devolvido_em',
         'local_entrega',
+        'horimetro_entrada',
+        'horimetro_saida',
         'ativo',
     ];
 
@@ -26,7 +29,10 @@ class RentalItem extends Model
         return [
             'quantidade' => 'integer',
             'valor_locacao' => 'decimal:2',
+            'valor_contratado' => 'decimal:2',
             'valor_indenizacao' => 'decimal:2',
+            'horimetro_entrada' => 'decimal:2',
+            'horimetro_saida' => 'decimal:2',
             'devolvido' => 'boolean',
             'devolvido_em' => 'datetime',
             'ativo' => 'boolean',
@@ -51,5 +57,15 @@ class RentalItem extends Model
     public function totalIndenizacao(): float
     {
         return round((float) ($this->valor_indenizacao ?? 0) * $this->quantidade, 2);
+    }
+
+    /** Valor acordado no contrato para faturamento recorrente. */
+    public function billingRate(): float
+    {
+        if ($this->valor_contratado !== null && (float) $this->valor_contratado > 0) {
+            return round((float) $this->valor_contratado, 2);
+        }
+
+        return round((float) $this->valor_locacao, 2);
     }
 }

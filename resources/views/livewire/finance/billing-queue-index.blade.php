@@ -42,6 +42,26 @@
                 @endforeach
             </div>
 
+            @if($statusFilter === 'pendente' && $pendingCount > 0)
+                @can('create', App\Models\Domain\Finance\ReceivableTitle::class)
+                    <div class="flex flex-wrap items-center gap-3 bg-white rounded-lg shadow px-4 py-3">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" wire:model.live="selectAllPending" class="rounded border-gray-300 text-indigo-600">
+                            Selecionar todas ({{ $pendingCount }})
+                        </label>
+                        @if(count($selectedEntryIds) > 0)
+                            <span class="text-sm text-gray-500">{{ count($selectedEntryIds) }} selecionada(s)</span>
+                            <button wire:click="authorizeSelected" class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+                                Autorizar selecionadas
+                            </button>
+                            <button wire:click="invoiceSelected" class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">
+                                Faturar selecionadas
+                            </button>
+                        @endif
+                    </div>
+                @endcan
+            @endif
+
             @foreach($report['grupos'] as $grupo)
                 <div class="bg-white rounded-lg shadow overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap justify-between gap-2">
@@ -55,6 +75,9 @@
                     <table class="min-w-full text-sm divide-y divide-gray-100">
                         <thead class="bg-gray-50 text-xs uppercase text-gray-500">
                             <tr>
+                                @if($statusFilter === 'pendente')
+                                    <th class="px-4 py-3 text-left w-8"></th>
+                                @endif
                                 <th class="px-4 py-3 text-left">Cliente</th>
                                 <th class="px-4 py-3 text-left">Origem</th>
                                 <th class="px-4 py-3 text-left">Código</th>
@@ -69,6 +92,13 @@
                         <tbody class="divide-y divide-gray-50">
                             @foreach($grupo['entries'] as $entry)
                                 <tr>
+                                    @if($statusFilter === 'pendente')
+                                        <td class="px-4 py-3">
+                                            @can('create', App\Models\Domain\Finance\ReceivableTitle::class)
+                                                <input type="checkbox" wire:model.live="selectedEntryIds" value="{{ $entry->id }}" class="rounded border-gray-300 text-indigo-600">
+                                            @endcan
+                                        </td>
+                                    @endif
                                     <td class="px-4 py-3">
                                         <a href="{{ route('customers.show', $entry->customer) }}" wire:navigate class="text-indigo-600 hover:underline">{{ $entry->customer->nome }}</a>
                                     </td>

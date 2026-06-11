@@ -47,6 +47,37 @@ SESSION_DRIVER=database
 
 Sem worker supervisionado, QR Codes ficam pendentes e jobs de e-mail/preventiva não executam.
 
+## Fila `database` — monitoramento
+
+Com `QUEUE_CONNECTION=database`, jobs ficam na tabela `jobs`. Para até ~20 usuários isso é suficiente; ainda assim:
+
+| Rotina | Comando / agendamento |
+|--------|------------------------|
+| Renovações de locação | Cron 06:30 — `rentals:process-billing-renewals` |
+| QR Code (patrimônio) | `queue:work` via Supervisor |
+| Limpeza de falhas | Semanal — `queue:prune-failed --hours=168` (já no scheduler) |
+
+**Sinais de alerta**
+
+- Tabela `jobs` com milhares de linhas `reserved_at` antigas → worker parado ou job travado.
+- Pico de `failed_jobs` → investigar antes que retries saturem conexões PostgreSQL.
+- Jobs pesados (PDF, QR em lote) → preferir fila dedicada ou `timeout`/`tries` explícitos no job.
+
+Consultas úteis (PostgreSQL):
+
+```sql
+SELECT queue, COUNT(*) FROM jobs GROUP BY queue;
+SELECT COUNT(*) FROM failed_jobs WHERE failed_at > NOW() - INTERVAL '7 days';
+```
+
+Reinicie o worker após deploy: `sudo supervisorctl restart laravel-worker:*`
+
+## Multi-empresa (performance)
+
+Tabelas com `operating_company_id` possuem índices compostos `(operating_company_id, status)` (ou colunas equivalentes) para listagens e dashboards não degradarem com volume.
+
+O escopo global (`BelongsToOperatingCompany`) aplica o filtro em toda query — o índice composto evita sequential scan. Após restore de backup antigo, rode `php artisan migrate` para garantir índices atuais.
+
 ## Cron (agendador)
 
 Instale `deploy/cron/laravel-scheduler` no crontab do usuário que executa o PHP (geralmente `www-data`).

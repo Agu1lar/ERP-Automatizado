@@ -13,7 +13,7 @@ Sistema de gestão para **locadoras de equipamentos de linha leve** (betoneiras,
 | **Comercial** | Reservar, orçar, acompanhar locações, ver se o cliente está bloqueado, fechar proposta com validade |
 | **Operação / pátio** | Painel do que está locado, saída e retorno com checklist, scan do QR no celular |
 | **Manutenção** | OS com peças e horas, preventiva por horímetro, integração com retorno de locação |
-| **Financeiro / gestão** | Títulos a receber, inadimplência, fila a faturar, exportação para contador (CSV, Omie, Sisloc) |
+| **Financeiro / gestão** | Títulos a receber, inadimplência, fila a faturar, exportação para contador (CSV, **Omie**, **Bling**, Sisloc legado) |
 | **Gestor / admin** | Dashboards, auditoria, multi-empresa, usuários, copiloto operacional |
 
 **Público-alvo:** locadora de **médio porte**, operação **regional** (ex.: BH e região metropolitana).
@@ -74,7 +74,7 @@ Orçamento (opcional) → Reserva → Saída → Locado → Retorno → Inspeç�
 - **Baixa manual** de pagamento (PIX, transferência, etc.).
 - **Bloqueio** de nova locação para cliente inadimplente ou bloqueado manualmente.
 - **Limite de crédito** opcional por cliente.
-- **Exportação contábil** em layout fixo: CSV padrão, **Omie** ou **Sisloc** — sem emitir NF-e pelo sistema.
+- **Exportação contábil** em layout fixo: CSV padrão, **Omie**, **Bling** ou Sisloc (legado) — sem emitir NF-e pelo sistema; ver [Transição fiscal](TRANSICAO_FISCAL.md).
 - **Análise financeira** gerencial (visão consolidada de recebíveis e operação).
 
 ### Clientes e cadastros
@@ -106,7 +106,31 @@ Modo heurístico (sem IA) ou com **modelo de linguagem** opcional via configura�
 
 - **PWA** instalável no celular.
 - Scan do QR → tela enxuta → checklist de **saída** ou **retorno** com um toque.
+- Checklist mantém **estado local no aparelho** (Alpine + sessionStorage) e só envia ao servidor ao confirmar — tolera Wi‑Fi/4G instável no galpão.
 - Ideal para quem não quer abrir ficha completa no desktop no meio do pátio.
+
+---
+
+## Notas de arquitetura (para gestores e devs)
+
+### Multi-empresa e performance
+
+Várias empresas operacionais (CNPJ) compartilham o mesmo sistema; locação, frota e financeiro são **isolados por `operating_company_id`**. Listagens e dashboards dependem de índices compostos no banco — essencial conforme auditoria e títulos crescem.
+
+### Quem é quem no cadastro
+
+| Entidade | Papel |
+|----------|--------|
+| **User** | Funcionário com login (pátio, comercial, financeiro). Permissões Spatie. |
+| **Customer** | Cliente da **locação** — CPF/CNPJ, contratos, títulos. Sem login. |
+| **Person / Company** | Cadastro **CRM** (contatos, fornecedores). Separado do cliente de locação. |
+| **OperatingCompany** | CNPJ operacional (Acesso, Super Máquinas…) — seletor no topo. |
+
+Operadores **nunca** compartilham tabela com clientes — evita vazamento de escopo e confusão de permissões.
+
+### Fila assíncrona
+
+Jobs (QR Code, rotinas futuras) usam driver `database` — adequado ao porte atual. Monitorar crescimento da tabela `jobs` e falhas; runbook em [`docs/PRODUCTION.md`](PRODUCTION.md).
 
 ---
 
@@ -126,7 +150,7 @@ Para expectativa alinhada:
 
 | Expectativa | Situação atual |
 |-------------|----------------|
-| Emitir **NF-e / NFS-e** | Não — exportação contábil e integração com Omie/Sisloc; fiscal em sistema parceiro |
+| Emitir **NF-e / NFS-e** | Não — exportação para **Omie/Bling** (fiscal) ou Sisloc durante transição |
 | Substituir **Protheus** (RH, compras, contabilidade completa) | Não — escopo é operação + comercial + financeiro leve |
 | **Romaneio / rotas** de entrega multi-cidade | Planejado — hoje o local da obra e painéis cobrem parte da operação |
 | **Boleto/PIX automático** (gateway) | Planejado — hoje a baixa é manual |
@@ -176,7 +200,7 @@ A sequência exata e estimativas técnicas estão no [README — Roadmap](../REA
 
 1. **Fila a faturar** — autoriza e gera faturas pendentes.
 2. **Inadimplência** — quem deve, há quanto tempo, com multa/juros.
-3. **Exporta** títulos para Omie, Sisloc ou CSV do contador.
+3. **Exporta** títulos abertos para **Omie** ou **Bling** (ou CSV); emite NF no ERP fiscal.
 4. Registra **pagamentos** recebidos.
 
 ### Gestor — “visão do negócio”
@@ -190,9 +214,13 @@ A sequência exata e estimativas técnicas estão no [README — Roadmap](../REA
 
 ## Posicionamento
 
-O **Gestão Acesso** é o **sistema operacional principal** da locadora: frota, locação, manutenção e financeiro leve no mesmo lugar. Comercial e fiscal pesado podem conviver com **Omie, Sisloc ou planilhas** até que módulos mais avançados (romaneio, NFS-e, gateway) entrem em produção.
+O **Gestão Acesso** é o **sistema operacional principal** da locadora: frota, locação, manutenção e financeiro leve no mesmo lugar.
 
-**Meta de maturidade:** substituir o **núcleo operacional** de ferramentas como Sisloc para o dia a day do pátio e do comercial, mantendo integração — não substituição overnight — com contabilidade e fiscal externos.
+O **Sisloc** (ou similar) costuma resolver hoje a parte **pesada de impostos e NF**. A estratégia não é substituí-lo de um dia para o outro: o Gestão Acesso assume **pátio e comercial**; um ERP fiscal enxuto (**Omie**, **Bling**, Conta Azul) assume notas e contabilidade por **custo muito menor** que o Sisloc completo.
+
+A ponte é a **exportação contábil (Fase 12A)**. Só desligue o Sisloc fiscal depois que Omie/Bling importarem títulos em paralelo, sem divergência, por pelo menos um ciclo de faturamento. Detalhes: [`docs/TRANSICAO_FISCAL.md`](TRANSICAO_FISCAL.md).
+
+**Meta de maturidade:** substituir o **núcleo operacional** do Sisloc (dia a dia do pátio e comercial), mantendo o fiscal em parceiro até a transição validada.
 
 ---
 

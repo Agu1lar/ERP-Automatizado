@@ -32,6 +32,21 @@ class AgentHeuristicParser
       ];
     }
 
+    if ($this->containsAny($lower, ['faturar ciclos', 'faturar pendências', 'faturar pendencias', 'faturar fila'])) {
+      $customerQuery = $this->extractCustomerNameForBilling($message);
+
+      if ($customerQuery) {
+        return [
+          'command' => 'billing.process_customer_pending',
+          'input' => [
+            'customer_name' => $customerQuery,
+            'action' => $this->containsAny($lower, ['autorizar']) && ! $this->containsAny($lower, ['faturar', 'emitir']) ? 'authorize' : 'authorize_and_invoice',
+          ],
+          'reply' => "Processar pendências de faturamento de {$customerQuery}.",
+        ];
+      }
+    }
+
     if ($this->containsAny($lower, ['listar locações', 'listar locacoes', 'locações ativas', 'locacoes ativas', 'locações locadas'])) {
       return [
         'command' => 'rental.list',
@@ -224,6 +239,25 @@ class AgentHeuristicParser
         $text = trim(mb_substr($message, $pos + mb_strlen($prefix)));
 
         return $text !== '' ? $text : null;
+      }
+    }
+
+    return null;
+  }
+
+  private function extractCustomerNameForBilling(string $message): ?string
+  {
+    $patterns = [
+      '/(?:faturar\s+(?:ciclos\s+)?pendentes?\s+(?:da|de|do)\s+)(.+)$/iu',
+      '/(?:faturar\s+(?:a\s+)?fila\s+(?:da|de|do)\s+)(.+)$/iu',
+      '/(?:autorizar\s+pendências?\s+(?:da|de|do)\s+)(.+)$/iu',
+    ];
+
+    foreach ($patterns as $pattern) {
+      if (preg_match($pattern, trim($message), $m)) {
+        $name = trim($m[1], " \t\n\r\0\x0B\"'.,;");
+
+        return $name !== '' ? $name : null;
       }
     }
 

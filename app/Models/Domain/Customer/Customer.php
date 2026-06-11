@@ -13,6 +13,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * Cliente da operação de locação — quem recebe equipamentos e títulos a receber.
+ *
+ * Não possui credencial de login. Distinto de {@see \App\Models\Domain\Person\Person}
+ * (cadastro comercial/CRM) e de {@see \App\Models\User} (funcionários).
+ */
 class Customer extends Model
 {
     use SoftDeletes;
