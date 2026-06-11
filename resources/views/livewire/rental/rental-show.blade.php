@@ -357,6 +357,131 @@
                         </div>
                     </div>
 
+                    <div>
+                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Logística RMBH</h4>
+                        <div class="grid md:grid-cols-2 gap-x-4 gap-y-1">
+                            <div class="md:col-span-2">
+                                <x-inline-field
+                                    label="Saída — quem busca"
+                                    :display="\App\Enums\LogisticsDeliveryMode::tryFrom($rental->entrega_modalidade ?? 'empresa_entrega')?->label()"
+                                    type="select"
+                                    :editable="true"
+                                    save="saveRentalField('ficha_entrega_modalidade')"
+                                    wire:model="ficha_entrega_modalidade"
+                                >
+                                    @foreach($logisticsDeliveryModes as $mode)
+                                        <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                                    @endforeach
+                                </x-inline-field>
+                                @if(($rental->entrega_modalidade ?? 'empresa_entrega') === \App\Enums\LogisticsDeliveryMode::ClienteRetira->value)
+                                    <p class="text-xs text-gray-500 mt-1 px-3">
+                                        Cliente retira no pátio
+                                        @if($rental->asset->yard)
+                                            <strong>{{ $rental->asset->yard->displayLabel() }}</strong>
+                                        @else
+                                            — defina o pátio de origem no patrimônio
+                                        @endif
+                                    </p>
+                                @endif
+                            </div>
+                            <x-inline-field
+                                label="Saída — data"
+                                :display="$rental->entrega_agendada_em?->format('d/m/Y')"
+                                type="date"
+                                :editable="true"
+                                save="saveRentalField('ficha_entrega_agendada_em')"
+                                wire:model="ficha_entrega_agendada_em"
+                            />
+                            <x-inline-field
+                                label="Saída — turno"
+                                :display="$rental->entrega_turno ? (\App\Enums\LogisticsShift::tryFrom($rental->entrega_turno)?->label() ?? $rental->entrega_turno) : null"
+                                type="select"
+                                :editable="true"
+                                save="saveRentalField('ficha_entrega_turno')"
+                                wire:model="ficha_entrega_turno"
+                            >
+                                <option value="">—</option>
+                                @foreach($logisticsShiftOptions as $shift)
+                                    <option value="{{ $shift->value }}">{{ $shift->label() }}</option>
+                                @endforeach
+                            </x-inline-field>
+                            <div class="md:col-span-2">
+                                <x-inline-field
+                                    label="Saída — observações"
+                                    :display="$rental->entrega_observacoes"
+                                    type="textarea"
+                                    :editable="true"
+                                    save="saveRentalField('ficha_entrega_observacoes')"
+                                    wire:model="ficha_entrega_observacoes"
+                                    placeholder="{{ ($rental->entrega_modalidade ?? 'empresa_entrega') === \App\Enums\LogisticsDeliveryMode::ClienteRetira->value ? 'Ex.: cliente avisado, documento na portaria' : 'Ex.: portão lateral, referência de acesso' }}"
+                                />
+                            </div>
+                            <div class="md:col-span-2">
+                                <x-inline-field
+                                    label="Devolução — quem traz"
+                                    :display="\App\Enums\LogisticsReturnMode::tryFrom($rental->retirada_modalidade ?? 'empresa_recolhe')?->label()"
+                                    type="select"
+                                    :editable="true"
+                                    save="saveRentalField('ficha_retirada_modalidade')"
+                                    wire:model="ficha_retirada_modalidade"
+                                >
+                                    @foreach($logisticsReturnModes as $mode)
+                                        <option value="{{ $mode->value }}">{{ $mode->label() }}</option>
+                                    @endforeach
+                                </x-inline-field>
+                                @if(($rental->retirada_modalidade ?? 'empresa_recolhe') === \App\Enums\LogisticsReturnMode::ClienteDevolve->value)
+                                    <p class="text-xs text-gray-500 mt-1 px-3">
+                                        Cliente devolve no pátio
+                                        @if($rental->asset->yard)
+                                            <strong>{{ $rental->asset->yard->displayLabel() }}</strong>
+                                        @else
+                                            — defina o pátio de origem no patrimônio
+                                        @endif
+                                    </p>
+                                @endif
+                            </div>
+                            <x-inline-field
+                                label="Devolução — data"
+                                :display="$rental->retirada_agendada_em?->format('d/m/Y')"
+                                type="date"
+                                :editable="true"
+                                save="saveRentalField('ficha_retirada_agendada_em')"
+                                wire:model="ficha_retirada_agendada_em"
+                            />
+                            <x-inline-field
+                                label="Devolução — turno"
+                                :display="$rental->retirada_turno ? (\App\Enums\LogisticsShift::tryFrom($rental->retirada_turno)?->label() ?? $rental->retirada_turno) : null"
+                                type="select"
+                                :editable="true"
+                                save="saveRentalField('ficha_retirada_turno')"
+                                wire:model="ficha_retirada_turno"
+                            >
+                                <option value="">—</option>
+                                @foreach($logisticsShiftOptions as $shift)
+                                    <option value="{{ $shift->value }}">{{ $shift->label() }}</option>
+                                @endforeach
+                            </x-inline-field>
+                            <div class="md:col-span-2">
+                                <x-inline-field
+                                    label="Devolução — observações"
+                                    :display="$rental->retirada_observacoes"
+                                    type="textarea"
+                                    :editable="true"
+                                    save="saveRentalField('ficha_retirada_observacoes')"
+                                    wire:model="ficha_retirada_observacoes"
+                                    placeholder="{{ ($rental->retirada_modalidade ?? 'empresa_recolhe') === \App\Enums\LogisticsReturnMode::ClienteDevolve->value ? 'Ex.: horário de funcionamento do pátio' : 'Ex.: recolher após 14h, avisar cliente' }}"
+                                />
+                            </div>
+                            @if($rental->entrega_agendada_em || $rental->retirada_agendada_em || (($rental->retirada_modalidade ?? '') === \App\Enums\LogisticsReturnMode::ClienteDevolve->value && $rental->expected_return_at))
+                                <div class="md:col-span-2">
+                                    <a href="{{ route('logistics.daily', ['data' => $rental->entrega_agendada_em?->toDateString() ?? $rental->retirada_agendada_em?->toDateString() ?? $rental->expected_return_at?->toDateString()]) }}" wire:navigate class="text-sm text-indigo-600 hover:underline">
+                                        Ver na lista do dia →
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
                     <livewire:custom-field.custom-field-panel :entity-type="'rental'" :entity-id="$rental->id" :inline="true" :key="'cf-rental-'.$rental->id" />
                 @else
                     <p class="text-sm text-gray-500">Sem permissão para editar a ficha.</p>

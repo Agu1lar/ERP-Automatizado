@@ -72,6 +72,25 @@ SELECT COUNT(*) FROM failed_jobs WHERE failed_at > NOW() - INTERVAL '7 days';
 
 Reinicie o worker após deploy: `sudo supervisorctl restart laravel-worker:*`
 
+## Alertas operacionais por e-mail
+
+Job diário **07:45** — `notifications:operational-alerts`:
+
+- Retornos de locação atrasados
+- OS com previsão vencida
+- Preventiva vencida por horímetro
+
+Destinatários: usuários **ativos** com e-mail e permissão (`rentals.view` / `maintenance.view`). Opcional: `OPERATIONAL_ALERTS_EXTRA_RECIPIENTS` no `.env`.
+
+Configure SMTP real em produção (`MAIL_MAILER=smtp`, etc.). Em dev, `MAIL_MAILER=log` grava em `storage/logs/laravel.log`.
+
+Teste manual:
+
+```bash
+php artisan notifications:operational-alerts --dry-run
+php artisan notifications:operational-alerts
+```
+
 ## Multi-empresa (performance)
 
 Tabelas com `operating_company_id` possuem índices compostos `(operating_company_id, status)` (ou colunas equivalentes) para listagens e dashboards não degradarem com volume.

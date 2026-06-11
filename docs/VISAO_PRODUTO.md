@@ -163,7 +163,7 @@ Para expectativa alinhada:
 
 Prioridades naturais para evoluir o produto:
 
-1. **Notificações** — e-mail ou WhatsApp para retorno atrasado, OS atrasada, cobrança.
+1. **Notificações** — e-mail diário (retorno atrasado, OS atrasada, preventiva vencida) às 07:45; WhatsApp no roadmap.
 2. **Estoque de peças** — saldo real na oficina, baixa automática ao concluir OS.
 3. **Logística regional** — múltiplos pátios, agenda de entrega, romaneio do dia.
 4. **Indicadores de frota** — taxa de ocupação, rentabilidade por patrimônio, calendário de disponibilidade.

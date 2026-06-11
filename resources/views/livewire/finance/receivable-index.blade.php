@@ -17,11 +17,11 @@
                             Exportar contábil ▾
                         </button>
                         <div x-show="open" @click.outside="open = false" x-cloak class="absolute right-0 mt-1 w-48 rounded-md border border-gray-200 bg-white shadow-lg z-10 py-1">
-                            <a href="{{ route('finance.accounting.export', ['format' => 'csv', 'status' => 'aberto']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">CSV padrão</a>
-                            <a href="{{ route('finance.accounting.export', ['format' => 'omie', 'status' => 'aberto']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Omie</a>
-                            <a href="{{ route('finance.accounting.export', ['format' => 'bling', 'status' => 'aberto']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Bling</a>
-                            <a href="{{ route('finance.accounting.export', ['format' => 'sisloc', 'status' => 'aberto']) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Sisloc (legado)</a>
-                            <p class="px-4 py-2 text-xs text-gray-400 border-t border-gray-100 mt-1">Somente títulos abertos — evita duplicar no ERP fiscal.</p>
+                            <a href="{{ route('finance.accounting.export', ['format' => 'csv', 'status' => 'aberto', 'exclude_exported' => 1]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">CSV padrão</a>
+                            <a href="{{ route('finance.accounting.export', ['format' => 'omie', 'status' => 'aberto', 'exclude_exported' => 1]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Omie</a>
+                            <a href="{{ route('finance.accounting.export', ['format' => 'bling', 'status' => 'aberto', 'exclude_exported' => 1]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Bling</a>
+                            <a href="{{ route('finance.accounting.export', ['format' => 'sisloc', 'status' => 'aberto', 'exclude_exported' => 1]) }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Sisloc (legado)</a>
+                            <p class="px-4 py-2 text-xs text-gray-400 border-t border-gray-100 mt-1">Títulos abertos ainda não exportados — marca como enviado ao ERP após download.</p>
                         </div>
                     </div>
                 </div>
@@ -39,6 +39,10 @@
                     <input wire:model.live="overdueOnly" type="checkbox" value="1" class="rounded border-gray-300" />
                     Somente atrasados
                 </label>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input wire:model.live="notExportedOnly" type="checkbox" value="1" class="rounded border-gray-300" />
+                    Ainda não exportados ao ERP
+                </label>
             </div>
 
             <div class="bg-white rounded-lg shadow overflow-hidden">
@@ -52,6 +56,7 @@
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Valor</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vencimento</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ERP</th>
                             <th class="px-4 py-3"></th>
                         </tr>
                     </thead>
@@ -78,10 +83,26 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3">{{ $title->statusEnum()->label() }}</td>
+                                <td class="px-4 py-3 text-xs">
+                                    @if($title->isExportedToErp())
+                                        <span class="text-emerald-700" title="{{ $title->exportado_erp_em?->format('d/m/Y H:i') }} — {{ $title->exportado_erp_formato }}">
+                                            Exportado {{ $title->exportado_erp_em?->format('d/m/Y') }}
+                                        </span>
+                                    @else
+                                        <span class="text-gray-400">Pendente</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-right">
                                     <div class="flex flex-col items-end gap-1">
                                         <a href="{{ route('finance.receivable.export', $title) }}" target="_blank" class="text-indigo-600 hover:underline text-xs">Exportar CSV</a>
                                         @if($title->status === 'aberto')
+                                            @can('update', $title)
+                                                @if($title->isExportedToErp())
+                                                    <button wire:click="clearExportedFlag({{ $title->id }})" class="text-gray-500 hover:underline text-xs">Desmarcar ERP</button>
+                                                @else
+                                                    <button wire:click="markExportedToErp({{ $title->id }})" class="text-indigo-600 hover:underline text-xs">Marcar exportado ERP</button>
+                                                @endif
+                                            @endcan
                                             @can('markPaid', $title)
                                                 <button wire:click="openPayModal({{ $title->id }})" class="text-emerald-600 hover:underline text-xs font-medium">Registrar pagamento</button>
                                             @endcan
@@ -93,7 +114,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-gray-500">Nenhum título encontrado.</td>
+                                <td colspan="9" class="px-4 py-8 text-center text-gray-500">Nenhum título encontrado.</td>
                             </tr>
                         @endforelse
                     </tbody>

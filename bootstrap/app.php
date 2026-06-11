@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('maintenance:process-preventive-due')->dailyAt('06:00');
         $schedule->command('rentals:process-billing-renewals')->dailyAt('06:30');
         $schedule->command('quotes:expire')->dailyAt('07:00');
+        $schedule->command('notifications:operational-alerts')->dailyAt('07:45');
         $schedule->command('queue:prune-failed --hours=168')->weekly();
     })
     ->withMiddleware(function (Middleware $middleware): void {

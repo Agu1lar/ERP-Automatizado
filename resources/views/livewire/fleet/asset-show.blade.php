@@ -127,6 +127,20 @@
                                 placeholder="Ex.: 220V"
                             />
                             <x-inline-field
+                                label="Pátio de origem"
+                                :display="$asset->yard?->displayLabel()"
+                                type="select"
+                                :editable="$canEdit"
+                                save="saveFicha"
+                                wire:model="ficha_yard_id"
+                                placeholder="Selecione o pátio"
+                            >
+                                <option value="">— Não definido —</option>
+                                @foreach($yards as $yard)
+                                    <option value="{{ $yard->id }}">{{ $yard->displayLabel() }}</option>
+                                @endforeach
+                            </x-inline-field>
+                            <x-inline-field
                                 label="Localização"
                                 :display="$asset->localizacao"
                                 :editable="$canEdit"

@@ -77,8 +77,8 @@ new class extends Component
                                 @click="comercialOpen = !comercialOpen"
                                 @class([
                                     'inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition',
-                                    'bg-indigo-50 text-indigo-700' => request()->routeIs('rentals.*', 'reports.*', 'finance.*'),
-                                    'text-gray-600 hover:bg-gray-50 hover:text-gray-900' => !request()->routeIs('rentals.*', 'reports.*', 'finance.*'),
+                                    'bg-indigo-50 text-indigo-700' => request()->routeIs('rentals.*', 'reports.*', 'finance.*', 'logistics.*'),
+                                    'text-gray-600 hover:bg-gray-50 hover:text-gray-900' => !request()->routeIs('rentals.*', 'reports.*', 'finance.*', 'logistics.*'),
                                 ])
                             >
                                 Comercial
@@ -98,6 +98,7 @@ new class extends Component
                                     @can('viewAny', App\Models\Domain\Rental\RentalQuote::class)
                                         <a href="{{ route('quotes.index') }}" wire:navigate data-tab-title="Orçamentos" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Orçamentos</a>
                                     @endcan
+                                    <a href="{{ route('logistics.daily') }}" wire:navigate data-tab-title="Lista do dia" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Lista do dia</a>
                                 @endcan
                                 @can('dashboard.analytics')
                                     <a href="{{ route('reports.commercial') }}" wire:navigate data-tab-title="Relatório comercial" class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Relatório comercial</a>
@@ -139,14 +140,15 @@ new class extends Component
                         || auth()->user()->can('viewAny', App\Models\Domain\Fleet\EquipmentPricing::class)
                         || auth()->user()->can('viewAny', App\Models\Domain\Customer\Customer::class)
                         || auth()->user()->can('viewAny', App\Models\Domain\Person\Person::class)
-                        || auth()->user()->can('viewAny', App\Models\Domain\Person\Company::class))
+                        || auth()->user()->can('viewAny', App\Models\Domain\Person\Company::class)
+                        || auth()->user()->can('viewAny', App\Models\Domain\Logistics\Yard::class))
                         <div class="relative" @click.outside="cadastrosOpen = false">
                             <button
                                 @click="cadastrosOpen = !cadastrosOpen"
                                 @class([
                                     'inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition',
-                                    'bg-indigo-50 text-indigo-700' => request()->routeIs('fleet.*', 'customers.*', 'people.*', 'companies.*'),
-                                    'text-gray-600 hover:bg-gray-50 hover:text-gray-900' => !request()->routeIs('fleet.*', 'customers.*', 'people.*', 'companies.*'),
+                                    'bg-indigo-50 text-indigo-700' => request()->routeIs('fleet.*', 'customers.*', 'people.*', 'companies.*', 'logistics.yards.*'),
+                                    'text-gray-600 hover:bg-gray-50 hover:text-gray-900' => !request()->routeIs('fleet.*', 'customers.*', 'people.*', 'companies.*', 'logistics.yards.*'),
                                 ])
                             >
                                 Cadastros
@@ -170,6 +172,9 @@ new class extends Component
                                 @endcan
                                 @can('viewAny', App\Models\Domain\Person\Company::class)
                                     <a href="{{ route('companies.index') }}" wire:navigate class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Empresas</a>
+                                @endcan
+                                @can('viewAny', App\Models\Domain\Logistics\Yard::class)
+                                    <a href="{{ route('logistics.yards.index') }}" wire:navigate class="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50">Pátios</a>
                                 @endcan
                             </div>
                         </div>

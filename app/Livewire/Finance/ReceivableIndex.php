@@ -5,6 +5,7 @@ namespace App\Livewire\Finance;
 use App\Enums\PaymentMethod;
 use App\Enums\ReceivableTitleStatus;
 use App\Models\Domain\Finance\ReceivableTitle;
+use App\Services\AccountingExportService;
 use App\Services\ReceivableTitleService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -24,6 +25,8 @@ class ReceivableIndex extends Component
     public string $statusFilter = '';
 
     public string $overdueOnly = '';
+
+    public string $notExportedOnly = '';
 
     public bool $showPayModal = false;
 
@@ -54,6 +57,29 @@ class ReceivableIndex extends Component
     public function updatedOverdueOnly(): void
     {
         $this->resetPage();
+    }
+
+    public function updatedNotExportedOnly(): void
+    {
+        $this->resetPage();
+    }
+
+    public function markExportedToErp(int $id, AccountingExportService $exportService): void
+    {
+        $title = ReceivableTitle::query()->findOrFail($id);
+        $this->authorize('update', $title);
+
+        $exportService->markSingleExported($title, 'manual');
+        session()->flash('success', "Título {$title->codigo} marcado como exportado para ERP.");
+    }
+
+    public function clearExportedFlag(int $id, AccountingExportService $exportService): void
+    {
+        $title = ReceivableTitle::query()->findOrFail($id);
+        $this->authorize('update', $title);
+
+        $exportService->clearExportedFlag($title);
+        session()->flash('success', "Marca de exportação removida — {$title->codigo}.");
     }
 
     public function openPayModal(int $id): void
@@ -116,6 +142,7 @@ class ReceivableIndex extends Component
             })
             ->when($this->statusFilter, fn ($q) => $q->where('status', $this->statusFilter))
             ->when($this->overdueOnly === '1', fn ($q) => $q->overdue())
+            ->when($this->notExportedOnly === '1', fn ($q) => $q->notExportedToErp())
             ->orderBy('vencimento')
             ->paginate(25);
 

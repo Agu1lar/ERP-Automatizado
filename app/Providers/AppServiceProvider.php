@@ -10,6 +10,7 @@ use App\Models\Domain\Fleet\EquipmentModel;
 use App\Models\Domain\Finance\ReceivableTitle;
 use App\Models\Domain\Fleet\EquipmentPricing;
 use App\Models\Domain\CustomField\CustomFieldDefinition;
+use App\Models\Domain\Logistics\Yard;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Maintenance\PartCatalogItem;
 use App\Models\Domain\Maintenance\PreventiveMaintenanceRule;
@@ -43,6 +44,7 @@ use App\Policies\PreventiveMaintenanceRulePolicy;
 use App\Policies\RentalPolicy;
 use App\Policies\RentalQuotePolicy;
 use App\Policies\UserPolicy;
+use App\Policies\YardPolicy;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -79,6 +81,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(PartCatalogItem::class, PartCatalogItemPolicy::class);
         Gate::policy(PreventiveMaintenanceRule::class, PreventiveMaintenanceRulePolicy::class);
         Gate::policy(OperatingCompany::class, OperatingCompanyPolicy::class);
+        Gate::policy(Yard::class, YardPolicy::class);
 
         Asset::observe(AssetObserver::class);
         Customer::observe(CustomerObserver::class);

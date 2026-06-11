@@ -31,7 +31,7 @@ Menu **Financeiro → Títulos a receber → Exportar contábil**:
 | **CSV padrão** | Contador / planilha genérica |
 | **Sisloc (legado)** | Enquanto Sisloc ainda for o emissor fiscal — transição |
 
-Por padrão, os links exportam **somente títulos com status `aberto`**, para não duplicar lançamentos no ERP (Omie/Bling não atualizam contas via planilha).
+Por padrão, os links exportam **títulos abertos ainda não marcados como exportados** (`exclude_exported=1`). Após o download, o sistema grava `exportado_erp_em` no título. Use o filtro **Ainda não exportados ao ERP** em Financeiro → Títulos, ou marque/desmarque manualmente.
 
 URL direta (com filtros):
 
@@ -125,9 +125,9 @@ O Sisloc continua disponível para **conferência** até o passo 4 rodar sem sur
 
 | Item | Benefício |
 |------|-----------|
-| API Omie/Bling (contas a receber) | Elimina import manual; menos erro humano |
-| Webhook de NF emitida | Vincular número da nota ao título no Gestão Acesso |
 | Marcação “exportado para ERP” | Evita reimport acidental |
+| Webhook de NF emitida | Vincular número da nota ao título no Gestão Acesso |
+| API Omie/Bling (contas a receber) | Elimina import manual; menos erro humano |
 
 ---
 

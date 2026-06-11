@@ -3,6 +3,9 @@
 namespace App\Livewire\Rental;
 
 use App\Enums\AssetStatus;
+use App\Enums\LogisticsDeliveryMode;
+use App\Enums\LogisticsShift;
+use App\Enums\LogisticsReturnMode;
 use App\Enums\MaintenanceOrderType;
 use App\Enums\PaymentMethod;
 use App\Enums\RentalChecklistType;
@@ -84,6 +87,22 @@ class RentalShow extends Component
     public string $ficha_valor_frete_entrega = '';
 
     public string $ficha_valor_frete_recolhida = '';
+
+    public string $ficha_entrega_modalidade = '';
+
+    public string $ficha_entrega_agendada_em = '';
+
+    public string $ficha_entrega_turno = '';
+
+    public string $ficha_entrega_observacoes = '';
+
+    public string $ficha_retirada_modalidade = '';
+
+    public string $ficha_retirada_agendada_em = '';
+
+    public string $ficha_retirada_turno = '';
+
+    public string $ficha_retirada_observacoes = '';
 
     public string $asset_descricao = '';
 
@@ -180,6 +199,14 @@ class RentalShow extends Component
             'ficha_local_obra' => 'nullable|string|max:2000',
             'ficha_valor_frete_entrega' => 'nullable|numeric|min:0',
             'ficha_valor_frete_recolhida' => 'nullable|numeric|min:0',
+            'ficha_entrega_modalidade' => 'nullable|string|in:'.implode(',', array_column(LogisticsDeliveryMode::cases(), 'value')),
+            'ficha_entrega_agendada_em' => 'nullable|date',
+            'ficha_entrega_turno' => 'nullable|string|in:'.implode(',', array_column(LogisticsShift::cases(), 'value')),
+            'ficha_entrega_observacoes' => 'nullable|string|max:2000',
+            'ficha_retirada_modalidade' => 'nullable|string|in:'.implode(',', array_column(LogisticsReturnMode::cases(), 'value')),
+            'ficha_retirada_agendada_em' => 'nullable|date',
+            'ficha_retirada_turno' => 'nullable|string|in:'.implode(',', array_column(LogisticsShift::cases(), 'value')),
+            'ficha_retirada_observacoes' => 'nullable|string|max:2000',
             'asset_descricao' => 'nullable|string|max:5000',
             'asset_horimetro' => 'nullable|numeric|min:0',
             'asset_serie' => 'nullable|string|max:255',
@@ -204,6 +231,14 @@ class RentalShow extends Component
             'valor_faturamento' => $data['ficha_valor_faturamento'] !== '' ? $data['ficha_valor_faturamento'] : null,
             'valor_frete_entrega' => $data['ficha_valor_frete_entrega'] !== '' ? $data['ficha_valor_frete_entrega'] : null,
             'valor_frete_recolhida' => $data['ficha_valor_frete_recolhida'] !== '' ? $data['ficha_valor_frete_recolhida'] : null,
+            'entrega_modalidade' => ($data['ficha_entrega_modalidade'] ?? '') !== '' ? $data['ficha_entrega_modalidade'] : LogisticsDeliveryMode::EmpresaEntrega->value,
+            'entrega_agendada_em' => ($data['ficha_entrega_agendada_em'] ?? '') !== '' ? $data['ficha_entrega_agendada_em'] : null,
+            'entrega_turno' => ($data['ficha_entrega_turno'] ?? '') !== '' ? $data['ficha_entrega_turno'] : null,
+            'entrega_observacoes' => ($data['ficha_entrega_observacoes'] ?? '') ?: null,
+            'retirada_modalidade' => ($data['ficha_retirada_modalidade'] ?? '') !== '' ? $data['ficha_retirada_modalidade'] : LogisticsReturnMode::EmpresaRecolhe->value,
+            'retirada_agendada_em' => ($data['ficha_retirada_agendada_em'] ?? '') !== '' ? $data['ficha_retirada_agendada_em'] : null,
+            'retirada_turno' => ($data['ficha_retirada_turno'] ?? '') !== '' ? $data['ficha_retirada_turno'] : null,
+            'retirada_observacoes' => ($data['ficha_retirada_observacoes'] ?? '') ?: null,
         ]);
 
         app(RentalBillingService::class)->syncContractRateFromRental($this->rental->fresh());
@@ -261,6 +296,30 @@ class RentalShow extends Component
             ]),
             'ficha_valor_frete_recolhida' => $this->rental->update([
                 'valor_frete_recolhida' => ($v = $this->validateOnly('ficha_valor_frete_recolhida', ['ficha_valor_frete_recolhida' => 'nullable|numeric|min:0'])['ficha_valor_frete_recolhida']) !== '' ? $v : null,
+            ]),
+            'ficha_entrega_modalidade' => $this->rental->update([
+                'entrega_modalidade' => ($v = $this->validateOnly('ficha_entrega_modalidade', ['ficha_entrega_modalidade' => 'required|string|in:'.implode(',', array_column(LogisticsDeliveryMode::cases(), 'value'))])['ficha_entrega_modalidade']) !== '' ? $v : LogisticsDeliveryMode::EmpresaEntrega->value,
+            ]),
+            'ficha_entrega_agendada_em' => $this->rental->update([
+                'entrega_agendada_em' => ($v = $this->validateOnly('ficha_entrega_agendada_em', ['ficha_entrega_agendada_em' => 'nullable|date'])['ficha_entrega_agendada_em']) !== '' ? $v : null,
+            ]),
+            'ficha_entrega_turno' => $this->rental->update([
+                'entrega_turno' => ($v = $this->validateOnly('ficha_entrega_turno', ['ficha_entrega_turno' => 'nullable|string|in:'.implode(',', array_column(LogisticsShift::cases(), 'value'))])['ficha_entrega_turno']) !== '' ? $v : null,
+            ]),
+            'ficha_entrega_observacoes' => $this->rental->update([
+                'entrega_observacoes' => $this->validateOnly('ficha_entrega_observacoes', ['ficha_entrega_observacoes' => 'nullable|string|max:2000'])['ficha_entrega_observacoes'] ?: null,
+            ]),
+            'ficha_retirada_modalidade' => $this->rental->update([
+                'retirada_modalidade' => ($v = $this->validateOnly('ficha_retirada_modalidade', ['ficha_retirada_modalidade' => 'required|string|in:'.implode(',', array_column(LogisticsReturnMode::cases(), 'value'))])['ficha_retirada_modalidade']) !== '' ? $v : LogisticsReturnMode::EmpresaRecolhe->value,
+            ]),
+            'ficha_retirada_agendada_em' => $this->rental->update([
+                'retirada_agendada_em' => ($v = $this->validateOnly('ficha_retirada_agendada_em', ['ficha_retirada_agendada_em' => 'nullable|date'])['ficha_retirada_agendada_em']) !== '' ? $v : null,
+            ]),
+            'ficha_retirada_turno' => $this->rental->update([
+                'retirada_turno' => ($v = $this->validateOnly('ficha_retirada_turno', ['ficha_retirada_turno' => 'nullable|string|in:'.implode(',', array_column(LogisticsShift::cases(), 'value'))])['ficha_retirada_turno']) !== '' ? $v : null,
+            ]),
+            'ficha_retirada_observacoes' => $this->rental->update([
+                'retirada_observacoes' => $this->validateOnly('ficha_retirada_observacoes', ['ficha_retirada_observacoes' => 'nullable|string|max:2000'])['ficha_retirada_observacoes'] ?: null,
             ]),
             'ficha_local_obra' => app(RentalService::class)->updateLocalObra(
                 $this->rental,
@@ -967,6 +1026,9 @@ class RentalShow extends Component
             'paymentMethods' => PaymentMethod::cases(),
             'billingInvoiceMethod' => 'invoiceBillingEntry',
             'billingShowQueueNav' => false,
+            'logisticsShiftOptions' => LogisticsShift::cases(),
+            'logisticsDeliveryModes' => LogisticsDeliveryMode::cases(),
+            'logisticsReturnModes' => LogisticsReturnMode::cases(),
         ]);
     }
 
@@ -995,6 +1057,14 @@ class RentalShow extends Component
         $this->ficha_valor_frete_entrega = $this->rental->valor_frete_entrega !== null ? (string) $this->rental->valor_frete_entrega : '';
         $this->ficha_valor_frete_recolhida = $this->rental->valor_frete_recolhida !== null ? (string) $this->rental->valor_frete_recolhida : '';
         $this->ficha_local_obra = $this->rental->local_obra ?? '';
+        $this->ficha_entrega_modalidade = $this->rental->entrega_modalidade ?? LogisticsDeliveryMode::EmpresaEntrega->value;
+        $this->ficha_entrega_agendada_em = $this->rental->entrega_agendada_em?->format('Y-m-d') ?? '';
+        $this->ficha_entrega_turno = $this->rental->entrega_turno ?? '';
+        $this->ficha_entrega_observacoes = $this->rental->entrega_observacoes ?? '';
+        $this->ficha_retirada_modalidade = $this->rental->retirada_modalidade ?? LogisticsReturnMode::EmpresaRecolhe->value;
+        $this->ficha_retirada_agendada_em = $this->rental->retirada_agendada_em?->format('Y-m-d') ?? '';
+        $this->ficha_retirada_turno = $this->rental->retirada_turno ?? '';
+        $this->ficha_retirada_observacoes = $this->rental->retirada_observacoes ?? '';
 
         $this->asset_descricao = $asset->descricao ?? '';
         $this->asset_horimetro = $asset->horimetro !== null ? (string) $asset->horimetro : '';

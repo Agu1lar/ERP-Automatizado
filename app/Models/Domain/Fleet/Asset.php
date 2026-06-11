@@ -8,6 +8,7 @@ use App\Enums\RentalStatus;
 use App\Enums\MaintenanceOrderStatus;
 use App\Models\Concerns\BelongsToOperatingCompany;
 use App\Models\Domain\Attachment\Attachment;
+use App\Models\Domain\Logistics\Yard;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
 use App\Support\OperatingCompanyRelations;
@@ -25,6 +26,7 @@ class Asset extends Model
         'operating_company_id',
         'codigo_patrimonio',
         'equipment_model_id',
+        'yard_id',
         'serie',
         'voltagem',
         'descricao',
@@ -54,6 +56,11 @@ class Asset extends Model
     public function equipmentModel(): BelongsTo
     {
         return OperatingCompanyRelations::belongsTo($this, EquipmentModel::class, 'equipmentModel');
+    }
+
+    public function yard(): BelongsTo
+    {
+        return OperatingCompanyRelations::belongsTo($this, Yard::class, 'yard');
     }
 
     public function equipmentDisplayName(): string

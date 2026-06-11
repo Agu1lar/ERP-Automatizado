@@ -39,6 +39,9 @@ class ReceivableTitle extends Model
         'valor_total_com_encargos',
         'encargos_aplicados_em',
         'encargos_aplicados_por',
+        'exportado_erp_em',
+        'exportado_erp_por',
+        'exportado_erp_formato',
     ];
 
     protected function casts(): array
@@ -51,6 +54,7 @@ class ReceivableTitle extends Model
             'juros_valor' => 'decimal:2',
             'valor_total_com_encargos' => 'decimal:2',
             'encargos_aplicados_em' => 'datetime',
+            'exportado_erp_em' => 'datetime',
             'vencimento' => 'date',
             'pago_em' => 'datetime',
             'parcela' => 'integer',
@@ -71,6 +75,16 @@ class ReceivableTitle extends Model
     public function paidByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'pago_por');
+    }
+
+    public function exportadoErpByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'exportado_erp_por');
+    }
+
+    public function isExportedToErp(): bool
+    {
+        return $this->exportado_erp_em !== null;
     }
 
     public function statusEnum(): ReceivableTitleStatus
@@ -140,5 +154,15 @@ class ReceivableTitle extends Model
     public function scopePaid(Builder $query): Builder
     {
         return $query->where('status', ReceivableTitleStatus::Pago->value);
+    }
+
+    public function scopeNotExportedToErp(Builder $query): Builder
+    {
+        return $query->whereNull('exportado_erp_em');
+    }
+
+    public function scopeExportedToErp(Builder $query): Builder
+    {
+        return $query->whereNotNull('exportado_erp_em');
     }
 }

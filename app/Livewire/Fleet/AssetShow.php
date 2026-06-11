@@ -5,6 +5,7 @@ namespace App\Livewire\Fleet;
 use App\Enums\AssetStatus;
 use App\Jobs\GenerateAssetQrCodeJob;
 use App\Models\Domain\Fleet\Asset;
+use App\Models\Domain\Logistics\Yard;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Services\AssetMovementService;
 use App\Services\AssetStatusService;
@@ -54,6 +55,8 @@ class AssetShow extends Component
     public string $ficha_observacoes = '';
 
     public string $ficha_localizacao = '';
+
+    public string $ficha_yard_id = '';
 
     public string $ficha_valor_compra = '';
 
@@ -118,6 +121,7 @@ class AssetShow extends Component
             'ficha_voltagem' => 'nullable|string|max:50',
             'ficha_observacoes' => 'nullable|string|max:5000',
             'ficha_localizacao' => 'nullable|string|max:255',
+            'ficha_yard_id' => 'nullable|integer|exists:yards,id',
         ];
 
         if (auth()->user()->can('updatePurchaseValue', $this->asset)) {
@@ -135,6 +139,7 @@ class AssetShow extends Component
             'serie' => $data['ficha_serie'] ?: null,
             'voltagem' => $data['ficha_voltagem'] ?: null,
             'observacoes' => $data['ficha_observacoes'] ?: null,
+            'yard_id' => ($data['ficha_yard_id'] ?? '') !== '' ? (int) $data['ficha_yard_id'] : null,
         ];
 
         if (auth()->user()->can('updatePurchaseValue', $this->asset)) {
@@ -285,6 +290,7 @@ class AssetShow extends Component
             'fichaComplete' => FichaCompleteness::isAssetComplete($this->asset),
             'maintenanceHistory' => $preventiveService->historyForAsset($this->asset),
             'preventiveStatuses' => $preventiveStatuses,
+            'yards' => Yard::query()->where('ativo', true)->orderByDesc('principal')->orderBy('nome')->get(),
         ]);
     }
 
@@ -296,6 +302,7 @@ class AssetShow extends Component
         $this->ficha_voltagem = $this->asset->voltagem ?? '';
         $this->ficha_observacoes = $this->asset->observacoes ?? '';
         $this->ficha_localizacao = $this->asset->localizacao ?? '';
+        $this->ficha_yard_id = $this->asset->yard_id !== null ? (string) $this->asset->yard_id : '';
         $this->ficha_valor_compra = $this->asset->valor_compra !== null ? (string) $this->asset->valor_compra : '';
         $this->ficha_data_compra = $this->asset->data_compra?->format('Y-m-d') ?? '';
     }
@@ -304,6 +311,7 @@ class AssetShow extends Component
     {
         $this->asset = $asset->load([
             'equipmentModel.category',
+            'yard',
             'statusHistories.user',
             'movements.user',
             'attachments.user',

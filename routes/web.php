@@ -31,6 +31,8 @@ use App\Livewire\Person\PersonIndex;
 use App\Livewire\Person\PersonShow;
 use App\Livewire\Dashboard\DashboardIndex;
 use App\Livewire\Layout\GlobalSearchResults;
+use App\Livewire\Logistics\LogisticsDailyIndex;
+use App\Livewire\Logistics\YardIndex;
 use App\Livewire\Fleet\AssetIndex;
 use App\Livewire\Fleet\AssetShow;
 use App\Livewire\Fleet\CategoryIndex;
@@ -95,6 +97,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('locacoes/{rental}/pdf', RentalPdfController::class)->name('rentals.pdf');
     Route::get('locacoes/{rental}/contrato', RentalContractPdfController::class)->name('rentals.contract.pdf');
     Route::get('locacoes/{rental}', RentalShow::class)->name('rentals.show');
+
+    Route::prefix('logistica')->name('logistics.')->group(function () {
+        Route::get('lista-do-dia', LogisticsDailyIndex::class)->name('daily');
+        Route::get('patios', YardIndex::class)->name('yards.index');
+    });
 
     Route::get('relatorios/comercial', CommercialReportIndex::class)->name('reports.commercial');
     Route::get('relatorios/comercial/exportar', CommercialReportExportController::class)->name('reports.commercial.export');

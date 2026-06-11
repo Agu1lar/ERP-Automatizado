@@ -53,12 +53,20 @@ class Phase12FeaturesTest extends TestCase
             'status' => 'aberto',
         ]);
 
-        $response = $this->actingAs($user)->get(route('finance.accounting.export', ['format' => 'omie', 'status' => 'aberto']));
+        $response = $this->actingAs($user)->get(route('finance.accounting.export', ['format' => 'omie', 'status' => 'aberto', 'exclude_exported' => 1]));
 
         $response->assertOk();
         $content = $response->streamedContent();
         $this->assertStringContainsString('codigo_lancamento_integracao', $content);
         $this->assertStringContainsString('TIT-EXP-001', $content);
+
+        $title = ReceivableTitle::query()->where('codigo', 'TIT-EXP-001')->first();
+        $this->assertNotNull($title->exportado_erp_em);
+        $this->assertSame('omie', $title->exportado_erp_formato);
+
+        $again = $this->actingAs($user)->get(route('finance.accounting.export', ['format' => 'omie', 'status' => 'aberto', 'exclude_exported' => 1]));
+        $again->assertOk();
+        $this->assertStringNotContainsString('TIT-EXP-001', $again->streamedContent());
     }
 
     public function test_accounting_export_bling_format(): void
@@ -90,7 +98,7 @@ class Phase12FeaturesTest extends TestCase
             'status' => 'pago',
         ]);
 
-        $response = $this->actingAs($user)->get(route('finance.accounting.export', ['format' => 'bling', 'status' => 'aberto']));
+        $response = $this->actingAs($user)->get(route('finance.accounting.export', ['format' => 'bling', 'status' => 'aberto', 'exclude_exported' => 1]));
 
         $response->assertOk();
         $content = $response->streamedContent();

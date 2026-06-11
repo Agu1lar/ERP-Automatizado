@@ -181,8 +181,9 @@ Requer `php artisan schedule:run` a cada minuto (ver `docs/PRODUCTION.md`):
 | Horário | Comando | Função |
 |---------|---------|--------|
 | 06:00 | `maintenance:process-preventive-due` | OS preventiva vencida por horímetro |
-| 06:30 | `rentals:process-billing-renewals` | Renovações de ciclo de faturamento |
-| 07:00 | `quotes:expire` | Expira orçamentos enviados fora da validade |
+| 06:30 | `rentals:process-billing-renewals` | Renovações de faturamento |
+| 07:00 | `quotes:expire` | Orçamentos vencidos |
+| 07:45 | `notifications:operational-alerts` | E-mail: retornos/OS atrasados e preventiva |
 
 ## Produção (P7)
 
@@ -697,7 +698,7 @@ Itens pequenos, discutidos e ainda **não implementados**, que complementam as f
 |---|------|------------|---------|
 | P1 | Exportação CSV do **painel de locados** (filtros aplicados) | Alta | ✅ Implementada |
 | P2 | Job agendado de **preventiva vencida** (`schedule:run` diário) | Alta | ✅ Implementada |
-| P3 | **Notificações por e-mail** (retorno atrasado, OS atrasada, preventiva) | Alta | 3–5 dias |
+| P3 | **Notificações por e-mail** (retorno atrasado, OS atrasada, preventiva) | Alta | ✅ Implementada |
 | P4 | **Estoque de peças** — saldo atual + estoque mínimo + alerta dashboard | Média | 3–5 dias |
 | P5 | Baixa automática de peça ao **concluir OS** | Média | 2–3 dias |
 | P6 | **PWA / mobile** enxuto para pátio (scan, checklist, entrega) | Média | ✅ Implementada |
@@ -957,7 +958,7 @@ Marque quando todos estiverem concluídos:
 - [ ] Transição fiscal validada em paralelo (checklist `docs/TRANSICAO_FISCAL.md`)
 - [x] Modo pátio mobile (QR + checklist)
 - [x] Copiloto operacional com auditoria
-- [ ] Notificações automáticas (e-mail ou WhatsApp) de retorno atrasado
+- [x] Notificações automáticas (e-mail) de retorno atrasado, OS atrasada e preventiva — job `notifications:operational-alerts` às 07:45
 - [x] Runbook produção (PostgreSQL, fila, backup) — ver `docs/PRODUCTION.md`
 - [ ] Deploy efetivo em servidor com Supervisor + backup cron ativos
 - [ ] Fiscal: integração ou NFS-e emitida pelo sistema
