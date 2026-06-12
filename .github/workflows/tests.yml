@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  APP_ENV: testing
+  APP_KEY: base64:2fl+KtvkdphvQdrlYFiOU4aKp75xMnrbeUIeBIq/9jo=
+
 jobs:
   test-sqlite:
     name: PHPUnit (SQLite)
@@ -18,16 +22,14 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, dom, fileinfo, pdo_sqlite, sqlite3
+          extensions: mbstring, dom, fileinfo, pdo_sqlite, sqlite3, gd, zip, xml, curl, openssl, intl
           coverage: none
+
+      - name: Prepare test environment
+        run: cp .env.testing .env
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
-
-      - name: Prepare application key
-        run: |
-          cp .env.example .env
-          php artisan key:generate --ansi
 
       - name: Run tests (SQLite)
         run: php artisan test
@@ -58,16 +60,14 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, dom, fileinfo, pdo_pgsql, pgsql
+          extensions: mbstring, dom, fileinfo, pdo_pgsql, pgsql, gd, zip, xml, curl, openssl, intl
           coverage: none
+
+      - name: Prepare test environment
+        run: cp .env.testing .env
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
-
-      - name: Prepare application key
-        run: |
-          cp .env.example .env
-          php artisan key:generate --ansi
 
       - name: Run tests (PostgreSQL)
         run: php artisan test --configuration=phpunit.pgsql.xml

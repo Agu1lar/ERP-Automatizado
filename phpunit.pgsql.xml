@@ -22,6 +22,8 @@
         <env name="APP_ENV" value="testing"/>
         <env name="APP_KEY" value="base64:2fl+KtvkdphvQdrlYFiOU4aKp75xMnrbeUIeBIq/9jo="/>
         <env name="APP_URL" value="http://localhost"/>
+        <env name="APP_LOCALE" value="pt_BR"/>
+        <env name="APP_FALLBACK_LOCALE" value="pt_BR"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
