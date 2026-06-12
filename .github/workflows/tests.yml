@@ -31,6 +31,15 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Build frontend assets
+        run: npm ci && npm run build
+
       - name: Run tests (SQLite)
         run: php artisan test
 
@@ -68,6 +77,15 @@ jobs:
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Build frontend assets
+        run: npm ci && npm run build
 
       - name: Run tests (PostgreSQL)
         run: php artisan test --configuration=phpunit.pgsql.xml
