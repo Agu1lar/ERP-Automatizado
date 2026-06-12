@@ -24,6 +24,11 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
+      - name: Prepare application key
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
       - name: Run tests (SQLite)
         run: php artisan test
 
@@ -58,6 +63,11 @@ jobs:
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Prepare application key
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
 
       - name: Run tests (PostgreSQL)
         run: php artisan test --configuration=phpunit.pgsql.xml
