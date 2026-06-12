@@ -8,6 +8,7 @@ use App\Enums\ReceivableTitleStatus;
 use App\Enums\RentalBillingQueueStatus;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Finance\ReceivableTitle;
+use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
 use App\Models\Domain\Rental\RentalBillingQueueEntry;
 use App\Models\User;
@@ -196,6 +197,65 @@ class ReceivableTitleService
                 );
             }
         }
+    }
+
+    public function createForIndemnityOrder(
+        MaintenanceOrder $order,
+        ?CarbonInterface $dueDate = null,
+        ?User $user = null,
+    ): ReceivableTitle {
+        $user ??= auth()->user();
+        $order->loadMissing(['receivableTitle', 'rental', 'customer']);
+
+        if ($order->receivable_title_id && $order->receivableTitle) {
+            return $order->receivableTitle;
+        }
+
+        if (! $order->tipoEnum()->isIndenizacao()) {
+            throw new InvalidArgumentException('Somente OS de indenização gera título por este fluxo.');
+        }
+
+        $customer = $order->resolvedCustomer();
+
+        if ($customer === null) {
+            throw new InvalidArgumentException('Cliente obrigatório para gerar título de indenização.');
+        }
+
+        $valor = round((float) ($order->valor_indenizacao ?? 0), 2);
+
+        if ($valor <= 0) {
+            throw new InvalidArgumentException('Valor de indenização deve ser maior que zero.');
+        }
+
+        $dueDate ??= now()->addDays(7);
+
+        return DB::transaction(function () use ($order, $customer, $valor, $dueDate, $user) {
+            $title = ReceivableTitle::create([
+                'codigo' => $this->generateCodigo(),
+                'customer_id' => $customer->id,
+                'rental_id' => $order->rental_id,
+                'maintenance_order_id' => $order->id,
+                'parcela' => 1,
+                'total_parcelas' => 1,
+                'valor' => $valor,
+                'vencimento' => $dueDate->copy()->startOfDay(),
+                'status' => ReceivableTitleStatus::Aberto->value,
+                'observacoes' => "Indenização — OS {$order->codigo}",
+            ]);
+
+            $order->update(['receivable_title_id' => $title->id]);
+
+            $this->auditService->log(
+                AuditAction::Created,
+                'ReceivableTitle',
+                $title->id,
+                null,
+                $title->toArray(),
+                $user,
+            );
+
+            return $title->fresh();
+        });
     }
 
     public function createForBillingQueueEntry(

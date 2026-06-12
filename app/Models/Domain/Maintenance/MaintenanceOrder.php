@@ -7,6 +7,9 @@ use App\Enums\MaintenanceOrderType;
 use App\Enums\MaintenancePriority;
 use App\Models\Concerns\BelongsToOperatingCompany;
 use App\Models\Domain\Customer\Customer;
+use App\Models\Domain\Finance\PayableTitle;
+use App\Models\Domain\Finance\ReceivableTitle;
+use App\Models\Domain\Person\Company;
 use App\Models\Domain\Fleet\Asset;
 use App\Models\Domain\Rental\Rental;
 use App\Models\User;
@@ -26,12 +29,17 @@ class MaintenanceOrder extends Model
         'asset_id',
         'rental_id',
         'customer_id',
+        'external_company_id',
+        'valor_servico_externo',
         'preventive_rule_id',
         'horimetro_servico',
         'status',
         'tipo',
         'prioridade',
         'impeditiva',
+        'valor_indenizacao',
+        'receivable_title_id',
+        'payable_title_id',
         'descricao_problema',
         'diagnostico',
         'solucao_aplicada',
@@ -56,6 +64,8 @@ class MaintenanceOrder extends Model
     {
         return [
             'impeditiva' => 'boolean',
+            'valor_indenizacao' => 'decimal:2',
+            'valor_servico_externo' => 'decimal:2',
             'opened_at' => 'datetime',
             'started_at' => 'datetime',
             'expected_completion_at' => 'date',
@@ -78,6 +88,21 @@ class MaintenanceOrder extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function receivableTitle(): BelongsTo
+    {
+        return $this->belongsTo(ReceivableTitle::class);
+    }
+
+    public function payableTitle(): BelongsTo
+    {
+        return $this->belongsTo(PayableTitle::class);
+    }
+
+    public function externalCompany(): BelongsTo
+    {
+        return $this->belongsTo(Company::class, 'external_company_id');
     }
 
     public function preventiveRule(): BelongsTo
@@ -162,6 +187,23 @@ class MaintenanceOrder extends Model
     public function totalLaborHours(): float
     {
         return (float) $this->laborHours->sum('horas');
+    }
+
+    public function totalLaborCost(?float $hourlyRate = null): float
+    {
+        $rate = $hourlyRate ?? (float) config('maintenance.default_hourly_rate', 65);
+
+        return round($this->totalLaborHours() * $rate, 2);
+    }
+
+    public function totalCost(?float $hourlyRate = null): float
+    {
+        return round(
+            $this->totalPartsCost()
+            + $this->totalLaborCost($hourlyRate)
+            + (float) ($this->valor_servico_externo ?? 0),
+            2,
+        );
     }
 
     public function scopeOpen(Builder $query): Builder

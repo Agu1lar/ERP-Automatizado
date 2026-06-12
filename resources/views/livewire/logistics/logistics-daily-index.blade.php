@@ -13,15 +13,33 @@
                 <div>
                     <h2 class="text-xl font-semibold text-gray-800 inline-flex items-center">
                         Lista do dia
-                        <x-help-hint text="Proto-romaneio: viagens da empresa e movimentações no pátio (cliente retira/devolve). Ainda sem rota ou motorista." />
+                        <x-help-hint text="Viagens da frota própria e movimentações no pátio. Gere o romaneio formal com motorista, veículo e comprovante por parada." />
                     </h2>
                     <p class="mt-1 text-sm text-gray-500">Logística RMBH — frota própria e retirada/devolução pelo cliente no pátio</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('logistics.works-map', array_filter(['regiao' => $regionFilter ?: null])) }}" wire:navigate class="inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-sm text-gray-700 hover:bg-gray-50">
+                        Mapa de obras
+                    </a>
+                    @if($manifest)
+                        <a href="{{ route('logistics.manifest.show', $manifest) }}" wire:navigate class="inline-flex items-center px-3 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+                            Romaneio {{ $manifest->codigo }}
+                        </a>
+                    @elseif($canManageManifest)
+                        <button type="button" wire:click="openManifest" class="inline-flex items-center px-3 py-2 rounded-md border border-indigo-300 bg-indigo-50 text-indigo-800 text-sm font-medium hover:bg-indigo-100">
+                            Gerar romaneio do dia
+                        </button>
+                    @endif
                     <x-btn-secondary type="button" wire:click="previousDay">← Anterior</x-btn-secondary>
                     <input wire:model.live="selectedDate" type="date" class="rounded-md border-gray-300 text-sm shadow-sm" />
                     <x-btn-secondary type="button" wire:click="nextDay">Próximo →</x-btn-secondary>
                     <x-btn-secondary type="button" wire:click="goToday">Hoje</x-btn-secondary>
+                    <select wire:model.live="regionFilter" class="rounded-md border-gray-300 text-sm shadow-sm" title="Filtrar por região da obra">
+                        <option value="">Todas as regiões</option>
+                        @foreach($regionOptions as $region)
+                            <option value="{{ $region->value }}">{{ $region->label() }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
 

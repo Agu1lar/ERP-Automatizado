@@ -22,6 +22,7 @@ class ReceivableTitle extends Model
         'codigo',
         'customer_id',
         'rental_id',
+        'maintenance_order_id',
         'parcela',
         'total_parcelas',
         'valor',
@@ -42,6 +43,15 @@ class ReceivableTitle extends Model
         'exportado_erp_em',
         'exportado_erp_por',
         'exportado_erp_formato',
+        'gateway_driver',
+        'gateway_charge_id',
+        'gateway_status',
+        'gateway_billing_type',
+        'pix_qr_code',
+        'pix_qr_image_url',
+        'boleto_url',
+        'gateway_invoice_url',
+        'gateway_charge_created_at',
     ];
 
     protected function casts(): array
@@ -55,6 +65,7 @@ class ReceivableTitle extends Model
             'valor_total_com_encargos' => 'decimal:2',
             'encargos_aplicados_em' => 'datetime',
             'exportado_erp_em' => 'datetime',
+            'gateway_charge_created_at' => 'datetime',
             'vencimento' => 'date',
             'pago_em' => 'datetime',
             'parcela' => 'integer',
@@ -70,6 +81,11 @@ class ReceivableTitle extends Model
     public function rental(): BelongsTo
     {
         return OperatingCompanyRelations::belongsTo($this, Rental::class, 'rental');
+    }
+
+    public function maintenanceOrder(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Domain\Maintenance\MaintenanceOrder::class);
     }
 
     public function paidByUser(): BelongsTo

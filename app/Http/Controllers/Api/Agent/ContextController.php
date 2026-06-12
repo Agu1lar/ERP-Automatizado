@@ -7,9 +7,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Finance\ReceivableTitle;
 use App\Models\Domain\Fleet\Asset;
+use App\Models\Domain\Logistics\Yard;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
+use App\Models\Domain\Person\Company;
+use App\Models\Domain\Person\Person;
 use App\Models\Domain\Rental\Rental;
+use App\Models\Domain\Rental\RentalBillingQueueEntry;
 use App\Models\Domain\Rental\RentalQuote;
+use Carbon\Carbon;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -72,6 +77,49 @@ class ContextController extends Controller
     return response()->json($builder->receivableTitle($title));
   }
 
+  public function person(string $identifier, AgentContextBuilder $builder): JsonResponse
+  {
+    $person = $this->resolvePerson($identifier);
+    $this->authorize('view', $person);
+
+    return response()->json($builder->person($person));
+  }
+
+  public function company(string $identifier, AgentContextBuilder $builder): JsonResponse
+  {
+    $company = $this->resolveCompany($identifier);
+    $this->authorize('view', $company);
+
+    return response()->json($builder->company($company));
+  }
+
+  public function billing(string $identifier, AgentContextBuilder $builder): JsonResponse
+  {
+    $entry = $this->resolveBillingEntry($identifier);
+    $this->authorize('viewAny', ReceivableTitle::class);
+
+    return response()->json($builder->billingEntry($entry));
+  }
+
+  public function yard(string $identifier, AgentContextBuilder $builder): JsonResponse
+  {
+    $yard = $this->resolveYard($identifier);
+    abort_unless(auth()->user()?->can('fleet.assets.view'), 403);
+
+    return response()->json($builder->yard($yard));
+  }
+
+  public function logistics(Request $request, AgentContextBuilder $builder): JsonResponse
+  {
+    abort_unless(auth()->user()?->can('rentals.view'), 403);
+
+    $date = $request->query('date')
+      ? Carbon::parse((string) $request->query('date'))->startOfDay()
+      : null;
+
+    return response()->json($builder->logisticsDaily($date));
+  }
+
   private function resolveAsset(string $identifier): Asset
   {
     if (is_numeric($identifier)) {
@@ -115,5 +163,53 @@ class ContextController extends Controller
     }
 
     return Rental::query()->where('codigo', $identifier)->firstOrFail();
+  }
+
+  private function resolvePerson(string $identifier): Person
+  {
+    if (is_numeric($identifier)) {
+      return Person::query()->findOrFail((int) $identifier);
+    }
+
+    $digits = preg_replace('/\D/', '', $identifier);
+
+    if ($digits !== '') {
+      return Person::query()->where('cpf', $digits)->firstOrFail();
+    }
+
+    abort(404);
+  }
+
+  private function resolveCompany(string $identifier): Company
+  {
+    if (is_numeric($identifier)) {
+      return Company::query()->findOrFail((int) $identifier);
+    }
+
+    $digits = preg_replace('/\D/', '', $identifier);
+
+    if ($digits !== '') {
+      return Company::query()->where('cnpj', $digits)->firstOrFail();
+    }
+
+    abort(404);
+  }
+
+  private function resolveBillingEntry(string $identifier): RentalBillingQueueEntry
+  {
+    if (is_numeric($identifier)) {
+      return RentalBillingQueueEntry::query()->findOrFail((int) $identifier);
+    }
+
+    return RentalBillingQueueEntry::query()->where('codigo', $identifier)->firstOrFail();
+  }
+
+  private function resolveYard(string $identifier): Yard
+  {
+    if (is_numeric($identifier)) {
+      return Yard::query()->findOrFail((int) $identifier);
+    }
+
+    return Yard::query()->where('nome', $identifier)->firstOrFail();
   }
 }

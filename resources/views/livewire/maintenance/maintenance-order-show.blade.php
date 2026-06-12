@@ -103,6 +103,17 @@
                                             <option value="{{ $customer->id }}">{{ $customer->nome }}</option>
                                         @endforeach
                                     </x-inline-field>
+                                    @if($order->tipoEnum()->isIndenizacao())
+                                        <x-inline-field
+                                            label="Valor indenização (R$)"
+                                            :display="$order->valor_indenizacao ? 'R$ '.number_format($order->valor_indenizacao, 2, ',', '.') : '—'"
+                                            type="number"
+                                            :editable="!$order->receivable_title_id"
+                                            save="saveTechnicalData"
+                                            wire:model="valor_indenizacao"
+                                            placeholder="Obrigatório para concluir"
+                                        />
+                                    @endif
                                     <x-inline-field label="Voltagem" :display="$order->asset->voltagem" :editable="true" save="saveTechnicalData" wire:model="asset_voltagem" placeholder="Ex.: 220V" />
                                     <div class="md:col-span-2">
                                         <x-inline-field label="Parecer técnico (PDF)" :display="$order->parecer_tecnico" type="textarea" :rows="4" :editable="true" save="saveTechnicalData" wire:model="parecer_tecnico" />
@@ -130,6 +141,42 @@
                                         save="saveTechnicalData"
                                         wire:model="expected_completion_at"
                                     />
+                                    <div class="md:col-span-2 border-t border-gray-100 pt-4 mt-2">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Oficina externa (conta a pagar)</p>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <x-inline-field
+                                                label="Oficina"
+                                                :display="$order->externalCompany?->nome"
+                                                type="select"
+                                                :editable="true"
+                                                save="saveTechnicalData"
+                                                wire:model="external_company_id"
+                                            >
+                                                <option value="">Nenhuma</option>
+                                                @foreach($externalCompanies as $company)
+                                                    <option value="{{ $company->id }}">{{ $company->nome }}</option>
+                                                @endforeach
+                                            </x-inline-field>
+                                            <x-inline-field
+                                                label="Valor do serviço (R$)"
+                                                :display="$order->valor_servico_externo ? number_format($order->valor_servico_externo, 2, ',', '.') : null"
+                                                type="number"
+                                                :editable="true"
+                                                save="saveTechnicalData"
+                                                wire:model="valor_servico_externo"
+                                            />
+                                        </div>
+                                        @error('valor_servico_externo') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                                        @if($order->payableTitle)
+                                            <a href="{{ route('finance.payables') }}" wire:navigate class="text-indigo-600 hover:underline text-xs mt-2 inline-block">
+                                                Conta a pagar {{ $order->payableTitle->codigo }} — {{ $order->payableTitle->statusEnum()->label() }}
+                                            </a>
+                                        @elseif($order->external_company_id && $order->valor_servico_externo > 0)
+                                            @can('update', $order)
+                                                <button wire:click="generatePayable" class="text-indigo-600 hover:underline text-xs mt-2">Gerar conta a pagar agora</button>
+                                            @endcan
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
                         @endcan
@@ -152,6 +199,28 @@
                         @endif
                         <div><span class="text-gray-500">Diagnóstico:</span> {{ $order->diagnostico ?? '—' }}</div>
                         <div><span class="text-gray-500">Solução:</span> {{ $order->solucao_aplicada ?? '—' }}</div>
+                        @if($order->tipoEnum()->isIndenizacao() && $order->valor_indenizacao)
+                            <div><span class="text-gray-500">Valor indenização:</span> R$ {{ number_format($order->valor_indenizacao, 2, ',', '.') }}</div>
+                        @endif
+                        @if($order->externalCompany)
+                            <div><span class="text-gray-500">Oficina externa:</span> {{ $order->externalCompany->nome }}</div>
+                        @endif
+                        @if($order->valor_servico_externo)
+                            <div><span class="text-gray-500">Serviço externo:</span> R$ {{ number_format($order->valor_servico_externo, 2, ',', '.') }}</div>
+                        @endif
+                        @if($order->payableTitle)
+                            <div>
+                                <span class="text-gray-500">Conta a pagar:</span>
+                                <a href="{{ route('finance.payables') }}" wire:navigate class="text-indigo-600 hover:underline">{{ $order->payableTitle->codigo }}</a>
+                            </div>
+                        @endif
+                        @if($order->receivableTitle)
+                            <div class="rounded-md bg-emerald-50 border border-emerald-100 p-3 text-emerald-800">
+                                Título gerado: <span class="font-medium">{{ $order->receivableTitle->codigo }}</span>
+                                — R$ {{ number_format($order->receivableTitle->valor, 2, ',', '.') }}
+                                (venc. {{ $order->receivableTitle->vencimento->format('d/m/Y') }})
+                            </div>
+                        @endif
                         @if($order->cancel_reason)
                             <div class="text-red-600"><span class="font-medium">Cancelamento:</span> {{ $order->cancel_reason }}</div>
                         @endif

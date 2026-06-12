@@ -164,7 +164,7 @@ class AgentChatOrchestrator
 
 
 
-    [$parsed, $llmDegraded, $llmNotice] = $this->interpretMessage($message, $user, $options->mode);
+    [$parsed, $llmDegraded, $llmNotice] = $this->interpretMessage($message, $user, $options->mode, $session?->id);
 
 
 
@@ -175,13 +175,13 @@ class AgentChatOrchestrator
 
 
   /** @return array{0: array{command?: string, input?: array<string, mixed>, reply?: string}, 1: bool, 2: ?string} */
-  private function interpretMessage(string $message, User $user, CopilotMode $mode): array
+  private function interpretMessage(string $message, User $user, CopilotMode $mode, ?int $sessionId = null): array
   {
     if (! $this->llm->isConfigured()) {
       return [$this->parser->parse($message), false, null];
     }
 
-    $llmResult = $this->llm->interpret($message, $user, $mode);
+    $llmResult = $this->llm->interpret($message, $user, $mode, $sessionId);
 
     if ($llmResult->succeeded && $llmResult->parsed !== null) {
       return [$llmResult->parsed, false, null];
@@ -190,6 +190,12 @@ class AgentChatOrchestrator
     $parsed = $this->parser->parse($message);
 
     if ($llmResult->shouldNotifyFallback()) {
+      app(\App\Services\AgentLlmUsageService::class)->recordHeuristicFallback(
+        $user,
+        $llmResult->failureReason,
+        $sessionId,
+      );
+
       $notice = $this->userMessenger->llmOperationalFallbackNotice($llmResult->failureReason);
 
       return [$this->prependDegradationNotice($parsed, $notice), true, $notice];
@@ -335,15 +341,11 @@ class AgentChatOrchestrator
 
 
     $analyzeResult = $this->documentAnalyzer->analyze(
-
       $message !== '' ? $message : 'Analise o documento anexado e extraia os dados relevantes.',
-
       $options->attachments,
-
       $options->mode,
-
       $user,
-
+      $session?->id,
     );
 
 
@@ -699,6 +701,8 @@ class AgentChatOrchestrator
     $actions = [
 
       ['label' => 'Resumo financeiro', 'command' => 'finance.summary', 'params' => []],
+
+      ['label' => 'Ocupação da frota', 'command' => 'fleet.analytics', 'params' => ['view' => 'occupancy']],
 
       ['label' => 'Betoneiras locadas', 'command' => 'rental.list', 'params' => ['status' => 'locado', 'category_query' => 'betoneira', 'limit' => 25]],
 

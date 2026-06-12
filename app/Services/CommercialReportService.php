@@ -19,6 +19,7 @@ class CommercialReportService
         CarbonInterface $from,
         CarbonInterface $to,
         string $groupBy = 'model',
+        ?string $region = null,
     ): Collection {
         $groupBy = $groupBy === 'category' ? 'category' : 'model';
 
@@ -29,7 +30,8 @@ class CommercialReportService
             ->where('rentals.status', RentalStatus::Concluido->value)
             ->whereNotNull('rentals.completed_at')
             ->whereDate('rentals.completed_at', '>=', $from->toDateString())
-            ->whereDate('rentals.completed_at', '<=', $to->toDateString());
+            ->whereDate('rentals.completed_at', '<=', $to->toDateString())
+            ->when($region, fn ($q) => $q->where('rentals.regiao_geografica', $region));
 
         if ($groupBy === 'category') {
             $query->select([
@@ -65,13 +67,14 @@ class CommercialReportService
         });
     }
 
-    public function totalRevenueInPeriod(CarbonInterface $from, CarbonInterface $to): float
+    public function totalRevenueInPeriod(CarbonInterface $from, CarbonInterface $to, ?string $region = null): float
     {
         return (float) Rental::query()
             ->where('status', RentalStatus::Concluido->value)
             ->whereNotNull('completed_at')
             ->whereDate('completed_at', '>=', $from->toDateString())
             ->whereDate('completed_at', '<=', $to->toDateString())
+            ->inGeographicRegion($region)
             ->sum('valor_faturamento');
     }
 
@@ -80,7 +83,7 @@ class CommercialReportService
      *
      * @return Collection<int, object{grupo_id: int|null, grupo_nome: string, total_locacoes: int, faturamento_total: float, ticket_medio: float}>
      */
-    public function revenueByCommercialUser(CarbonInterface $from, CarbonInterface $to): Collection
+    public function revenueByCommercialUser(CarbonInterface $from, CarbonInterface $to, ?string $region = null): Collection
     {
         $rows = Rental::query()
             ->leftJoin('users', 'rentals.commercial_user_id', '=', 'users.id')
@@ -88,6 +91,7 @@ class CommercialReportService
             ->whereNotNull('rentals.completed_at')
             ->whereDate('rentals.completed_at', '>=', $from->toDateString())
             ->whereDate('rentals.completed_at', '<=', $to->toDateString())
+            ->when($region, fn ($q) => $q->where('rentals.regiao_geografica', $region))
             ->select([
                 'rentals.commercial_user_id as grupo_id',
                 DB::raw("COALESCE(users.name, 'Sem responsável') as grupo_nome"),

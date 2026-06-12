@@ -2,12 +2,17 @@
 
 namespace App\Livewire\Customer;
 
+use App\Enums\CommercialActivityType;
 use App\Enums\RentalStatus;
+use App\Models\Domain\Crm\CommercialOpportunity;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
 use App\Rules\ValidCpfCnpj;
+use App\Services\CommercialActivityService;
 use App\Services\ReceivableTitleService;
+use App\Support\FlashMessage;
+use App\Support\WhatsAppLinkBuilder;
 use App\Support\RentalPanelQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -42,11 +47,42 @@ class CustomerShow extends Component
 
     public string $motivo_bloqueio = '';
 
+    public string $activity_tipo = 'nota';
+
+    public string $activity_descricao = '';
+
+    public string $activity_follow_up = '';
+
     public function mount(Customer $customer): void
     {
         $this->authorize('view', $customer);
         $this->customer = $customer->load(['createdByUser', 'blockedByUser']);
         $this->syncFields();
+    }
+
+    public function logActivity(CommercialActivityService $activities): void
+    {
+        $this->authorize('create', CommercialOpportunity::class);
+
+        $data = $this->validate([
+            'activity_tipo' => 'required|in:'.implode(',', array_column(CommercialActivityType::cases(), 'value')),
+            'activity_descricao' => 'required|string|max:2000',
+            'activity_follow_up' => 'nullable|date',
+        ]);
+
+        $activities->log(
+            $this->customer,
+            CommercialActivityType::from($data['activity_tipo']),
+            $data['activity_descricao'],
+            null,
+            filled($data['activity_follow_up'] ?? null) ? \Carbon\Carbon::parse($data['activity_follow_up']) : null,
+        );
+
+        $this->activity_descricao = '';
+        $this->activity_follow_up = '';
+        $this->customer->refresh();
+
+        FlashMessage::success('Atividade registrada.');
     }
 
     public function saveField(string $field): void
@@ -121,6 +157,11 @@ class CustomerShow extends Component
         $historySummary = app(RentalPanelQuery::class)->summaryForCustomer($this->customer->id);
         $financeService = app(ReceivableTitleService::class);
 
+        $crmActivities = $this->customer->commercialActivities()->with('user')->limit(15)->get();
+        $openOpportunities = $this->customer->commercialOpportunities()
+            ->whereIn('stage', array_map(fn ($s) => $s->value, \App\Enums\OpportunityStage::pipelineStages()))
+            ->get();
+
         return view('livewire.customer.customer-show', [
             'activeRentals' => $activeRentals,
             'rentalHistory' => $rentalHistory,
@@ -132,6 +173,14 @@ class CustomerShow extends Component
             'openBalance' => $financeService->customerOpenBalance($this->customer),
             'overdueBalance' => $financeService->customerOverdueBalance($this->customer),
             'canViewFinance' => auth()->user()->can('finance.view'),
+            'canManageCrm' => auth()->user()->can('crm.manage'),
+            'canViewCrm' => auth()->user()->can('crm.view'),
+            'crmActivities' => $crmActivities,
+            'openOpportunities' => $openOpportunities,
+            'activityTypes' => CommercialActivityType::cases(),
+            'whatsAppLink' => filled($this->customer->telefone)
+                ? WhatsAppLinkBuilder::build($this->customer->telefone, 'Olá '.$this->customer->nome.', ')
+                : null,
         ]);
     }
 

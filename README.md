@@ -9,10 +9,12 @@ ERP interno para controle de frota, patrimônios, clientes, locação, manutenç
 | Documento | Conteúdo |
 |-----------|----------|
 | [docs/VISAO_PRODUTO.md](docs/VISAO_PRODUTO.md) | Visão de produto — jornadas, funcionalidades, limites |
+| [docs/GO_LIVE.md](docs/GO_LIVE.md) | **Go-live** — deploy, Asaas, transição fiscal, checklist |
 | [docs/IA.md](docs/IA.md) | **Copiloto / IA** — personalidade, fluxos, modos, API, configuração |
 | [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) | Arquitetura técnica do agente (camadas, concorrência) |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | Deploy, fila, cron, backup |
-| `.env.example` | Variáveis (copiloto/LLM, exportação contábil Omie/Sisloc, documentos PDF) |
+| [docs/TRANSICAO_FISCAL.md](docs/TRANSICAO_FISCAL.md) | Transição Sisloc → Omie/Bling |
+| `.env.example` | Variáveis (copiloto/LLM, Asaas, fiscal, exportação contábil, geocoding, CRM) |
 
 ## Stack
 
@@ -106,21 +108,20 @@ Depois acesse http://localhost:8000 e entre com `admin@acesso.local` / `Acesso@2
 | Operação | `operacao@acesso.local` |
 | Manutenção | `manutencao@acesso.local` |
 
-### Mapa rápido de rotas
+### Menu principal (6 seções)
 
-| Área | Rota principal |
-|------|----------------|
-| Dashboard | `/dashboard` |
-| Patrimônios | `/patrimonios` |
-| Scan QR / pátio | `/patrimonios/scan/{codigo}` → `/patio/{codigo}` (operadores) |
-| Locações | `/locacoes` · painel: `?aba=painel` |
-| Orçamentos | `/orcamentos` |
-| Manutenção | `/manutencao` · painel: `?aba=painel` |
-| Financeiro | `/financeiro/titulos` · a faturar · inadimplência · fluxo de caixa |
-| Relatórios | `/relatorios/comercial` · `/relatorios/analise-financeira` |
-| Copiloto | Painel flutuante (todas as telas) + `/copiloto` (permissão `agent.api`) |
-| Busca global | `/busca` |
-| Admin | `/admin/usuarios` · empresas · auditoria · copiloto-logs |
+| Seção | Principais itens |
+|-------|------------------|
+| **Dashboard** | Painel (`/dashboard`) · relatórios comercial, financeiro, frota, custo OS |
+| **Comercial** | Locações (`/locacoes`) · orçamentos · CRM · clientes · pessoas/empresas · preços |
+| **Logística** | Lista do dia · mapa de obras · frota de entrega · pátios |
+| **Estoque** | Patrimônios (`/patrimonios`) · OS · peças · pedidos de compra · preventiva · categorias/modelos |
+| **Financeiro** | Títulos · a pagar · a faturar · inadimplência · fluxo de caixa · fiscal (ERP) |
+| **Configurações** | Usuários · empresas (CNPJ) · auditoria · copiloto (logs/métricas) |
+
+Scan QR: `/patrimonios/scan/{codigo}` → operadores vão para `/patio/{codigo}`; demais perfis vão à ficha do patrimônio.
+
+Copiloto: painel flutuante + API (`agent.api`). Busca global: `/busca`.
 
 ## Estrutura modular
 
@@ -671,7 +672,7 @@ php artisan test --filter=Agent
 
 **Público-alvo:** locadora de equipamentos de **médio porte**, operação **regional** (BH e região metropolitana de Minas Gerais).
 
-**Posicionamento atual:** ERP **operacional + comercial + financeiro leve** (frota, locação, manutenção, faturamento recorrente, copiloto). Ainda **não substitui** Sisloc ou Protheus de ponta a ponta — gaps principais: **fiscal (NF-e)**, **logística/romaneio** e **gateway de pagamento**.
+**Posicionamento atual:** ERP **operacional + comercial + financeiro leve** (frota, locação, manutenção, estoque de peças, logística, CRM, copiloto). **Gateway PIX/boleto (Asaas)** e **exportação fiscal (Omie/Bling)** estão implementados — falta configurar em produção e validar a transição ([GO_LIVE.md](docs/GO_LIVE.md)). Ainda **não emite NF-e** no próprio sistema; fiscal fica no ERP parceiro.
 
 | Comparativo estimado | Cobertura |
 |---------------------|-----------|
@@ -973,13 +974,14 @@ Marque quando todos estiverem concluídos:
 - [x] Contrato PDF padrão da empresa
 - [x] Orçamento com validade → reserva
 - [x] Exportação contábil (CSV / Omie / Bling / Sisloc)
-- [ ] Transição fiscal validada em paralelo (checklist `docs/TRANSICAO_FISCAL.md`)
+- [ ] Transição fiscal validada em paralelo (checklist [docs/TRANSICAO_FISCAL.md](docs/TRANSICAO_FISCAL.md) · guia [docs/GO_LIVE.md](docs/GO_LIVE.md))
 - [x] Modo pátio mobile (QR + checklist)
 - [x] Copiloto operacional com auditoria
 - [x] Notificações automáticas (e-mail) de retorno atrasado, OS atrasada e preventiva — job `notifications:operational-alerts` às 07:45
 - [x] Runbook produção (PostgreSQL, fila, backup) — ver `docs/PRODUCTION.md`
-- [ ] Deploy efetivo em servidor com Supervisor + backup cron ativos
-- [ ] Fiscal: integração ou NFS-e emitida pelo sistema
-- [ ] Romaneio / múltiplos pátios — **opcional** enquanto logística via WhatsApp atender
+- [ ] Deploy efetivo em servidor com Supervisor + backup cron ativos ([docs/GO_LIVE.md](docs/GO_LIVE.md))
+- [ ] Gateway Asaas em produção validado (PIX/boleto + webhook)
+- [ ] Fiscal: NF emitida no Omie/Bling após exportação (não no Gestão Acesso)
+- [x] Romaneio do dia e múltiplos pátios — implementados em Logística
 
 Até lá, o Linha Leve funciona como **sistema operacional principal**, com **comercial/fiscal complementar** em planilha ou sistema legado.

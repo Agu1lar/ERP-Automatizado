@@ -13,8 +13,22 @@ use App\Agent\Commands\PersonSearchCommand;
 use App\Agent\Commands\PersonUpdateCommand;
 use App\Agent\Commands\CompanyCreateCommand;
 use App\Agent\Commands\CompanyUpdateCommand;
+use App\Agent\Commands\AdminSummaryCommand;
+use App\Agent\Commands\AgentMetricsCommand;
 use App\Agent\Commands\BillingGetCommand;
+use App\Agent\Commands\CategoryListCommand;
+use App\Agent\Commands\DocumentExportCommand;
+use App\Agent\Commands\FleetAnalyticsCommand;
 use App\Agent\Commands\FinanceDelinquencyCommand;
+use App\Agent\Commands\ModelListCommand;
+use App\Agent\Commands\PartGetCommand;
+use App\Agent\Commands\PartListCommand;
+use App\Agent\Commands\PreventiveDueCommand;
+use App\Agent\Commands\PreventiveListCommand;
+use App\Agent\Commands\PricingGetCommand;
+use App\Agent\Commands\PricingListCommand;
+use App\Agent\Commands\ReportCommercialCommand;
+use App\Agent\Commands\ReportFinancialAnalysisCommand;
 use App\Agent\Commands\SearchGlobalCommand;
 use App\Agent\Commands\QuoteCancelCommand;
 use App\Agent\Commands\QuoteCreateCommand;
@@ -118,6 +132,20 @@ return [
         LogisticsDailyCommand::class,
         ReceivableListCommand::class,
         ReceivableGetCommand::class,
+        PricingListCommand::class,
+        PricingGetCommand::class,
+        CategoryListCommand::class,
+        ModelListCommand::class,
+        PartListCommand::class,
+        PartGetCommand::class,
+        PreventiveListCommand::class,
+        PreventiveDueCommand::class,
+        ReportCommercialCommand::class,
+        ReportFinancialAnalysisCommand::class,
+        FleetAnalyticsCommand::class,
+        DocumentExportCommand::class,
+        AdminSummaryCommand::class,
+        AgentMetricsCommand::class,
     ],
 
     'access_permission' => 'agent.api',
@@ -128,6 +156,12 @@ return [
         'require_confirmation' => env('AGENT_CHAT_REQUIRE_CONFIRMATION', true),
         'max_attachments' => (int) env('AGENT_MAX_ATTACHMENTS', 3),
         'max_attachment_kb' => (int) env('AGENT_MAX_ATTACHMENT_KB', 10240),
+        'max_history_messages' => (int) env('AGENT_CHAT_MAX_HISTORY', 20),
+    ],
+
+    'tasks' => [
+        'sse_poll_ms' => (int) env('AGENT_TASK_SSE_POLL_MS', 1000),
+        'sse_max_seconds' => (int) env('AGENT_TASK_SSE_MAX_SECONDS', 300),
     ],
 
     'llm' => [
@@ -136,6 +170,12 @@ return [
         'base_url' => env('AGENT_LLM_BASE_URL', 'https://api.openai.com/v1'),
         'model' => env('AGENT_LLM_MODEL', 'gpt-4o-mini'),
         'timeout' => env('AGENT_LLM_TIMEOUT', 30),
+        'daily_token_limit' => env('AGENT_LLM_DAILY_TOKEN_LIMIT'),
+        'pricing_per_million' => [
+            'gpt-4o-mini' => ['input' => 0.15, 'output' => 0.60],
+            'gpt-4o' => ['input' => 2.50, 'output' => 10.00],
+            'default' => ['input' => 0.15, 'output' => 0.60],
+        ],
     ],
 
 ];

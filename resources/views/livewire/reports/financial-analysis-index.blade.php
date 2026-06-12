@@ -26,7 +26,7 @@
 
             <div class="bg-white rounded-lg shadow p-6 space-y-4">
 
-                <div class="grid md:grid-cols-4 gap-4 items-end">
+                <div class="grid md:grid-cols-5 gap-4 items-end">
 
                     <div>
 
@@ -60,7 +60,31 @@
 
                     </div>
 
+                    <div>
+
+                        <label class="block text-sm font-medium text-gray-700">Região da obra</label>
+
+                        <select wire:model.live="region_filter" class="mt-1 w-full rounded-md border-gray-300 shadow-sm text-sm">
+
+                            <option value="">Todas</option>
+
+                            @foreach($regionOptions as $region)
+
+                                <option value="{{ $region->value }}">{{ $region->label() }}</option>
+
+                            @endforeach
+
+                        </select>
+
+                    </div>
+
                 </div>
+
+                @if($region_filter)
+
+                    <p class="text-xs text-gray-500">Faturamento e locações filtrados por região. Custos de manutenção (peças e mão de obra) permanecem globais no período.</p>
+
+                @endif
 
 
 

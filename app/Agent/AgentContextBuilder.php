@@ -3,17 +3,27 @@
 namespace App\Agent;
 
 use App\Enums\RentalBillingQueueStatus;
+use App\Enums\RentalPricingPeriod;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Finance\ReceivableTitle;
+use App\Models\Domain\Fleet\EquipmentCategory;
+use App\Models\Domain\Fleet\EquipmentPricing;
+use App\Models\Domain\Logistics\Yard;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
+use App\Models\Domain\Maintenance\PartCatalogItem;
+use App\Models\Domain\Person\Company;
+use App\Models\Domain\Person\Person;
 use App\Models\Domain\Rental\Rental;
+use App\Models\Domain\Rental\RentalBillingQueueEntry;
 use App\Models\Domain\Rental\RentalQuote;
 use App\Services\ReceivableTitleService;
 use App\Support\CopilotNavigationLinks;
 use App\Support\DelinquencyReportQuery;
 use App\Support\FinanceDashboardQuery;
+use App\Support\LogisticsDailyQuery;
 use App\Support\RentalWorkflow;
 use App\Support\WorkflowNextStep;
+use Carbon\CarbonInterface;
 
 class AgentContextBuilder
 {
@@ -94,8 +104,14 @@ class AgentContextBuilder
         'overdue' => $t->isOverdue(),
       ])->all(),
       'suggested_commands' => $suggestedCommands,
+      'document_exports' => [
+        ['document_type' => 'rental_summary', 'rental_id' => $rental->id, 'label' => 'PDF resumo'],
+        ['document_type' => 'rental_contract', 'rental_id' => $rental->id, 'label' => 'PDF contrato'],
+      ],
       'urls' => [
         'ficha' => route('rentals.show', $rental),
+        'pdf_resumo' => route('rentals.pdf', $rental),
+        'pdf_contrato' => route('rentals.contract.pdf', $rental),
       ],
     ];
   }
@@ -188,8 +204,12 @@ class AgentContextBuilder
           ? ['command' => 'maintenance.open', 'params' => ['asset_id' => $asset->id, 'descricao' => 'Solicitação via copiloto']]
           : null,
       ])),
+      'document_exports' => [
+        ['document_type' => 'asset_sheet', 'asset_id' => $asset->id, 'label' => 'PDF ficha patrimônio'],
+      ],
       'urls' => [
         'ficha' => route('assets.show', $asset),
+        'pdf' => route('assets.pdf', $asset),
       ],
     ];
   }
@@ -223,8 +243,12 @@ class AgentContextBuilder
         'aguardando_peca' => [['command' => 'maintenance.resume', 'params' => ['order_id' => $order->id]]],
         default => [],
       },
+      'document_exports' => [
+        ['document_type' => 'maintenance_order', 'order_id' => $order->id, 'label' => 'PDF OS'],
+      ],
       'urls' => [
         'ficha' => route('maintenance.show', $order),
+        'pdf' => route('maintenance.pdf', $order),
       ],
     ];
   }
@@ -324,6 +348,230 @@ class AgentContextBuilder
         'billing_cycle_due_count' => $financeDashboard->billingCycleDueCount(),
         'pending_renewal_queue_count' => $financeDashboard->pendingRenewalQueueCount(),
         'delinquency' => $delinquency->summary(),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function person(Person $person): array
+  {
+    $person->load(['company:id,nome,cnpj,tipo']);
+
+    return [
+      'entity' => 'person',
+      'person' => [
+        'id' => $person->id,
+        'nome' => $person->nome,
+        'cpf' => $person->cpf,
+        'email' => $person->email,
+        'telefone' => $person->telefone,
+        'cargo' => $person->cargo,
+        'ativo' => $person->ativo,
+        'company' => $person->company ? [
+          'id' => $person->company->id,
+          'nome' => $person->company->nome,
+          'cnpj' => $person->company->cnpj,
+          'tipo' => $person->company->tipo,
+        ] : null,
+      ],
+      'suggested_commands' => [
+        ['command' => 'person.update', 'params' => ['person_id' => $person->id]],
+      ],
+      'urls' => [
+        'ficha' => route('people.show', $person),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function company(Company $company): array
+  {
+    $company->loadCount(['people', 'contacts', 'emails']);
+
+    return [
+      'entity' => 'company',
+      'company' => [
+        'id' => $company->id,
+        'nome' => $company->nome,
+        'cnpj' => $company->cnpj,
+        'tipo' => $company->tipo,
+        'tipo_label' => $company->typeEnum()->label(),
+        'endereco' => $company->endereco,
+        'ativo' => $company->ativo,
+        'people_count' => $company->people_count,
+        'contacts_count' => $company->contacts_count,
+        'emails_count' => $company->emails_count,
+      ],
+      'suggested_commands' => [
+        ['command' => 'company.update', 'params' => ['company_id' => $company->id]],
+        ['command' => 'person.search', 'params' => ['q' => $company->nome]],
+      ],
+      'urls' => [
+        'lista' => route('companies.index'),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function billingEntry(RentalBillingQueueEntry $entry): array
+  {
+    $entry->load(['customer', 'rental.asset', 'receivableTitle']);
+    $status = RentalBillingQueueStatus::tryFrom($entry->status);
+
+    $suggestedCommands = match ($entry->statusEnum()) {
+      RentalBillingQueueStatus::Pendente => [
+        ['command' => 'billing.authorize_entry', 'params' => ['entry_id' => $entry->id]],
+      ],
+      RentalBillingQueueStatus::Autorizado => [
+        ['command' => 'billing.invoice_entry', 'params' => ['entry_id' => $entry->id]],
+      ],
+      default => [],
+    };
+
+    return [
+      'entity' => 'billing_entry',
+      'entry' => [
+        'id' => $entry->id,
+        'codigo' => $entry->codigo,
+        'tipo' => $entry->tipo,
+        'status' => $entry->status,
+        'status_label' => $status?->label(),
+        'valor_car' => (float) $entry->valor_car,
+        'valor_nf' => (float) $entry->valor_nf,
+        'periodo_inicio' => $entry->periodo_inicio?->toDateString(),
+        'periodo_fim' => $entry->periodo_fim?->toDateString(),
+        'gerado_em' => $entry->gerado_em?->toIso8601String(),
+        'customer' => [
+          'id' => $entry->customer_id,
+          'nome' => $entry->customer?->nome,
+        ],
+        'rental' => $entry->rental ? [
+          'id' => $entry->rental->id,
+          'codigo' => $entry->rental->codigo,
+        ] : null,
+        'receivable_title' => $entry->receivableTitle ? [
+          'id' => $entry->receivableTitle->id,
+          'codigo' => $entry->receivableTitle->codigo,
+        ] : null,
+      ],
+      'suggested_commands' => $suggestedCommands,
+      'document_exports' => [
+        ['document_type' => 'billing_invoice', 'entry_id' => $entry->id, 'label' => 'PDF fatura'],
+      ],
+      'urls' => [
+        'fila' => CopilotNavigationLinks::billingQueue(),
+        'pdf' => route('finance.billing.pdf', $entry),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function yard(Yard $yard): array
+  {
+    $yard->loadCount('assets');
+
+    return [
+      'entity' => 'yard',
+      'yard' => [
+        'id' => $yard->id,
+        'nome' => $yard->nome,
+        'cidade' => $yard->cidade,
+        'endereco' => $yard->endereco,
+        'telefone' => $yard->telefone,
+        'ativo' => $yard->ativo,
+        'principal' => $yard->principal,
+        'assets_count' => $yard->assets_count,
+        'display_label' => $yard->displayLabel(),
+      ],
+      'suggested_commands' => [
+        ['command' => 'yard.list', 'params' => ['q' => $yard->nome]],
+      ],
+      'urls' => [
+        'lista' => CopilotNavigationLinks::yards($yard->nome),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function logisticsDaily(?CarbonInterface $date = null): array
+  {
+    $date = $date?->copy()->startOfDay() ?? now()->startOfDay();
+    $query = app(LogisticsDailyQuery::class);
+    $counts = $query->countsForDate($date);
+
+    return [
+      'entity' => 'logistics_daily',
+      'date' => $date->toDateString(),
+      'counts' => $counts,
+      'suggested_commands' => [
+        ['command' => 'logistics.daily', 'params' => ['date' => $date->toDateString()]],
+      ],
+      'urls' => [
+        'lista' => CopilotNavigationLinks::logisticsDaily($date->toDateString()),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function pricingCategory(EquipmentCategory $category): array
+  {
+    $prices = EquipmentPricing::query()
+      ->where('equipment_category_id', $category->id)
+      ->whereNull('equipment_model_id')
+      ->where('ativo', true)
+      ->get()
+      ->keyBy('periodo');
+
+    $byPeriod = [];
+
+    foreach (RentalPricingPeriod::cases() as $period) {
+      $row = $prices->get($period->value);
+      $byPeriod[$period->value] = $row ? (float) $row->valor : null;
+    }
+
+    $overrideCount = EquipmentPricing::query()
+      ->whereNotNull('equipment_model_id')
+      ->whereHas('equipmentModel', fn ($q) => $q->where('equipment_category_id', $category->id))
+      ->where('ativo', true)
+      ->count();
+
+    return [
+      'entity' => 'pricing_category',
+      'category' => [
+        'id' => $category->id,
+        'nome' => $category->nome,
+        'tipo_linha' => $category->tipo_linha,
+        'ativo' => $category->ativo,
+      ],
+      'prices' => $byPeriod,
+      'model_override_count' => $overrideCount,
+      'urls' => [
+        'tabela' => CopilotNavigationLinks::pricing(),
+      ],
+    ];
+  }
+
+  /** @return array<string, mixed> */
+  public function partCatalogItem(PartCatalogItem $part): array
+  {
+    return [
+      'entity' => 'part_catalog_item',
+      'part' => [
+        'id' => $part->id,
+        'codigo_peca' => $part->codigo_peca,
+        'codigo_alternativo' => $part->codigo_alternativo,
+        'descricao' => $part->descricao,
+        'valor_unitario_padrao' => (float) $part->valor_unitario_padrao,
+        'estoque_atual' => (float) $part->estoque_atual,
+        'estoque_minimo' => $part->estoque_minimo !== null ? (float) $part->estoque_minimo : null,
+        'below_minimum' => $part->isBelowMinimum(),
+        'ativo' => $part->ativo,
+      ],
+      'suggested_commands' => $part->isBelowMinimum()
+        ? [['command' => 'part.list', 'params' => ['below_minimum_only' => true]]]
+        : [],
+      'urls' => [
+        'catalogo' => CopilotNavigationLinks::partsCatalog($part->codigo_peca),
       ],
     ];
   }

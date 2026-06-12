@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Domain\Finance\PayableTitle;
 use App\Models\Domain\Finance\ReceivableTitle;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -36,6 +37,38 @@ class CashFlowQuery
     public function totalExpected(CarbonInterface $from, CarbonInterface $to): float
     {
         return (float) ReceivableTitle::query()
+            ->open()
+            ->whereBetween('vencimento', [$from->toDateString(), $to->toDateString()])
+            ->sum('valor');
+    }
+
+    /**
+     * @return Collection<int, object{periodo: string, vencimento: string, quantidade: int, valor: float}>
+     */
+    public function expectedOutflows(CarbonInterface $from, CarbonInterface $to): Collection
+    {
+        return PayableTitle::query()
+            ->open()
+            ->whereBetween('vencimento', [$from->toDateString(), $to->toDateString()])
+            ->select([
+                'vencimento',
+                DB::raw('COUNT(*) as quantidade'),
+                DB::raw('SUM(valor) as valor'),
+            ])
+            ->groupBy('vencimento')
+            ->orderBy('vencimento')
+            ->get()
+            ->map(fn ($row) => (object) [
+                'periodo' => $row->vencimento,
+                'vencimento' => $row->vencimento,
+                'quantidade' => (int) $row->quantidade,
+                'valor' => (float) $row->valor,
+            ]);
+    }
+
+    public function totalExpectedOutflows(CarbonInterface $from, CarbonInterface $to): float
+    {
+        return (float) PayableTitle::query()
             ->open()
             ->whereBetween('vencimento', [$from->toDateString(), $to->toDateString()])
             ->sum('valor');

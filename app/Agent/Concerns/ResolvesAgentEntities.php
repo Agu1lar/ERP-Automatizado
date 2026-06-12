@@ -10,7 +10,9 @@ use App\Models\Domain\Rental\RentalQuote;
 use App\Models\Domain\Person\Company;
 use App\Models\Domain\Person\Person;
 use App\Models\Domain\Finance\ReceivableTitle;
+use App\Models\Domain\Logistics\Yard;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
+use App\Models\Domain\Maintenance\PartCatalogItem;
 use InvalidArgumentException;
 
 trait ResolvesAgentEntities
@@ -275,6 +277,59 @@ trait ResolvesAgentEntities
     } catch (\Throwable) {
       return [];
     }
+  }
+
+  /** @param  array<string, mixed>  $input */
+  protected function resolvePart(array $input): PartCatalogItem
+  {
+    if (! empty($input['part_id'])) {
+      return PartCatalogItem::query()->findOrFail((int) $input['part_id']);
+    }
+
+    if (! empty($input['part_codigo'])) {
+      $code = trim((string) $input['part_codigo']);
+      $part = PartCatalogItem::query()
+        ->where('codigo_peca', $code)
+        ->orWhere('codigo_alternativo', $code)
+        ->first();
+
+      if ($part) {
+        return $part;
+      }
+    }
+
+    throw new InvalidArgumentException('Informe part_id ou part_codigo.');
+  }
+
+  /** @param  array<string, mixed>  $input */
+  protected function resolveYard(array $input): Yard
+  {
+    if (! empty($input['yard_id'])) {
+      return Yard::query()->findOrFail((int) $input['yard_id']);
+    }
+
+    $name = trim((string) ($input['yard_name'] ?? ''));
+
+    if ($name !== '') {
+      $matches = Yard::query()
+        ->where('nome', 'like', '%'.$name.'%')
+        ->orderByDesc('principal')
+        ->orderBy('nome')
+        ->limit(2)
+        ->get();
+
+      if ($matches->count() === 1) {
+        return $matches->first();
+      }
+
+      if ($matches->count() > 1) {
+        throw new InvalidArgumentException("Múltiplos pátios para \"{$name}\". Informe yard_id.");
+      }
+
+      throw new InvalidArgumentException("Pátio não encontrado: \"{$name}\".");
+    }
+
+    throw new InvalidArgumentException('Informe yard_id ou yard_name.');
   }
 
   /** @param  array<string, mixed>  $input @return list<array{type: string, id: int}> */

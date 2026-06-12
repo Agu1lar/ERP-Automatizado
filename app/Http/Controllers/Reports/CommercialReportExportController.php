@@ -19,16 +19,18 @@ class CommercialReportExportController extends Controller
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
             'group_by' => 'in:model,category,user',
+            'region' => 'nullable|in:bh,rmbh,interior,indefinido',
         ]);
 
         $from = Carbon::parse($validated['date_from'])->startOfDay();
         $to = Carbon::parse($validated['date_to'])->endOfDay();
         $groupBy = $validated['group_by'] ?? 'model';
+        $region = $validated['region'] ?? null;
 
         $rows = $groupBy === 'user'
-            ? $service->revenueByCommercialUser($from, $to)
-            : $service->revenueByEquipmentType($from, $to, $groupBy);
-        $total = $service->totalRevenueInPeriod($from, $to);
+            ? $service->revenueByCommercialUser($from, $to, $region)
+            : $service->revenueByEquipmentType($from, $to, $groupBy, $region);
+        $total = $service->totalRevenueInPeriod($from, $to, $region);
 
         $filename = sprintf(
             'relatorio-comercial-%s-a-%s.csv',

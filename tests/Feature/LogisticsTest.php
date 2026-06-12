@@ -9,8 +9,14 @@ use App\Enums\LogisticsReturnMode;
 use App\Enums\RentalStatus;
 use App\Enums\UserRole;
 use App\Livewire\Fleet\AssetShow;
+use App\Enums\DeliveryManifestStatus;
+use App\Livewire\Logistics\DeliveryManifestShow;
 use App\Livewire\Logistics\LogisticsDailyIndex;
 use App\Livewire\Rental\RentalShow;
+use App\Models\Domain\Logistics\DeliveryDriver;
+use App\Models\Domain\Logistics\DeliveryManifest;
+use App\Models\Domain\Logistics\DeliveryVehicle;
+use App\Services\DeliveryManifestService;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Fleet\Asset;
 use App\Models\Domain\Fleet\EquipmentCategory;
@@ -220,6 +226,84 @@ class LogisticsTest extends TestCase
 
         $this->assertCount(0, $query->scheduledPickups($day));
         $this->assertCount(1, $query->customerReturnsAtYard($day));
+    }
+
+    public function test_manifest_generation_assigns_fleet_stops_and_proof(): void
+    {
+        $user = $this->user(UserRole::Operacao);
+        $this->actingAs($user);
+
+        $driver = DeliveryDriver::create(['nome' => 'João Motorista', 'ativo' => true]);
+        $vehicle = DeliveryVehicle::create(['placa' => 'ABC1D23', 'descricao' => 'Fiorino', 'ativo' => true]);
+
+        $asset = $this->asset('PAT-ROM-1', AssetStatus::Reservado);
+        $customer = $this->customer();
+        $date = now()->addDay();
+
+        $rental = Rental::create([
+            'codigo' => 'LOC-ROM-1',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Reservado->value,
+            'entrega_agendada_em' => $date->toDateString(),
+            'entrega_turno' => LogisticsShift::Manha->value,
+            'local_obra' => 'Obra Centro',
+            'reserved_at' => now(),
+            'expected_return_at' => now()->addDays(7),
+        ]);
+
+        $manifest = app(DeliveryManifestService::class)->generateForDate($date);
+        $this->assertSame(1, $manifest->stops()->count());
+
+        $manifest = app(DeliveryManifestService::class)->assignResources($manifest, $driver, $vehicle);
+        $manifest = app(DeliveryManifestService::class)->startRoute($manifest);
+
+        $stop = $manifest->stops()->first();
+        app(DeliveryManifestService::class)->recordProof(
+            $stop,
+            'Maria Recebedora',
+            'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        );
+
+        $manifest->refresh();
+        $this->assertSame(DeliveryManifestStatus::Concluido->value, $manifest->status);
+        $this->assertDatabaseHas('delivery_proofs', [
+            'delivery_manifest_stop_id' => $stop->id,
+            'receptor_nome' => 'Maria Recebedora',
+        ]);
+
+        Livewire::test(DeliveryManifestShow::class, ['manifest' => $manifest->fresh()])
+            ->assertSee('ROM-')
+            ->assertSee('João Motorista')
+            ->assertSee('ABC1D23')
+            ->assertSee('Maria Recebedora');
+    }
+
+    public function test_daily_list_links_to_manifest_generation(): void
+    {
+        $user = $this->user(UserRole::Operacao);
+        $this->actingAs($user);
+
+        $asset = $this->asset('PAT-ROM-2', AssetStatus::Reservado);
+        $customer = $this->customer();
+        $date = now()->addDays(2)->toDateString();
+
+        Rental::create([
+            'codigo' => 'LOC-ROM-2',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Reservado->value,
+            'entrega_agendada_em' => $date,
+            'entrega_turno' => LogisticsShift::Tarde->value,
+            'reserved_at' => now(),
+            'expected_return_at' => now()->addDays(5),
+        ]);
+
+        Livewire::test(LogisticsDailyIndex::class)
+            ->set('selectedDate', $date)
+            ->assertSee('Gerar romaneio do dia')
+            ->call('openManifest')
+            ->assertRedirect(route('logistics.manifest.show', DeliveryManifest::query()->whereDate('data', $date)->first()));
     }
 
     private function user(UserRole $role): User

@@ -46,11 +46,11 @@ class ProfitabilityReportService
 
     /** @return array{faturamento: float, custo_pecas: float, custo_mao_obra: float, custo_manutencao: float, resultado: float, margem_percent: float|null, locacoes: int, os_concluidas: int, taxa_hora_mao_obra: float} */
 
-    public function summary(CarbonInterface $from, CarbonInterface $to): array
+    public function summary(CarbonInterface $from, CarbonInterface $to, ?string $region = null): array
 
     {
 
-        $faturamento = $this->totalRevenue($from, $to);
+        $faturamento = $this->totalRevenue($from, $to, $region);
 
         $custoPecas = $this->totalMaintenancePartsCost($from, $to);
 
@@ -80,7 +80,7 @@ class ProfitabilityReportService
 
                 : null,
 
-            'locacoes' => $this->completedRentalsCount($from, $to),
+            'locacoes' => $this->completedRentalsCount($from, $to, $region),
 
             'os_concluidas' => $this->completedMaintenanceOrdersCount($from, $to),
 
@@ -118,11 +118,11 @@ class ProfitabilityReportService
 
      */
 
-    public function byCategory(CarbonInterface $from, CarbonInterface $to): Collection
+    public function byCategory(CarbonInterface $from, CarbonInterface $to, ?string $region = null): Collection
 
     {
 
-        $revenue = $this->revenueGroupedByCategory($from, $to);
+        $revenue = $this->revenueGroupedByCategory($from, $to, $region);
 
         $partsCosts = $this->maintenancePartsCostGroupedByCategory($from, $to);
 
@@ -208,11 +208,11 @@ class ProfitabilityReportService
 
      */
 
-    public function byAsset(CarbonInterface $from, CarbonInterface $to, int $limit = 100): Collection
+    public function byAsset(CarbonInterface $from, CarbonInterface $to, int $limit = 100, ?string $region = null): Collection
 
     {
 
-        $revenue = $this->revenueGroupedByAsset($from, $to);
+        $revenue = $this->revenueGroupedByAsset($from, $to, $region);
 
         $partsCosts = $this->maintenancePartsCostGroupedByAsset($from, $to);
 
@@ -286,7 +286,7 @@ class ProfitabilityReportService
 
 
 
-    public function totalRevenue(CarbonInterface $from, CarbonInterface $to): float
+    public function totalRevenue(CarbonInterface $from, CarbonInterface $to, ?string $region = null): float
 
     {
 
@@ -299,6 +299,8 @@ class ProfitabilityReportService
             ->whereDate('completed_at', '>=', $from->toDateString())
 
             ->whereDate('completed_at', '<=', $to->toDateString())
+
+            ->inGeographicRegion($region)
 
             ->sum('valor_faturamento');
 
@@ -356,7 +358,7 @@ class ProfitabilityReportService
 
 
 
-    private function completedRentalsCount(CarbonInterface $from, CarbonInterface $to): int
+    private function completedRentalsCount(CarbonInterface $from, CarbonInterface $to, ?string $region = null): int
 
     {
 
@@ -369,6 +371,8 @@ class ProfitabilityReportService
             ->whereDate('completed_at', '>=', $from->toDateString())
 
             ->whereDate('completed_at', '<=', $to->toDateString())
+
+            ->inGeographicRegion($region)
 
             ->count();
 
@@ -398,7 +402,7 @@ class ProfitabilityReportService
 
     /** @return Collection<int|string, array{faturamento: float, locacoes: int}> */
 
-    private function revenueGroupedByCategory(CarbonInterface $from, CarbonInterface $to): Collection
+    private function revenueGroupedByCategory(CarbonInterface $from, CarbonInterface $to, ?string $region = null): Collection
 
     {
 
@@ -415,6 +419,8 @@ class ProfitabilityReportService
             ->whereDate('rentals.completed_at', '>=', $from->toDateString())
 
             ->whereDate('rentals.completed_at', '<=', $to->toDateString())
+
+            ->when($region, fn ($q) => $q->where('rentals.regiao_geografica', $region))
 
             ->groupBy('equipment_models.equipment_category_id')
 
@@ -556,7 +562,7 @@ class ProfitabilityReportService
 
     /** @return Collection<int|string, array{faturamento: float, locacoes: int}> */
 
-    private function revenueGroupedByAsset(CarbonInterface $from, CarbonInterface $to): Collection
+    private function revenueGroupedByAsset(CarbonInterface $from, CarbonInterface $to, ?string $region = null): Collection
 
     {
 
@@ -569,6 +575,8 @@ class ProfitabilityReportService
             ->whereDate('completed_at', '>=', $from->toDateString())
 
             ->whereDate('completed_at', '<=', $to->toDateString())
+
+            ->inGeographicRegion($region)
 
             ->groupBy('asset_id')
 

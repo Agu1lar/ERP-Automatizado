@@ -482,6 +482,12 @@
 
                         <div class="grid sm:grid-cols-2 gap-4">
                             <div>
+                                <label class="block text-sm font-medium text-gray-700">Início previsto</label>
+                                <input wire:model.live="scheduled_start_at" type="date" class="mt-1 w-full rounded-md border-gray-300 shadow-sm" />
+                                @error('scheduled_start_at') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                                <p class="text-xs text-gray-500 mt-1">Deixe em branco para reserva imediata. Use data futura para fila após locação atual.</p>
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-gray-700">Previsão de retorno</label>
                                 <input wire:model.live="expected_return_at" type="date" class="mt-1 w-full rounded-md border-gray-300 shadow-sm" />
                                 @error('expected_return_at') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
@@ -500,6 +506,20 @@
                                 <textarea wire:model="observacoes" rows="2" class="mt-1 w-full rounded-md border-gray-300 shadow-sm" placeholder="Opcional"></textarea>
                             </div>
                         </div>
+
+                        @if(count($scheduleConflictPreview) > 0)
+                            <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                                <p class="font-medium">Conflito de agenda neste patrimônio</p>
+                                <ul class="mt-2 space-y-1 text-red-800">
+                                    @foreach($scheduleConflictPreview as $conflict)
+                                        <li>
+                                            <strong>{{ $conflict['codigo'] }}</strong> ({{ $conflict['status'] }})
+                                            — {{ $conflict['inicio'] ?? '?' }} até {{ $conflict['fim'] ?? '?' }}
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @endif
 
                         @if($priceEstimate)
                             <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">

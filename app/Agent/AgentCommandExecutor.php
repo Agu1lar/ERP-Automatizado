@@ -35,10 +35,13 @@ class AgentCommandExecutor
     $command = $this->registry->get($name);
 
     if (! $user->can($command->permission())) {
-      return AgentCommandResult::failure(
+      $result = AgentCommandResult::failure(
         'Usuário sem permissão para executar este comando.',
         'forbidden',
       );
+      $this->sessionService->logCommand($session, $user, $name, $input, $result, $dryRun);
+
+      return $result;
     }
 
     try {

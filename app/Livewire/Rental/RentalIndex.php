@@ -16,6 +16,7 @@ use App\Support\WorkflowNextStep;
 use App\Support\ActiveOperatingCompany;
 use App\Support\RentalFichaBuilder;
 use App\Support\RentalPanelQuery;
+use App\Support\RentalScheduleConflictService;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -76,6 +77,11 @@ class RentalIndex extends Component
     public ?int $customer_id = null;
 
     public string $expected_return_at = '';
+
+    public string $scheduled_start_at = '';
+
+    /** @var list<array{codigo: string, status: string, inicio: ?string, fim: ?string}> */
+    public array $scheduleConflictPreview = [];
 
     public string $pricing_period = '';
 
@@ -224,7 +230,7 @@ class RentalIndex extends Component
 
     public function updatedExpectedReturnAt(): void
     {
-        // Re-render triggers price estimate refresh.
+        $this->refreshScheduleConflictPreview();
     }
 
     public function updatedPricingPeriod(): void
@@ -240,8 +246,11 @@ class RentalIndex extends Component
         $this->assetSuggestions = [];
         $this->assetResolveMessage = $asset->isAvailableForRental()
             ? null
-            : "Patrimônio encontrado, mas está {$asset->statusEnum()->label()} — não pode ser reservado agora.";
+            : ($asset->statusEnum() === \App\Enums\AssetStatus::Locado
+                ? "Patrimônio em locação — use início previsto em data futura para reservar após o retorno."
+                : "Patrimônio encontrado, mas está {$asset->statusEnum()->label()} — não pode ser reservado agora.");
         $this->assetPreview = RentalFichaBuilder::assetPreview($asset);
+        $this->refreshScheduleConflictPreview();
     }
 
     public function pickCustomer(int $id): void
@@ -307,7 +316,12 @@ class RentalIndex extends Component
         $data = $this->validate([
             'asset_id' => 'required|exists:assets,id',
             'customer_id' => 'required|exists:customers,id',
-            'expected_return_at' => 'nullable|date|after_or_equal:today',
+            'scheduled_start_at' => 'nullable|date|after_or_equal:today',
+            'expected_return_at' => [
+                'nullable',
+                'date',
+                filled($this->scheduled_start_at) ? 'after_or_equal:scheduled_start_at' : 'after_or_equal:today',
+            ],
             'observacoes' => 'nullable|string|max:2000',
             'local_obra' => 'nullable|string|max:2000',
         ]);
@@ -320,6 +334,10 @@ class RentalIndex extends Component
             : null;
 
         try {
+            $scheduledStart = filled($data['scheduled_start_at'])
+                ? Carbon::parse($data['scheduled_start_at'])
+                : null;
+
             $rental = $rentalService->reserve(
                 $asset,
                 $customer,
@@ -328,6 +346,7 @@ class RentalIndex extends Component
                 null,
                 $data['local_obra'] ?: null,
                 $period,
+                $scheduledStart,
             );
         } catch (\InvalidArgumentException $e) {
             if ($this->isCustomerRentalBlockError($customer, $e->getMessage())) {
@@ -353,6 +372,39 @@ class RentalIndex extends Component
     public function cancelReserve(): void
     {
         $this->resetReserveForm();
+    }
+
+    public function updatedScheduledStartAt(): void
+    {
+        $this->refreshScheduleConflictPreview();
+    }
+
+    private function refreshScheduleConflictPreview(): void
+    {
+        $this->scheduleConflictPreview = [];
+
+        if (! $this->asset_id || ! filled($this->expected_return_at)) {
+            return;
+        }
+
+        $start = filled($this->scheduled_start_at)
+            ? Carbon::parse($this->scheduled_start_at)->startOfDay()
+            : now()->startOfDay();
+
+        $end = Carbon::parse($this->expected_return_at)->startOfDay();
+
+        $result = app(RentalScheduleConflictService::class)->analyze(
+            $this->asset_id,
+            $start,
+            $end,
+        );
+
+        $this->scheduleConflictPreview = $result->overlapping->map(fn (Rental $rental) => [
+            'codigo' => $rental->codigo,
+            'status' => $rental->statusEnum()->label(),
+            'inicio' => $rental->scheduleStart()?->format('d/m/Y'),
+            'fim' => $rental->expected_return_at?->format('d/m/Y'),
+        ])->all();
     }
 
     public function render(): View
@@ -584,6 +636,8 @@ class RentalIndex extends Component
         $this->asset_id = null;
         $this->customer_id = null;
         $this->expected_return_at = '';
+        $this->scheduled_start_at = '';
+        $this->scheduleConflictPreview = [];
         $this->pricing_period = '';
         $this->observacoes = '';
         $this->local_obra = '';

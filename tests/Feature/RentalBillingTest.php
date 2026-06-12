@@ -459,7 +459,7 @@ class RentalBillingTest extends TestCase
         $this->assertSame('500.00', $renewal->valor_car);
     }
 
-    public function test_checkout_includes_frete_entrega_in_first_cycle(): void
+    public function test_checkout_queues_frete_entrega_as_separate_billing_entry(): void
     {
         $user = $this->user(UserRole::Gestor);
         $customer = $this->customer();
@@ -485,8 +485,20 @@ class RentalBillingTest extends TestCase
             array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
         );
 
-        $entry = RentalBillingQueueEntry::query()->where('rental_id', $rental->id)->first();
-        $this->assertSame('485.00', $entry->valor_car);
+        $locacao = RentalBillingQueueEntry::query()
+            ->where('rental_id', $rental->id)
+            ->where('tipo', RentalBillingQueueType::Locacao->value)
+            ->first();
+        $frete = RentalBillingQueueEntry::query()
+            ->where('rental_id', $rental->id)
+            ->where('tipo', RentalBillingQueueType::FreteEntrega->value)
+            ->first();
+
+        $this->assertNotNull($locacao);
+        $this->assertSame('400.00', $locacao->valor_car);
+        $this->assertNotNull($frete);
+        $this->assertSame('85.00', $frete->valor_car);
+        $this->assertSame(2, ReceivableTitle::query()->where('rental_id', $rental->id)->count());
     }
 
     public function test_return_queues_frete_recolhida(): void

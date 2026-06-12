@@ -111,9 +111,15 @@ class PreventiveRuleIndex extends Component
             })
             ->latest();
 
+        $preventiveService = app(PreventiveMaintenanceService::class);
+
         return view('livewire.maintenance.preventive-rule-index', [
             'rules' => $query->paginate(15),
             'models' => EquipmentModel::query()->with('category')->where('ativo', true)->orderBy('marca')->get(),
+            'dueCount' => $preventiveService->countDueAssets(),
+            'upcomingCount' => $preventiveService->countUpcomingAssets(),
+            'autoMode' => config('maintenance.preventive_auto_mode', 'open_when_available'),
+            'warningHours' => $preventiveService->warningHours(),
         ]);
     }
 

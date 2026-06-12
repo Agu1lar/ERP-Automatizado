@@ -20,6 +20,8 @@ class FinancialAnalysisIndex extends Component
 
     public string $view_mode = 'geral';
 
+    public string $region_filter = '';
+
     public function mount(): void
     {
         abort_unless(auth()->user()->can('dashboard.analytics'), 403);
@@ -32,11 +34,12 @@ class FinancialAnalysisIndex extends Component
         $from = Carbon::parse($this->date_from)->startOfDay();
         $to = Carbon::parse($this->date_to)->endOfDay();
         $service = app(ProfitabilityReportService::class);
+        $region = $this->region_filter !== '' ? $this->region_filter : null;
 
-        $summary = $service->summary($from, $to);
+        $summary = $service->summary($from, $to, $region);
         $rows = match ($this->view_mode) {
-            'category' => $service->byCategory($from, $to),
-            'asset' => $service->byAsset($from, $to),
+            'category' => $service->byCategory($from, $to, $region),
+            'asset' => $service->byAsset($from, $to, 100, $region),
             default => collect([(object) [
                 'grupo_nome' => 'Total no período',
                 'locacoes' => $summary['locacoes'],
@@ -52,6 +55,7 @@ class FinancialAnalysisIndex extends Component
         return view('livewire.reports.financial-analysis-index', [
             'summary' => $summary,
             'rows' => $rows,
+            'regionOptions' => \App\Enums\GeographicRegion::cases(),
         ]);
     }
 }

@@ -2,6 +2,23 @@
 
 Runbook mínimo antes de colocar o sistema em operação real.
 
+> **Passo a passo completo (deploy + Asaas + fiscal):** [GO_LIVE.md](GO_LIVE.md)
+
+## Health check
+
+| Endpoint | Uso |
+|----------|-----|
+| `GET /up` | Laravel built-in (processo vivo) |
+| `GET /health` | DB + cache — use no load balancer / monitoramento |
+
+Resposta saudável (`200`):
+
+```json
+{"status":"healthy","checks":{"app":"ok","database":"ok","cache":"ok","queue":"database"},"timestamp":"..."}
+```
+
+Configure alerta se `/health` retornar `503` por mais de 2 minutos.
+
 ## Checklist obrigatório
 
 - [ ] PostgreSQL 15+ provisionado (não usar SQLite em produção)

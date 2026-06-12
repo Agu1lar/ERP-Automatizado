@@ -1,0 +1,27 @@
+<?php
+
+use App\Support\RentalActiveIndex;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('rentals', function (Blueprint $table) {
+            $table->date('scheduled_start_at')->nullable()->after('reserved_at');
+        });
+
+        RentalActiveIndex::recreate();
+    }
+
+    public function down(): void
+    {
+        Schema::table('rentals', function (Blueprint $table) {
+            $table->dropColumn('scheduled_start_at');
+        });
+
+        RentalActiveIndex::recreate();
+    }
+};

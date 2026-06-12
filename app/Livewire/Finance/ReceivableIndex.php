@@ -6,6 +6,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\ReceivableTitleStatus;
 use App\Models\Domain\Finance\ReceivableTitle;
 use App\Services\AccountingExportService;
+use App\Services\ReceivablePaymentService;
 use App\Services\ReceivableTitleService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -37,6 +38,12 @@ class ReceivableIndex extends Component
     public string $pay_observacoes = '';
 
     public string $pay_pago_em = '';
+
+    public bool $showChargeModal = false;
+
+    public ?int $chargingId = null;
+
+    public string $charge_method = PaymentMethod::Pix->value;
 
     public function mount(): void
     {
@@ -128,6 +135,56 @@ class ReceivableIndex extends Component
         $this->payingId = null;
     }
 
+    public function openChargeModal(int $id): void
+    {
+        $title = ReceivableTitle::findOrFail($id);
+        $this->authorize('generateCharge', $title);
+        $this->chargingId = $id;
+        $this->charge_method = PaymentMethod::Pix->value;
+        $this->showChargeModal = true;
+    }
+
+    public function generateCharge(ReceivablePaymentService $paymentService): void
+    {
+        $title = ReceivableTitle::findOrFail($this->chargingId);
+        $this->authorize('generateCharge', $title);
+
+        $data = $this->validate([
+            'charge_method' => 'required|in:pix,boleto',
+        ]);
+
+        try {
+            $paymentService->createCharge($title, PaymentMethod::from($data['charge_method']));
+        } catch (\InvalidArgumentException $e) {
+            $this->addError('charge', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('success', "Cobrança gerada — {$title->codigo}.");
+        $this->showChargeModal = false;
+        $this->chargingId = null;
+    }
+
+    public function refreshCharge(int $id, ReceivablePaymentService $paymentService): void
+    {
+        $title = ReceivableTitle::findOrFail($id);
+        $this->authorize('generateCharge', $title);
+
+        try {
+            $paymentService->refreshCharge($title);
+            session()->flash('success', "Status da cobrança atualizado — {$title->codigo}.");
+        } catch (\InvalidArgumentException $e) {
+            session()->flash('error', $e->getMessage());
+        }
+    }
+
+    public function cancelCharge(): void
+    {
+        $this->showChargeModal = false;
+        $this->chargingId = null;
+    }
+
     public function render(): View
     {
         $titles = ReceivableTitle::query()
@@ -147,12 +204,15 @@ class ReceivableIndex extends Component
             ->paginate(25);
 
         $payingTitle = $this->payingId ? ReceivableTitle::find($this->payingId) : null;
+        $chargingTitle = $this->chargingId ? ReceivableTitle::find($this->chargingId) : null;
 
         return view('livewire.finance.receivable-index', [
             'titles' => $titles,
             'statusOptions' => ReceivableTitleStatus::cases(),
             'paymentMethods' => PaymentMethod::cases(),
             'payingTitle' => $payingTitle,
+            'chargingTitle' => $chargingTitle,
+            'gatewayDriver' => config('payment.driver'),
         ]);
     }
 }

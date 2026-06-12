@@ -6,9 +6,11 @@
             <div class="flex flex-wrap justify-between items-center gap-4">
                 <div>
                     <h2 class="text-xl font-semibold text-gray-800">Títulos a receber</h2>
-                    <p class="text-sm text-gray-500 mt-0.5">Parcelas por locação — baixa manual de pagamento</p>
+                    <p class="text-sm text-gray-500 mt-0.5">Parcelas por locação — PIX/boleto via gateway ({{ $gatewayDriver }}) ou baixa manual</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('finance.payables') }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">A pagar</a>
+                    <a href="{{ route('finance.fiscal') }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Fiscal (ERP)</a>
                     <a href="{{ route('finance.delinquency') }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Inadimplência</a>
                     <a href="{{ route('finance.cashflow') }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Fluxo de caixa</a>
                     <a href="{{ route('finance.export') }}" class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Exportar CSV</a>
@@ -103,6 +105,19 @@
                                                     <button wire:click="markExportedToErp({{ $title->id }})" class="text-indigo-600 hover:underline text-xs">Marcar exportado ERP</button>
                                                 @endif
                                             @endcan
+                                            @can('generateCharge', $title)
+                                                @if($title->gateway_charge_id)
+                                                    @if($title->boleto_url)
+                                                        <a href="{{ $title->boleto_url }}" target="_blank" class="text-indigo-600 hover:underline text-xs">Abrir boleto</a>
+                                                    @endif
+                                                    @if($title->pix_qr_code)
+                                                        <span class="text-xs text-gray-500" title="{{ $title->pix_qr_code }}">PIX gerado</span>
+                                                    @endif
+                                                    <button wire:click="refreshCharge({{ $title->id }})" class="text-gray-600 hover:underline text-xs">Atualizar cobrança</button>
+                                                @else
+                                                    <button wire:click="openChargeModal({{ $title->id }})" class="text-indigo-600 hover:underline text-xs font-medium">Gerar PIX/boleto</button>
+                                                @endif
+                                            @endcan
                                             @can('markPaid', $title)
                                                 <button wire:click="openPayModal({{ $title->id }})" class="text-emerald-600 hover:underline text-xs font-medium">Registrar pagamento</button>
                                             @endcan
@@ -124,6 +139,29 @@
             {{ $titles->links() }}
         </div>
     </div>
+
+    @if($showChargeModal && $chargingTitle)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+                <h3 class="text-lg font-semibold mb-2">Gerar cobrança</h3>
+                <p class="text-sm text-gray-600 mb-4">{{ $chargingTitle->codigo }} — R$ {{ number_format($chargingTitle->valor, 2, ',', '.') }}</p>
+                <form wire:submit="generateCharge" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Forma de cobrança</label>
+                        <select wire:model="charge_method" class="mt-1 w-full rounded-md border-gray-300 shadow-sm text-sm">
+                            <option value="pix">PIX</option>
+                            <option value="boleto">Boleto</option>
+                        </select>
+                    </div>
+                    @error('charge') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                    <div class="flex gap-2 justify-end">
+                        <x-btn-secondary type="button" wire:click="cancelCharge">Cancelar</x-btn-secondary>
+                        <x-btn-primary type="submit">Gerar no gateway</x-btn-primary>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 
     @if($showPayModal && $payingTitle)
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

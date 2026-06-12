@@ -11,7 +11,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'ativo', 'ultimo_login'])]
+#[Fillable(['name', 'email', 'password', 'ativo', 'ultimo_login', 'agent_daily_token_limit'])]
 #[Hidden(['password', 'remember_token'])]
 /**
  * Credencial de login dos operadores internos (pátio, comercial, financeiro).

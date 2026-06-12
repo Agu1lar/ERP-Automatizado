@@ -623,12 +623,21 @@ class RentalShow extends Component
             );
 
             if ($tipo === MaintenanceOrderType::Indenizacao && filled($data['os_valor_indenizacao'])) {
-                app(RentalBillingService::class)->queueIndemnity(
+                $entry = app(RentalBillingService::class)->queueIndemnity(
                     $this->rental->fresh(),
                     (float) $data['os_valor_indenizacao'],
                     "Indenização — OS {$order->codigo}: {$data['os_descricao']}",
                     invoiceImmediately: true,
                 );
+
+                app(\App\Services\MaintenanceIndemnityService::class)->linkTitleFromBillingEntry(
+                    $order->fresh(),
+                    $entry->fresh(['receivableTitle']),
+                );
+
+                $order->update([
+                    'valor_indenizacao' => (float) $data['os_valor_indenizacao'],
+                ]);
             }
         } catch (\InvalidArgumentException $e) {
             $this->addError('os_descricao', $e->getMessage());

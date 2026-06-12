@@ -17,6 +17,22 @@
         ])>
             <div class="whitespace-pre-wrap [&_strong]:font-semibold">{!! \App\Support\CopilotMessageFormatter::format($msg['content']) !!}</div>
 
+            @if(! $isUser && ! empty($msg['meta']['task']))
+                @php $task = $msg['meta']['task']; @endphp
+                <div class="mt-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2.5 py-2 text-xs text-indigo-900">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-medium">{{ $task['status_label'] ?? $task['status'] ?? 'Em fila' }}</span>
+                        <span>{{ $task['progress_percent'] ?? 0 }}%</span>
+                    </div>
+                    <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-indigo-200">
+                        <div class="h-full rounded-full bg-indigo-600 transition-all duration-300" style="width: {{ $task['progress_percent'] ?? 0 }}%"></div>
+                    </div>
+                    @if(! empty($task['current_step']) && ! empty($task['total_steps']))
+                        <p class="mt-1 text-[10px] text-indigo-700">Passo {{ $task['current_step'] }}/{{ $task['total_steps'] }}</p>
+                    @endif
+                </div>
+            @endif
+
             @if(! $isUser && ! empty($msg['meta']['result']['ok']))
                 <p class="mt-2 text-xs text-emerald-700 font-medium">✓ Consulta concluída</p>
             @endif

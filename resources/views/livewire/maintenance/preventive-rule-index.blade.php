@@ -14,6 +14,26 @@
                 @endcan
             </div>
 
+            <div class="rounded-lg border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900 flex flex-wrap gap-4 items-center justify-between">
+                <div>
+                    <p class="font-medium">Job diário: <code class="text-xs">maintenance:process-preventive-due</code></p>
+                    <p class="text-indigo-700 mt-1">
+                        Modo automático: <strong>{{ $autoMode === 'alert' ? 'somente alerta' : 'abrir OS quando Disponível' }}</strong>
+                        · alerta antecipado: {{ number_format($warningHours, 0, ',', '.') }} h antes do vencimento
+                    </p>
+                </div>
+                <div class="flex gap-3 text-center">
+                    <div class="rounded-md bg-white px-3 py-2 border border-red-200">
+                        <p class="text-xs text-red-600 uppercase">Vencidas</p>
+                        <p class="text-xl font-bold text-red-800">{{ $dueCount }}</p>
+                    </div>
+                    <div class="rounded-md bg-white px-3 py-2 border border-amber-200">
+                        <p class="text-xs text-amber-700 uppercase">Próximas</p>
+                        <p class="text-xl font-bold text-amber-900">{{ $upcomingCount }}</p>
+                    </div>
+                </div>
+            </div>
+
             <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar modelo ou descrição..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
 
             @if($showForm)

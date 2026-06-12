@@ -115,9 +115,12 @@ O Sisloc continua disponível para **conferência** até o passo 4 rodar sem sur
 ## Limitações atuais (by design)
 
 - Sem emissão de NF-e pelo Gestão Acesso  
-- Exportação é **snapshot CSV** — não API bidirecional Omie/Bling (roadmap futuro)  
+- Exportação Bling/Omie é **CSV** — import manual no ERP  
+- Ponte fiscal **Omie (API)** envia registro; emissão da nota continua no Omie  
 - Bling/Omie **não atualizam** contas existentes via planilha — reexportar só títulos ainda `aberto`  
 - Sisloc layout CAR mantido para **período de transição**, não como destino final
+
+**Já implementado:** marcação `exportado_erp_em` após download da exportação; filtro “Ainda não exportados ao ERP” em Financeiro → Títulos.
 
 ---
 
@@ -125,9 +128,9 @@ O Sisloc continua disponível para **conferência** até o passo 4 rodar sem sur
 
 | Item | Benefício |
 |------|-----------|
-| Marcação “exportado para ERP” | Evita reimport acidental |
 | Webhook de NF emitida | Vincular número da nota ao título no Gestão Acesso |
-| API Omie/Bling (contas a receber) | Elimina import manual; menos erro humano |
+| API Bling (contas a receber) | Elimina import manual no Bling |
+| Baixa bidirecional ERP ↔ Gestão Acesso | Menos retrabalho no financeiro |
 
 ---
 

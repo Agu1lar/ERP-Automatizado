@@ -160,6 +160,77 @@
                 <div class="px-4 py-3">{{ $rentalHistory->links() }}</div>
             </div>
 
+            @if($canViewCrm)
+                <div class="bg-white rounded-lg shadow p-6 space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h3 class="font-semibold text-gray-800">CRM — follow-up</h3>
+                        <a href="{{ route('crm.pipeline') }}" wire:navigate class="text-xs text-indigo-600 hover:underline">Ver pipeline</a>
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-3 text-sm">
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase">Último contato</p>
+                            <p class="font-medium">{{ $customer->ultimo_contato_em?->format('d/m/Y H:i') ?? '—' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500 uppercase">Próximo follow-up</p>
+                            <p @class(['font-medium', 'text-red-600' => $customer->proximo_follow_up_em?->isPast()])>
+                                {{ $customer->proximo_follow_up_em?->format('d/m/Y') ?? '—' }}
+                            </p>
+                        </div>
+                        <div>
+                            @if($whatsAppLink)
+                                <a href="{{ $whatsAppLink }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm text-emerald-700 hover:underline">Abrir WhatsApp</a>
+                            @endif
+                        </div>
+                    </div>
+                    @if($openOpportunities->isNotEmpty())
+                        <div class="text-sm">
+                            <p class="text-xs text-gray-500 uppercase mb-1">Oportunidades abertas</p>
+                            @foreach($openOpportunities as $opp)
+                                <span class="inline-block rounded-full bg-indigo-50 text-indigo-800 px-2 py-0.5 text-xs mr-1">{{ $opp->titulo }} ({{ $opp->stageEnum()->label() }})</span>
+                            @endforeach
+                        </div>
+                    @endif
+                    @if($canManageCrm)
+                        <form wire:submit="logActivity" class="space-y-3 border-t border-gray-100 pt-4">
+                            <div class="grid gap-3 sm:grid-cols-3">
+                                <div>
+                                    <label class="text-xs font-medium text-gray-600">Tipo</label>
+                                    <select wire:model="activity_tipo" class="mt-1 w-full rounded-md border-gray-300 text-sm">
+                                        @foreach($activityTypes as $type)
+                                            <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="text-xs font-medium text-gray-600">Próximo follow-up</label>
+                                    <input type="date" wire:model="activity_follow_up" class="mt-1 w-full rounded-md border-gray-300 text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Descrição</label>
+                                <textarea wire:model="activity_descricao" rows="2" class="mt-1 w-full rounded-md border-gray-300 text-sm" required></textarea>
+                                @error('activity_descricao') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <button type="submit" class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white">Registrar atividade</button>
+                        </form>
+                    @endif
+                    @if($crmActivities->isNotEmpty())
+                        <div class="border-t border-gray-100 pt-4 space-y-2">
+                            @foreach($crmActivities as $activity)
+                                <div class="text-sm border-b border-gray-50 pb-2">
+                                    <span class="text-xs font-medium text-gray-500">{{ $activity->created_at->format('d/m/Y H:i') }} · {{ $activity->typeEnum()->label() }}</span>
+                                    <p class="text-gray-700">{{ $activity->descricao }}</p>
+                                    @if($activity->user)
+                                        <p class="text-xs text-gray-400">{{ $activity->user->name }}</p>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            @endif
+
             @if($maintenanceOrders->isNotEmpty())
                 <div class="bg-white rounded-lg shadow p-6">
                     <h3 class="font-semibold text-gray-800 mb-4">Ordens de serviço recentes</h3>

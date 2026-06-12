@@ -3,6 +3,7 @@
 namespace App\Livewire\Maintenance;
 
 use App\Models\Domain\Maintenance\PartCatalogItem;
+use App\Services\PartStockService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Livewire\Attributes\Layout;
@@ -27,6 +28,10 @@ class PartCatalogIndex extends Component
     public string $descricao = '';
 
     public string $valor_unitario_padrao = '';
+
+    public string $estoque_atual = '0';
+
+    public string $estoque_minimo = '';
 
     public bool $ativo = true;
 
@@ -57,6 +62,8 @@ class PartCatalogIndex extends Component
         $this->codigo_alternativo = $item->codigo_alternativo ?? '';
         $this->descricao = $item->descricao;
         $this->valor_unitario_padrao = $item->valor_unitario_padrao !== null ? (string) $item->valor_unitario_padrao : '';
+        $this->estoque_atual = (string) $item->estoque_atual;
+        $this->estoque_minimo = $item->estoque_minimo !== null ? (string) $item->estoque_minimo : '';
         $this->ativo = $item->ativo;
         $this->showForm = true;
     }
@@ -68,6 +75,8 @@ class PartCatalogIndex extends Component
             'codigo_alternativo' => 'nullable|string|max:100',
             'descricao' => 'required|string|max:255',
             'valor_unitario_padrao' => 'nullable|numeric|min:0',
+            'estoque_atual' => 'required|numeric|min:0',
+            'estoque_minimo' => 'nullable|numeric|min:0',
             'ativo' => 'boolean',
         ]);
 
@@ -76,6 +85,7 @@ class PartCatalogIndex extends Component
             'codigo_alternativo' => $data['codigo_alternativo'] ?: null,
             'descricao' => $data['descricao'],
             'valor_unitario_padrao' => $data['valor_unitario_padrao'] !== '' ? $data['valor_unitario_padrao'] : null,
+            'estoque_minimo' => $data['estoque_minimo'] !== '' ? $data['estoque_minimo'] : null,
             'ativo' => $data['ativo'],
         ];
 
@@ -83,9 +93,17 @@ class PartCatalogIndex extends Component
             $item = PartCatalogItem::findOrFail($this->editingId);
             $this->authorize('update', $item);
             $item->update($payload);
+
+            $newBalance = (float) $data['estoque_atual'];
+            if ((float) $item->estoque_atual !== $newBalance) {
+                app(PartStockService::class)->recordManualAdjustment($item->fresh(), $newBalance, 'Ajuste pelo catálogo');
+            }
         } else {
             $this->authorize('create', PartCatalogItem::class);
-            PartCatalogItem::create($payload);
+            PartCatalogItem::create([
+                ...$payload,
+                'estoque_atual' => $data['estoque_atual'],
+            ]);
         }
 
         $this->resetForm();
@@ -111,9 +129,14 @@ class PartCatalogIndex extends Component
             ->orderBy('descricao')
             ->paginate(20);
 
+        $priceHistory = $this->editingId
+            ? PartCatalogItem::with(['supplierPrices.supplier'])->find($this->editingId)?->supplierPrices ?? collect()
+            : collect();
+
         return view('livewire.maintenance.part-catalog-index', [
             'items' => $items,
             'canManage' => auth()->user()->can('create', PartCatalogItem::class),
+            'priceHistory' => $priceHistory,
         ]);
     }
 
@@ -125,6 +148,8 @@ class PartCatalogIndex extends Component
         $this->codigo_alternativo = '';
         $this->descricao = '';
         $this->valor_unitario_padrao = '';
+        $this->estoque_atual = '0';
+        $this->estoque_minimo = '';
         $this->ativo = true;
         $this->resetValidation();
     }

@@ -75,6 +75,12 @@ class MaintenanceOrderShow extends Component
 
     public string $complete_solucao = '';
 
+    public string $valor_indenizacao = '';
+
+    public ?int $external_company_id = null;
+
+    public string $valor_servico_externo = '';
+
     public string $cancel_reason = '';
 
     public bool $showWaitModal = false;
@@ -94,7 +100,7 @@ class MaintenanceOrderShow extends Component
     {
         $this->authorize('update', $this->order);
 
-        $data = $this->validate([
+        $rules = [
             'diagnostico' => 'nullable|string|max:5000',
             'solucao_aplicada' => 'nullable|string|max:5000',
             'parecer_tecnico' => 'nullable|string|max:8000',
@@ -105,7 +111,15 @@ class MaintenanceOrderShow extends Component
             'assinatura_montado_por' => 'nullable|string|max:255',
             'assigned_to' => 'nullable|exists:users,id',
             'expected_completion_at' => 'nullable|date',
-        ]);
+            'external_company_id' => 'nullable|exists:companies,id',
+            'valor_servico_externo' => 'nullable|numeric|min:0',
+        ];
+
+        if ($this->order->tipoEnum()->isIndenizacao()) {
+            $rules['valor_indenizacao'] = 'nullable|numeric|min:0.01';
+        }
+
+        $data = $this->validate($rules);
 
         try {
             $this->order = $service->updateTechnicalData(
@@ -120,6 +134,14 @@ class MaintenanceOrderShow extends Component
                 $data['assinatura_orcado_por'] ?: null,
                 $data['assinatura_montado_por'] ?: null,
                 $data['asset_voltagem'],
+                $this->order->tipoEnum()->isIndenizacao() && filled($this->valor_indenizacao)
+                    ? (float) $this->valor_indenizacao
+                    : null,
+                $data['external_company_id'] ?? null,
+                filled($data['valor_servico_externo'] ?? null)
+                    ? (float) $data['valor_servico_externo']
+                    : null,
+                includeExternalFields: true,
             );
         } catch (\InvalidArgumentException $e) {
             $this->addError('diagnostico', $e->getMessage());
@@ -249,6 +271,20 @@ class MaintenanceOrderShow extends Component
         $this->labor_descricao = '';
         $this->loadOrder($this->order);
         $this->flashSuccess('Horas registradas.');
+    }
+
+    public function generatePayable(\App\Services\PayableTitleService $service): void
+    {
+        $this->authorize('update', $this->order);
+
+        try {
+            $service->createFromMaintenanceOrder($this->order->fresh());
+            $this->loadOrder($this->order->fresh());
+            $this->syncFormFields();
+            $this->flashSuccess('Conta a pagar gerada para a oficina externa.');
+        } catch (\InvalidArgumentException $e) {
+            $this->addError('valor_servico_externo', $e->getMessage());
+        }
     }
 
     public function removeLaborHour(int $hourId, MaintenanceOrderService $service): void
@@ -393,6 +429,11 @@ class MaintenanceOrderShow extends Component
             'status' => $this->order->statusEnum(),
             'technicians' => User::query()->where('ativo', true)->orderBy('name')->get(),
             'customers' => Customer::query()->where('ativo', true)->orderBy('nome')->get(),
+            'externalCompanies' => \App\Models\Domain\Person\Company::query()
+                ->where('ativo', true)
+                ->where('tipo', \App\Enums\CompanyType::Externa->value)
+                ->orderBy('nome')
+                ->get(),
         ]);
     }
 
@@ -408,6 +449,9 @@ class MaintenanceOrderShow extends Component
             'cancelledByUser',
             'parts',
             'laborHours.user',
+            'receivableTitle',
+            'externalCompany',
+            'payableTitle',
         ]);
     }
 
@@ -461,6 +505,13 @@ class MaintenanceOrderShow extends Component
         $this->assinatura_montado_por = $this->order->assinatura_montado_por ?? '';
         $this->assigned_to = $this->order->assigned_to;
         $this->expected_completion_at = $this->order->expected_completion_at?->toDateString() ?? '';
+        $this->valor_indenizacao = $this->order->valor_indenizacao !== null
+            ? (string) $this->order->valor_indenizacao
+            : '';
+        $this->external_company_id = $this->order->external_company_id;
+        $this->valor_servico_externo = $this->order->valor_servico_externo !== null
+            ? (string) $this->order->valor_servico_externo
+            : '';
         $this->labor_data = now()->toDateString();
         $this->labor_user_id = auth()->id();
     }

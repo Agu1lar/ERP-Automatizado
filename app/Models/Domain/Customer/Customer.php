@@ -3,6 +3,8 @@
 namespace App\Models\Domain\Customer;
 
 use App\Enums\RentalStatus;
+use App\Models\Domain\Crm\CommercialActivity;
+use App\Models\Domain\Crm\CommercialOpportunity;
 use App\Models\Domain\Finance\ReceivableTitle;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
@@ -38,6 +40,9 @@ class Customer extends Model
         'motivo_bloqueio',
         'bloqueado_at',
         'bloqueado_by',
+        'ultimo_contato_em',
+        'proximo_follow_up_em',
+        'follow_up_assigned_to',
     ];
 
     protected function casts(): array
@@ -48,6 +53,8 @@ class Customer extends Model
             'bloqueio_inadimplencia' => 'boolean',
             'bloqueado' => 'boolean',
             'bloqueado_at' => 'datetime',
+            'ultimo_contato_em' => 'datetime',
+            'proximo_follow_up_em' => 'date',
         ];
     }
 
@@ -74,6 +81,21 @@ class Customer extends Model
     public function receivableTitles(): HasMany
     {
         return $this->hasMany(ReceivableTitle::class)->latest('vencimento');
+    }
+
+    public function commercialOpportunities(): HasMany
+    {
+        return $this->hasMany(CommercialOpportunity::class)->latest();
+    }
+
+    public function commercialActivities(): HasMany
+    {
+        return $this->hasMany(CommercialActivity::class)->latest();
+    }
+
+    public function followUpAssignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'follow_up_assigned_to');
     }
 
     public function activeRentals(): HasMany

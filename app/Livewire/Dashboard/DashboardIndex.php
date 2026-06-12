@@ -92,9 +92,9 @@ class DashboardIndex extends Component
 
         $fleetTotal = max(1, (int) $statusCounts->sum());
 
-        $preventiveDue = $showAnalytics
-            ? app(PreventiveMaintenanceService::class)->dueAssets()
-            : [];
+        $preventiveService = app(PreventiveMaintenanceService::class);
+        $preventiveDue = $showAnalytics ? $preventiveService->dueAssets() : [];
+        $preventiveUpcoming = $showAnalytics ? $preventiveService->upcomingAssets() : [];
 
         $incompleteFichasCount = $showAnalytics
             ? Asset::query()->get()->filter(fn (Asset $a) => ! FichaCompleteness::isAssetComplete($a))->count()
@@ -138,6 +138,8 @@ class DashboardIndex extends Component
             ),
             'preventiveDue' => $preventiveDue,
             'preventiveDueCount' => count($preventiveDue),
+            'preventiveUpcoming' => $preventiveUpcoming,
+            'preventiveUpcomingCount' => count($preventiveUpcoming),
             'incompleteFichasCount' => $incompleteFichasCount,
             'financeSummary' => $financeSummary,
             'receivableWeek' => $receivableWeek,

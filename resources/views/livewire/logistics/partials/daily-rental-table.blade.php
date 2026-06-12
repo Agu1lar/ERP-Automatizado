@@ -23,6 +23,7 @@
                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Patrimônio</th>
                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pátio origem</th>
                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Local obra</th>
+                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Região</th>
                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Observações</th>
                     </tr>
                 </thead>
@@ -51,6 +52,7 @@
                             <td class="px-4 py-3 text-gray-700">{{ $rental->asset->codigo_patrimonio }}</td>
                             <td class="px-4 py-3 text-gray-600">{{ $rental->asset->yard?->displayLabel() ?? '—' }}</td>
                             <td class="px-4 py-3 text-gray-600 max-w-[14rem] truncate" title="{{ $rental->local_obra }}">{{ $rental->local_obra ?? '—' }}</td>
+                            <td class="px-4 py-3 text-gray-600 whitespace-nowrap">{{ $rental->regionEnum()->shortLabel() }}</td>
                             <td class="px-4 py-3 text-gray-500 max-w-[12rem] truncate" title="{{ $obs }}">{{ $obs ?? '—' }}</td>
                         </tr>
                     @endforeach

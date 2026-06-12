@@ -9,7 +9,7 @@
             </div>
 
             <div class="bg-white rounded-lg shadow p-6">
-                <div class="grid md:grid-cols-4 gap-4 items-end">
+                <div class="grid md:grid-cols-5 gap-4 items-end">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Data inicial</label>
                         <input wire:model.live="date_from" type="date" class="mt-1 w-full rounded-md border-gray-300 shadow-sm text-sm" />
@@ -26,11 +26,20 @@
                             <option value="user">Usuário responsável (vendedor)</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Região da obra</label>
+                        <select wire:model.live="region_filter" class="mt-1 w-full rounded-md border-gray-300 shadow-sm text-sm">
+                            <option value="">Todas</option>
+                            @foreach($regionOptions as $region)
+                                <option value="{{ $region->value }}">{{ $region->label() }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="md:text-right space-y-2">
                         <p class="text-sm text-gray-500">Total no período</p>
                         <p class="text-2xl font-bold text-emerald-700">R$ {{ number_format($totalRevenue, 2, ',', '.') }}</p>
                         <a
-                            href="{{ route('reports.commercial.export', ['date_from' => $date_from, 'date_to' => $date_to, 'group_by' => $group_by]) }}"
+                            href="{{ route('reports.commercial.export', array_filter(['date_from' => $date_from, 'date_to' => $date_to, 'group_by' => $group_by, 'region' => $region_filter ?: null])) }}"
                             class="inline-flex items-center text-sm text-indigo-600 hover:underline"
                         >
                             Exportar CSV ↓

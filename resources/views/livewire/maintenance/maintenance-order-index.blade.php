@@ -12,7 +12,12 @@
 
                 <div>
                     <h2 class="text-xl font-semibold text-gray-800">Ordens de Serviço</h2>
-                    <p class="text-sm text-gray-500 mt-0.5">Painel operacional e listagem completa</p>
+                    <p class="text-sm text-gray-500 mt-0.5">
+                        Painel operacional e listagem completa.
+                        @can('maintenance.operate')
+                            <span class="text-indigo-600">Manutenção em campo: <code class="text-xs">/campo/{patrimônio}</code></span>
+                        @endcan
+                    </p>
                 </div>
 
                 <div class="flex gap-2">
@@ -20,6 +25,7 @@
                     @can('viewAny', App\Models\Domain\Maintenance\PartCatalogItem::class)
 
                         <a href="{{ route('maintenance.parts.index') }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Catálogo de peças</a>
+                        <a href="{{ route('maintenance.purchase-orders.index') }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Pedidos de compra</a>
                         @can('manage', App\Models\Domain\Maintenance\PreventiveMaintenanceRule::class)
                             <a href="{{ route('maintenance.preventive.index') }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Preventiva — regras</a>
                         @endcan

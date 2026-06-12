@@ -99,7 +99,7 @@
                 </div>
             @endif
 
-            @if($showAnalytics && ($preventiveDueCount > 0 || $incompleteFichasCount > 0))
+            @if($showAnalytics && ($preventiveDueCount > 0 || $preventiveUpcomingCount > 0 || $incompleteFichasCount > 0))
                 <div class="grid md:grid-cols-2 gap-4">
                     @if($preventiveDueCount > 0)
                         <div class="rounded-lg border border-red-200 bg-red-50 p-4">
@@ -110,6 +110,21 @@
                                     <li>
                                         <a href="{{ route('assets.show', $item['asset']) }}" wire:navigate class="text-red-800 hover:underline font-medium">{{ $item['asset']->codigo_patrimonio }}</a>
                                         <span class="text-red-600">— {{ $item['rule']->descricao }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                            <a href="{{ route('maintenance.preventive.index') }}" wire:navigate class="inline-block mt-2 text-sm text-red-800 hover:underline">Regras preventivas →</a>
+                        </div>
+                    @endif
+                    @if($preventiveUpcomingCount > 0)
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                            <p class="font-semibold text-amber-900">Preventiva próxima do vencimento</p>
+                            <p class="text-sm text-amber-800 mt-1">{{ $preventiveUpcomingCount }} patrimônio(s) entram na janela de alerta antecipado.</p>
+                            <ul class="mt-2 space-y-1 text-sm">
+                                @foreach(array_slice($preventiveUpcoming, 0, 5) as $item)
+                                    <li>
+                                        <a href="{{ route('assets.show', $item['asset']) }}" wire:navigate class="text-amber-900 hover:underline font-medium">{{ $item['asset']->codigo_patrimonio }}</a>
+                                        <span class="text-amber-700">— faltam {{ number_format($item['proxima_em'] ?? 0, 0, ',', '.') }} h</span>
                                     </li>
                                 @endforeach
                             </ul>
@@ -185,15 +200,6 @@
                     </div>
                 </div>
             @endif
-
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                @foreach($statusLabels as $value => $label)
-                    <div class="bg-white rounded-lg shadow p-4">
-                        <p class="text-xs text-gray-500 uppercase">{{ $label }}</p>
-                        <p class="text-2xl font-bold text-gray-800">{{ $statusCounts[$value] ?? 0 }}</p>
-                    </div>
-                @endforeach
-            </div>
 
             <div class="grid md:grid-cols-2 gap-6">
                 <div class="bg-white rounded-lg shadow p-6">

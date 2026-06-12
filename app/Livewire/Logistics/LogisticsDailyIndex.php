@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Logistics;
 
+use App\Models\Domain\Logistics\DeliveryManifest;
 use App\Models\Domain\Rental\Rental;
+use App\Services\DeliveryManifestService;
 use App\Support\LogisticsDailyQuery;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View;
@@ -18,6 +20,9 @@ class LogisticsDailyIndex extends Component
 
     #[Url(as: 'data')]
     public string $selectedDate = '';
+
+    #[Url(as: 'regiao')]
+    public string $regionFilter = '';
 
     public function mount(): void
     {
@@ -43,18 +48,44 @@ class LogisticsDailyIndex extends Component
         $this->selectedDate = now()->toDateString();
     }
 
+    public function openManifest(DeliveryManifestService $service): void
+    {
+        $this->authorize('create', DeliveryManifest::class);
+
+        $date = Carbon::parse($this->selectedDate);
+
+        try {
+            $manifest = $service->findOrGenerateForDate($date);
+        } catch (\InvalidArgumentException $e) {
+            session()->flash('error', $e->getMessage());
+
+            return;
+        }
+
+        $this->redirectRoute('logistics.manifest.show', $manifest, navigate: true);
+    }
+
     public function render(LogisticsDailyQuery $query): View
     {
         $date = Carbon::parse($this->selectedDate);
+        $manifest = DeliveryManifest::query()
+            ->whereDate('data', $date->toDateString())
+            ->where('status', '!=', \App\Enums\DeliveryManifestStatus::Cancelado->value)
+            ->first();
+
+        $region = $this->regionFilter !== '' ? $this->regionFilter : null;
 
         return view('livewire.logistics.logistics-daily-index', [
             'date' => $date,
-            'counts' => $query->countsForDate($date),
-            'deliveries' => $query->scheduledDeliveries($date),
-            'customerPickups' => $query->customerPickupsAtYard($date),
-            'pickups' => $query->scheduledPickups($date),
-            'customerReturns' => $query->customerReturnsAtYard($date),
-            'expectedReturns' => $query->expectedReturnsWithoutPickupSchedule($date),
+            'counts' => $query->countsForDate($date, $region),
+            'deliveries' => $query->scheduledDeliveries($date, $region),
+            'customerPickups' => $query->customerPickupsAtYard($date, $region),
+            'pickups' => $query->scheduledPickups($date, $region),
+            'customerReturns' => $query->customerReturnsAtYard($date, $region),
+            'expectedReturns' => $query->expectedReturnsWithoutPickupSchedule($date, $region),
+            'manifest' => $manifest,
+            'canManageManifest' => auth()->user()->can('create', DeliveryManifest::class),
+            'regionOptions' => \App\Enums\GeographicRegion::cases(),
         ]);
     }
 }

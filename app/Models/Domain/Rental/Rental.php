@@ -2,7 +2,9 @@
 
 namespace App\Models\Domain\Rental;
 
+use App\Enums\GeographicRegion;
 use App\Enums\RentalStatus;
+use App\Support\GeographicRegionClassifier;
 use App\Models\Concerns\BelongsToOperatingCompany;
 use App\Models\Domain\Attachment\Attachment;
 use App\Models\Domain\Customer\Customer;
@@ -28,6 +30,7 @@ class Rental extends Model
         'customer_id',
         'status',
         'reserved_at',
+        'scheduled_start_at',
         'reserved_by',
         'commercial_user_id',
         'checkout_at',
@@ -45,6 +48,11 @@ class Rental extends Model
         'horimetro_retorno',
         'ficha_descricao',
         'local_obra',
+        'regiao_geografica',
+        'obra_latitude',
+        'obra_longitude',
+        'obra_geocode_precision',
+        'obra_geocoded_at',
         'valor_frete_entrega',
         'valor_frete_recolhida',
         'entrega_modalidade',
@@ -72,6 +80,7 @@ class Rental extends Model
     {
         return [
             'reserved_at' => 'datetime',
+            'scheduled_start_at' => 'date',
             'checkout_at' => 'datetime',
             'expected_return_at' => 'date',
             'returned_at' => 'datetime',
@@ -91,7 +100,15 @@ class Rental extends Model
             'billing_period_end' => 'date',
             'last_billed_at' => 'date',
             'next_billing_at' => 'date',
+            'obra_latitude' => 'decimal:7',
+            'obra_longitude' => 'decimal:7',
+            'obra_geocoded_at' => 'datetime',
         ];
+    }
+
+    public function hasObraCoordinates(): bool
+    {
+        return $this->obra_latitude !== null && $this->obra_longitude !== null;
     }
 
     public function asset(): BelongsTo
@@ -193,6 +210,19 @@ class Rental extends Model
         ]);
     }
 
+    public function scheduleStart(): ?\Carbon\CarbonInterface
+    {
+        return $this->scheduled_start_at?->copy()->startOfDay()
+            ?? $this->reserved_at?->copy()->startOfDay();
+    }
+
+    public function isFutureReservation(): bool
+    {
+        $start = $this->scheduled_start_at?->copy()->startOfDay();
+
+        return $start !== null && $start->gt(now()->startOfDay());
+    }
+
     public function scopePendingCheckout(Builder $query): Builder
     {
         return $query->where('status', RentalStatus::Reservado->value);
@@ -220,6 +250,37 @@ class Rental extends Model
             ->where('status', RentalStatus::Locado->value)
             ->whereNotNull('next_billing_at')
             ->whereDate('next_billing_at', '<=', now()->toDateString());
+    }
+
+    public function scopeInGeographicRegion(Builder $query, ?string $region): Builder
+    {
+        if (blank($region)) {
+            return $query;
+        }
+
+        return $query->where('regiao_geografica', $region);
+    }
+
+    public function regionEnum(): GeographicRegion
+    {
+        return $this->regiao_geografica
+            ? GeographicRegion::from($this->regiao_geografica)
+            : GeographicRegion::Indefinido;
+    }
+
+    public function syncGeographicRegion(?GeographicRegionClassifier $classifier = null): self
+    {
+        $classifier ??= app(GeographicRegionClassifier::class);
+        $this->loadMissing('customer');
+
+        $this->forceFill([
+            'regiao_geografica' => $classifier->classifyValue(
+                $this->local_obra,
+                $this->customer?->endereco,
+            ),
+        ])->save();
+
+        return $this;
     }
 
     public function isReturnOverdue(): bool

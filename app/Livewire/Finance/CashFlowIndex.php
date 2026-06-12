@@ -33,8 +33,10 @@ class CashFlowIndex extends Component
         $query = app(CashFlowQuery::class);
 
         return view('livewire.finance.cash-flow-index', [
-            'rows' => $query->expectedInflows($from, $to),
-            'totalExpected' => $query->totalExpected($from, $to),
+            'inflowRows' => $query->expectedInflows($from, $to),
+            'outflowRows' => $query->expectedOutflows($from, $to),
+            'totalInflows' => $query->totalExpected($from, $to),
+            'totalOutflows' => $query->totalExpectedOutflows($from, $to),
         ]);
     }
 }

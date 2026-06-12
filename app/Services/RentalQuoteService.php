@@ -20,6 +20,7 @@ class RentalQuoteService
         private readonly RentalPricingService $pricingService,
         private readonly RentalService $rentalService,
         private readonly AuditService $auditService,
+        private readonly CommercialOpportunityService $opportunityService,
     ) {}
 
     public function create(
@@ -49,7 +50,10 @@ class RentalQuoteService
             'created_by' => $user?->id,
         ]);
 
-        return $this->refreshEstimate($quote);
+        $quote = $this->refreshEstimate($quote);
+        $this->opportunityService->syncFromQuote($quote, $user);
+
+        return $quote;
     }
 
     public function send(RentalQuote $quote, int $validityDays = 7, ?User $user = null): RentalQuote
@@ -78,7 +82,10 @@ class RentalQuoteService
             $user,
         );
 
-        return $quote->fresh(['asset', 'customer']);
+        $quote = $quote->fresh(['asset', 'customer']);
+        $this->opportunityService->syncFromQuote($quote, $user);
+
+        return $quote;
     }
 
     public function convertToReservation(RentalQuote $quote, ?User $user = null): Rental
@@ -130,6 +137,8 @@ class RentalQuoteService
                 $user,
             );
 
+            $this->opportunityService->syncFromQuote($quote->fresh(), $user);
+
             return $rental;
         });
     }
@@ -153,7 +162,10 @@ class RentalQuoteService
             $user,
         );
 
-        return $quote->fresh();
+        $quote = $quote->fresh();
+        $this->opportunityService->syncFromQuote($quote, $user);
+
+        return $quote;
     }
 
     public function expireDueQuotes(): int

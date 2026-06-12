@@ -110,6 +110,139 @@ class AgentHeuristicParser
       ];
     }
 
+    if ($this->containsAny($lower, ['relatório comercial', 'relatorio comercial', 'faturamento por equipamento', 'faturamento comercial'])) {
+      [$dateFrom, $dateTo] = $this->extractPeriod($message);
+
+      return [
+        'command' => 'report.commercial',
+        'input' => array_filter([
+          'date_from' => $dateFrom,
+          'date_to' => $dateTo,
+          'group_by' => $this->containsAny($lower, ['comercial', 'vendedor', 'responsável']) ? 'user' : null,
+        ]),
+        'reply' => 'Montando resumo do relatório comercial.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['análise financeira', 'analise financeira', 'margem de locação', 'margem locacao', 'rentabilidade operacional'])) {
+      [$dateFrom, $dateTo] = $this->extractPeriod($message);
+
+      return [
+        'command' => 'report.financial_analysis',
+        'input' => array_filter([
+          'date_from' => $dateFrom,
+          'date_to' => $dateTo,
+        ]),
+        'reply' => 'Consultando análise financeira do período.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['tabela de preços', 'tabela de precos', 'preços de locação', 'precos de locacao', 'valores de locação'])) {
+      return [
+        'command' => 'pricing.list',
+        'input' => [],
+        'reply' => 'Listando tabela de preços por categoria.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['categorias de equipamento', 'listar categorias', 'cadastro de categorias'])) {
+      return [
+        'command' => 'category.list',
+        'input' => [],
+        'reply' => 'Listando categorias de equipamento.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['modelos de equipamento', 'listar modelos', 'cadastro de modelos'])) {
+      $category = EquipmentCategoryResolver::detectTermFromText($message);
+
+      return [
+        'command' => 'model.list',
+        'input' => array_filter(['category_name' => $category]),
+        'reply' => 'Listando modelos de equipamento.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['catálogo de peças', 'catalogo de pecas', 'estoque de peças', 'peças abaixo do mínimo', 'pecas abaixo do minimo'])) {
+      return [
+        'command' => 'part.list',
+        'input' => [
+          'below_minimum_only' => $this->containsAny($lower, ['abaixo', 'mínimo', 'minimo', 'crítico', 'critico']),
+        ],
+        'reply' => 'Consultando catálogo de peças.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['preventiva vencida', 'preventivas vencidas', 'manutenção preventiva vencida'])) {
+      return [
+        'command' => 'preventive.due',
+        'input' => [],
+        'reply' => 'Listando patrimônios com preventiva vencida.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['regras preventivas', 'regra preventiva', 'cadastro preventiva'])) {
+      return [
+        'command' => 'preventive.list',
+        'input' => [],
+        'reply' => 'Listando regras de manutenção preventiva.',
+      ];
+    }
+
+    if ($this->containsAny($lower, ['painel admin', 'administração', 'administracao', 'usuários do sistema', 'usuarios do sistema', 'auditoria do sistema'])) {
+      return [
+        'command' => 'admin.summary',
+        'input' => [],
+        'reply' => 'Consultando visão administrativa.',
+      ];
+    }
+
+    if ($rentalCodigo && $this->containsAny($lower, ['pdf', 'contrato', 'imprimir', 'exportar'])) {
+      $docType = $this->containsAny($lower, ['contrato']) ? 'rental_contract' : 'rental_summary';
+
+      return [
+        'command' => 'document.export',
+        'input' => [
+          'document_type' => $docType,
+          'rental_codigo' => $rentalCodigo,
+        ],
+        'reply' => "Gerar PDF da locação {$rentalCodigo}.",
+      ];
+    }
+
+    if ($orderCodigo && $this->containsAny($lower, ['pdf', 'imprimir', 'exportar'])) {
+      return [
+        'command' => 'document.export',
+        'input' => [
+          'document_type' => 'maintenance_order',
+          'order_codigo' => $orderCodigo,
+        ],
+        'reply' => "Gerar PDF da OS {$orderCodigo}.",
+      ];
+    }
+
+    if ($assetCodigo && $this->containsAny($lower, ['pdf', 'ficha', 'imprimir patrim', 'exportar patrim'])) {
+      return [
+        'command' => 'document.export',
+        'input' => [
+          'document_type' => 'asset_sheet',
+          'asset_codigo' => $assetCodigo,
+        ],
+        'reply' => "Gerar PDF do patrimônio {$assetCodigo}.",
+      ];
+    }
+
+    if ($fatCodigo && $this->containsAny($lower, ['pdf', 'imprimir', 'exportar']) && ! $this->containsAny($lower, ['faturar', 'autorizar', 'gerar fatura'])) {
+      return [
+        'command' => 'document.export',
+        'input' => [
+          'document_type' => 'billing_invoice',
+          'entry_codigo' => $fatCodigo,
+        ],
+        'reply' => "Gerar PDF da fatura {$fatCodigo}.",
+      ];
+    }
+
     if ($this->containsAny($lower, ['lista do dia', 'logística do dia', 'logistica do dia', 'romaneio', 'entregas hoje', 'entregas de hoje', 'recolhidas hoje'])) {
       $date = $this->extractDateFromMessage($message);
 

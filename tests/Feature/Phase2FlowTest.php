@@ -63,12 +63,24 @@ class Phase2FlowTest extends TestCase
         Storage::disk('local')->assertExists($asset->qr_code_path);
     }
 
-    public function test_scan_route_redirects_to_asset_ficha(): void
+    public function test_scan_route_redirects_operators_to_yard_mode(): void
     {
-        $admin = $this->adminUser();
+        $operator = User::factory()->create();
+        $operator->assignRole(UserRole::Operacao->value);
         $asset = $this->createAsset('PAT-SCAN-001');
 
-        $this->actingAs($admin)
+        $this->actingAs($operator)
+            ->get(route('assets.scan', $asset->codigo_patrimonio))
+            ->assertRedirect(route('yard.scan', $asset->codigo_patrimonio));
+    }
+
+    public function test_scan_route_redirects_view_only_users_to_asset_ficha(): void
+    {
+        $viewer = User::factory()->create();
+        $viewer->givePermissionTo('fleet.assets.view');
+        $asset = $this->createAsset('PAT-SCAN-002');
+
+        $this->actingAs($viewer)
             ->get(route('assets.scan', $asset->codigo_patrimonio))
             ->assertRedirect(route('assets.show', $asset));
     }

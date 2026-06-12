@@ -89,6 +89,7 @@ enum AssetStatus: string
                 self::Bloqueado,
             ],
             self::EmManutencaoCampo => [
+                self::Locado,
                 self::EmInspecao,
                 self::EmManutencao,
                 self::Extraviado,

@@ -60,7 +60,8 @@ class ProcessPreventiveMaintenanceDue extends Command
                 continue;
             }
 
-            if (! config('maintenance.auto_open_preventive_orders', true)) {
+            if (! $preventiveService->shouldAutoOpenOrders()) {
+                $this->line("Alerta (sem abertura): {$asset->codigo_patrimonio} — {$rule->descricao}");
                 $skipped++;
 
                 continue;

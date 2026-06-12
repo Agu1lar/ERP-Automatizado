@@ -528,6 +528,37 @@ class CopilotPanel extends Component
 
 
 
+    /** @param  array<string, mixed>  $taskData */
+    public function onTaskProgress(int $taskId, array $taskData): void
+    {
+        foreach ($this->messages as $index => $message) {
+            if (($message['meta']['task']['id'] ?? null) !== $taskId) {
+                continue;
+            }
+
+            $this->messages[$index]['meta']['task'] = $taskData;
+
+            $status = (string) ($taskData['status'] ?? '');
+            $terminal = ['completed', 'failed', 'conflict', 'cancelled'];
+
+            if (in_array($status, $terminal, true) && empty($message['meta']['task_terminal_announced'])) {
+                $suffix = match ($status) {
+                    'completed' => "\n\n✓ **Tarefa concluída.**",
+                    'failed' => "\n\n✗ **Falhou:** ".($taskData['error_message'] ?? 'erro desconhecido'),
+                    'conflict' => "\n\n⚠ **Conflito:** ".($taskData['conflict_reason'] ?? 'recurso alterado manualmente'),
+                    'cancelled' => "\n\n_Tarefa cancelada._",
+                    default => '',
+                };
+                $this->messages[$index]['content'] .= $suffix;
+                $this->messages[$index]['meta']['task_terminal_announced'] = true;
+            }
+
+            break;
+        }
+
+        $this->dispatch('copilot-scroll-bottom');
+    }
+
     public function queuePendingInBackground(AgentTaskService $taskService, AgentSessionService $sessionService): void
 
     {
@@ -585,6 +616,8 @@ class CopilotPanel extends Component
 
 
         $this->clearPending();
+
+        $this->dispatch('copilot-watch-task', taskId: $task->id);
 
         $this->dispatch('copilot-scroll-bottom');
 

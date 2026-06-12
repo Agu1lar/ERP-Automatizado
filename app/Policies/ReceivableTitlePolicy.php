@@ -31,4 +31,9 @@ class ReceivableTitlePolicy
     {
         return $user->can('finance.manage');
     }
+
+    public function generateCharge(User $user, ReceivableTitle $title): bool
+    {
+        return $user->can('finance.manage');
+    }
 }

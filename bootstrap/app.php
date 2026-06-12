@@ -18,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('rentals:process-billing-renewals')->dailyAt('06:30');
         $schedule->command('quotes:expire')->dailyAt('07:00');
         $schedule->command('notifications:operational-alerts')->dailyAt('07:45');
+        $schedule->command('crm:follow-up-reminders')->dailyAt('08:00');
+        $schedule->command('crm:process-outbound')->everyFiveMinutes();
         $schedule->command('queue:prune-failed --hours=168')->weekly();
     })
     ->withMiddleware(function (Middleware $middleware): void {
@@ -31,6 +33,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             \App\Http\Middleware\SetActiveOperatingCompany::class,
+        ]);
+
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -18,6 +18,7 @@
         </include>
     </source>
     <php>
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_LOCALE" value="pt_BR"/>
         <env name="APP_FALLBACK_LOCALE" value="pt_BR"/>
@@ -35,5 +36,7 @@
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="AGENT_LLM_ENABLED" value="false"/>
+        <env name="GEOCODING_ENABLED" value="false"/>
+        <env name="PAYMENT_GATEWAY_DRIVER" value="mock"/>
     </php>
 </phpunit>

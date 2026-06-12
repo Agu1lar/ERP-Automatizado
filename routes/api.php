@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Agent\CommandController;
 use App\Http\Controllers\Api\Agent\ContextController;
 use App\Http\Controllers\Api\Agent\ManifestController;
 use App\Http\Controllers\Api\Agent\TaskController;
+use App\Http\Controllers\Api\Agent\TaskStreamController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('agent')
@@ -37,10 +38,26 @@ Route::prefix('agent')
     Route::get('context/receivable/{identifier}', [ContextController::class, 'receivable'])
       ->name('api.agent.context.receivable');
 
+    Route::get('context/person/{identifier}', [ContextController::class, 'person'])
+      ->name('api.agent.context.person');
+
+    Route::get('context/company/{identifier}', [ContextController::class, 'company'])
+      ->name('api.agent.context.company');
+
+    Route::get('context/billing/{identifier}', [ContextController::class, 'billing'])
+      ->name('api.agent.context.billing');
+
+    Route::get('context/yard/{identifier}', [ContextController::class, 'yard'])
+      ->name('api.agent.context.yard');
+
+    Route::get('context/logistics', [ContextController::class, 'logistics'])
+      ->name('api.agent.context.logistics');
+
     Route::post('chat', ChatController::class)->name('api.agent.chat');
 
     Route::get('tasks', [TaskController::class, 'index'])->name('api.agent.tasks.index');
     Route::post('tasks', [TaskController::class, 'store'])->name('api.agent.tasks.store');
     Route::get('tasks/{task}', [TaskController::class, 'show'])->name('api.agent.tasks.show');
+    Route::get('tasks/{task}/stream', TaskStreamController::class)->name('api.agent.tasks.stream');
     Route::post('tasks/{task}/cancel', [TaskController::class, 'cancel'])->name('api.agent.tasks.cancel');
   });

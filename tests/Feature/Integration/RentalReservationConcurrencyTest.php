@@ -52,17 +52,18 @@ class RentalReservationConcurrencyTest extends TestCase
         $service->reserve($asset->fresh(), $customerB, now()->addDays(3));
     }
 
-    public function test_unique_index_blocks_duplicate_active_rental_at_database_level(): void
+    public function test_unique_index_blocks_duplicate_occupied_rental_at_database_level(): void
     {
-        $asset = $this->asset('PAT-CONC-2', AssetStatus::Disponivel);
+        $asset = $this->asset('PAT-CONC-2', AssetStatus::Locado);
         $customer = $this->customer('Cliente DB', '52998224725');
 
         Rental::create([
             'codigo' => 'LOC-000001',
             'asset_id' => $asset->id,
             'customer_id' => $customer->id,
-            'status' => RentalStatus::Reservado->value,
+            'status' => RentalStatus::Locado->value,
             'reserved_at' => now(),
+            'checkout_at' => now(),
         ]);
 
         $this->expectException(QueryException::class);
@@ -73,6 +74,7 @@ class RentalReservationConcurrencyTest extends TestCase
             'customer_id' => $customer->id,
             'status' => RentalStatus::Locado->value,
             'reserved_at' => now(),
+            'checkout_at' => now(),
         ]);
     }
 

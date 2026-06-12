@@ -20,9 +20,21 @@ use InvalidArgumentException;
 
 class MaintenanceOrderService
 {
+    /** @var array<string, string> */
+    public const CHECKLIST_CAMPO = [
+        'acesso_obra' => 'Acesso à obra liberado',
+        'equipamento_no_local' => 'Equipamento identificado no local',
+        'servico_executado' => 'Serviço executado conforme solicitado',
+        'area_limpa' => 'Área de trabalho deixada em ordem',
+    ];
+
     public function __construct(
         private readonly AssetStatusService $assetStatusService,
         private readonly AuditService $auditService,
+        private readonly PartCatalogService $partCatalogService,
+        private readonly PartStockService $partStockService,
+        private readonly MaintenanceIndemnityService $maintenanceIndemnityService,
+        private readonly PayableTitleService $payableTitleService,
     ) {}
 
     public function open(
@@ -76,7 +88,7 @@ class MaintenanceOrderService
                 'expected_completion_at' => $expectedCompletion,
             ]);
 
-            $this->syncAssetToMaintenance($asset, "Abertura OS {$order->codigo}", $user);
+            $this->syncAssetForOrderType($asset, $tipo, "Abertura OS {$order->codigo}", $user);
 
             $this->auditService->log(
                 AuditAction::Created,
@@ -118,6 +130,68 @@ class MaintenanceOrderService
         return $order->fresh(['asset', 'preventiveRule']);
     }
 
+    public function openField(
+        Asset $asset,
+        string $descricaoProblema,
+        ?Rental $rental = null,
+        ?User $user = null,
+    ): MaintenanceOrder {
+        $user ??= auth()->user();
+        $rental ??= $asset->activeRental();
+
+        if ($rental === null || $rental->statusEnum() !== \App\Enums\RentalStatus::Locado) {
+            throw new InvalidArgumentException('Manutenção em campo exige patrimônio com locação ativa (status Locado).');
+        }
+
+        if (! in_array($asset->statusEnum(), [AssetStatus::Locado, AssetStatus::EmManutencaoCampo], true)) {
+            throw new InvalidArgumentException('Patrimônio deve estar locado ou em manutenção em campo.');
+        }
+
+        return $this->open(
+            $asset,
+            $descricaoProblema,
+            MaintenanceOrderType::Campo,
+            MaintenancePriority::Normal,
+            false,
+            null,
+            $user?->id,
+            $rental,
+            'OS aberta pelo técnico em campo.',
+            $user,
+        );
+    }
+
+    /**
+     * @param  array<string, bool>  $checklist
+     */
+    public function completeField(
+        MaintenanceOrder $order,
+        array $checklist,
+        ?string $solucaoAplicada = null,
+        ?float $horimetro = null,
+        ?User $user = null,
+    ): MaintenanceOrder {
+        if ($order->tipoEnum() !== MaintenanceOrderType::Campo) {
+            throw new InvalidArgumentException('Esta ação é apenas para OS de manutenção em campo.');
+        }
+
+        $this->validateChecklistItems(self::CHECKLIST_CAMPO, $checklist);
+
+        if ($order->statusEnum() === MaintenanceOrderStatus::Aberta) {
+            $order = $this->start($order, $user);
+        }
+
+        if ($horimetro !== null) {
+            $order->asset->update(['horimetro' => $horimetro]);
+        }
+
+        return $this->complete(
+            $order,
+            $solucaoAplicada ?? 'Serviço em campo concluído conforme checklist.',
+            $user,
+        );
+    }
+
     public function start(MaintenanceOrder $order, ?User $user = null): MaintenanceOrder
     {
         $user ??= auth()->user();
@@ -133,7 +207,7 @@ class MaintenanceOrderService
 
             $this->transitionAssetIfNeeded(
                 $order->asset,
-                AssetStatus::EmManutencao,
+                $this->executionAssetStatus($order),
                 "Início OS {$order->codigo}",
                 $user,
             );
@@ -184,7 +258,7 @@ class MaintenanceOrderService
 
             $this->transitionAssetIfNeeded(
                 $order->asset,
-                AssetStatus::EmManutencao,
+                $this->executionAssetStatus($order),
                 "Retomada OS {$order->codigo}",
                 $user,
             );
@@ -207,12 +281,16 @@ class MaintenanceOrderService
         ?string $assinaturaOrcadoPor = null,
         ?string $assinaturaMontadoPor = null,
         ?string $assetVoltagem = null,
+        ?float $valorIndenizacao = null,
+        ?int $externalCompanyId = null,
+        ?float $valorServicoExterno = null,
+        bool $includeExternalFields = false,
     ): MaintenanceOrder {
         if (! $order->statusEnum()->isOpen()) {
             throw new InvalidArgumentException('OS encerrada não pode ser editada.');
         }
 
-        $order->update(array_filter([
+        $updates = array_filter([
             'diagnostico' => $diagnostico,
             'solucao_aplicada' => $solucaoAplicada,
             'assigned_to' => $assignedTo,
@@ -222,13 +300,21 @@ class MaintenanceOrderService
             'assinatura_caixa' => $assinaturaCaixa,
             'assinatura_orcado_por' => $assinaturaOrcadoPor,
             'assinatura_montado_por' => $assinaturaMontadoPor,
-        ], fn ($value) => $value !== null));
+            'valor_indenizacao' => $valorIndenizacao,
+        ], fn ($value) => $value !== null);
+
+        if ($includeExternalFields) {
+            $updates['external_company_id'] = $externalCompanyId;
+            $updates['valor_servico_externo'] = $valorServicoExterno;
+        }
+
+        $order->update($updates);
 
         if ($assetVoltagem !== null) {
             $order->asset->update(['voltagem' => $assetVoltagem ?: null]);
         }
 
-        return $order->fresh(['asset', 'customer', 'rental.customer']);
+        return $order->fresh(['asset', 'customer', 'rental.customer', 'externalCompany', 'payableTitle']);
     }
 
     public function addPart(
@@ -248,12 +334,17 @@ class MaintenanceOrderService
             throw new InvalidArgumentException('Quantidade deve ser maior que zero.');
         }
 
+        $catalogItem = filled($codigoPeca)
+            ? $this->partCatalogService->findByCode($codigoPeca)
+            : null;
+
         return $order->parts()->create([
+            'part_catalog_item_id' => $catalogItem?->id,
             'descricao' => $descricao,
             'codigo_peca' => $codigoPeca,
             'codigo_alternativo' => $codigoAlternativo,
             'quantidade' => $quantidade,
-            'valor_unitario' => $valorUnitario,
+            'valor_unitario' => $valorUnitario ?? $catalogItem?->valor_unitario_padrao,
             'observacao' => $observacao,
         ]);
     }
@@ -315,6 +406,10 @@ class MaintenanceOrderService
         }
 
         return DB::transaction(function () use ($order, $solucaoAplicada, $user) {
+            $order = $order->fresh(['parts.catalogItem', 'rental.customer', 'customer', 'receivableTitle']);
+            $this->maintenanceIndemnityService->assertCanComplete($order);
+            $this->partStockService->deductForCompletedOrder($order, $user);
+
             $before = ['status' => $order->status];
 
             $updates = [
@@ -334,17 +429,16 @@ class MaintenanceOrderService
             $order->update($updates);
 
             if (! $this->hasBlockingOrderForAsset($order->asset_id, $order->id)) {
-                $this->assetStatusService->transition(
-                    $order->asset,
-                    AssetStatus::Disponivel,
-                    "Conclusão OS {$order->codigo}",
-                    $user,
-                );
+                $this->releaseAssetAfterComplete($order, $user);
             }
 
             $this->auditStatusChange($order, $before, MaintenanceOrderStatus::Concluida, $user);
 
-            return $order->fresh(['asset', 'parts', 'laborHours']);
+            $order = $order->fresh(['asset', 'parts', 'laborHours', 'receivableTitle', 'externalCompany', 'payableTitle']);
+            $this->maintenanceIndemnityService->ensureReceivableTitle($order, $user);
+            $this->ensureExternalPayableTitle($order, $user);
+
+            return $order->fresh(['asset', 'parts', 'laborHours', 'receivableTitle', 'externalCompany', 'payableTitle']);
         });
     }
 
@@ -390,6 +484,55 @@ class MaintenanceOrderService
     private function syncAssetToMaintenance(Asset $asset, string $motivo, ?User $user): void
     {
         $this->transitionAssetIfNeeded($asset, AssetStatus::EmManutencao, $motivo, $user);
+    }
+
+    private function syncAssetForOrderType(
+        Asset $asset,
+        MaintenanceOrderType $tipo,
+        string $motivo,
+        ?User $user,
+    ): void {
+        if ($tipo->isField() && $asset->statusEnum() === AssetStatus::Locado) {
+            $this->transitionAssetIfNeeded($asset, AssetStatus::EmManutencaoCampo, $motivo, $user);
+
+            return;
+        }
+
+        $this->syncAssetToMaintenance($asset, $motivo, $user);
+    }
+
+    private function executionAssetStatus(MaintenanceOrder $order): AssetStatus
+    {
+        return $order->tipoEnum()->isField()
+            ? AssetStatus::EmManutencaoCampo
+            : AssetStatus::EmManutencao;
+    }
+
+    private function releaseAssetAfterComplete(MaintenanceOrder $order, ?User $user): void
+    {
+        $asset = $order->asset->fresh();
+        $target = AssetStatus::Disponivel;
+
+        if ($order->tipoEnum()->isField()) {
+            $activeRental = $asset->activeRental();
+            if ($activeRental?->statusEnum() === \App\Enums\RentalStatus::Locado) {
+                $target = AssetStatus::Locado;
+            }
+        }
+
+        if ($asset->statusEnum()->canTransitionTo($target)) {
+            $this->assetStatusService->transition($asset, $target, "Conclusão OS {$order->codigo}", $user);
+        }
+    }
+
+    /** @param  array<string, string>  $expected */
+    private function validateChecklistItems(array $expected, array $checkedItems): void
+    {
+        foreach (array_keys($expected) as $key) {
+            if (empty($checkedItems[$key])) {
+                throw new InvalidArgumentException('Conclua todos os itens do checklist antes de finalizar.');
+            }
+        }
     }
 
     private function transitionAssetIfNeeded(Asset $asset, AssetStatus $target, string $motivo, ?User $user): void
@@ -442,6 +585,23 @@ class MaintenanceOrderService
     {
         if ($order->statusEnum() !== $expected) {
             throw new InvalidArgumentException("OS deve estar com status {$expected->label()}.");
+        }
+    }
+
+    private function ensureExternalPayableTitle(MaintenanceOrder $order, ?User $user): void
+    {
+        if ($order->payable_title_id) {
+            return;
+        }
+
+        if (! $order->external_company_id || (float) ($order->valor_servico_externo ?? 0) <= 0) {
+            return;
+        }
+
+        try {
+            $this->payableTitleService->createFromMaintenanceOrder($order, now()->addDays(15), $user);
+        } catch (InvalidArgumentException) {
+            // Dados incompletos ou empresa inválida — não bloqueia conclusão da OS.
         }
     }
 }

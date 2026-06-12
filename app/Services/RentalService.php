@@ -15,6 +15,8 @@ use App\Models\Domain\Rental\RentalAssetSubstitution;
 use App\Models\Domain\Rental\RentalChecklist;
 use App\Models\User;
 use App\Support\RentalFichaBuilder;
+use App\Support\RentalScheduleConflictService;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +47,8 @@ class RentalService
         private readonly RentalPricingService $rentalPricingService,
         private readonly ReceivableTitleService $receivableTitleService,
         private readonly RentalBillingService $rentalBillingService,
+        private readonly RentalScheduleConflictService $scheduleConflict,
+        private readonly RentalWorksiteGeocodingService $worksiteGeocoding,
     ) {}
 
     public function reserve(
@@ -55,15 +59,30 @@ class RentalService
         ?User $user = null,
         ?string $localObra = null,
         ?RentalPricingPeriod $pricingPeriod = null,
+        ?CarbonInterface $scheduledStart = null,
     ): Rental {
         $user ??= auth()->user();
 
-        if ($this->assetHasActiveRental($asset->id)) {
-            throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
+        $scheduledStartDate = $scheduledStart?->copy()->startOfDay();
+        $isFutureReservation = $scheduledStartDate !== null
+            && $scheduledStartDate->gt(now()->startOfDay());
+
+        if ($isFutureReservation && $expectedReturn === null) {
+            throw new InvalidArgumentException('Informe a previsão de retorno para reserva futura.');
         }
 
-        if (! $asset->isAvailableForRental()) {
-            throw new InvalidArgumentException('Patrimônio não está disponível para reserva.');
+        if ($isFutureReservation && ! $this->assetAllowsFutureReservation($asset)) {
+            throw new InvalidArgumentException('Patrimônio não está disponível para reserva futura neste momento.');
+        }
+
+        if (! $isFutureReservation) {
+            if ($this->assetHasImmediateReservation($asset->id)) {
+                throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
+            }
+
+            if (! $asset->isAvailableForRental()) {
+                throw new InvalidArgumentException('Patrimônio não está disponível para reserva.');
+            }
         }
 
         if (! $customer->ativo) {
@@ -72,18 +91,49 @@ class RentalService
 
         $this->receivableTitleService->assertCustomerCanReceiveRental($customer);
 
-        return DB::transaction(function () use ($asset, $customer, $expectedReturn, $observacoes, $user, $localObra, $pricingPeriod) {
+        $rangeStart = $isFutureReservation ? $scheduledStartDate : now()->startOfDay();
+
+        if ($expectedReturn !== null) {
+            $conflict = $this->scheduleConflict->analyze(
+                $asset->id,
+                $rangeStart,
+                $expectedReturn->copy()->startOfDay(),
+            );
+
+            if ($conflict->hasConflict) {
+                throw new InvalidArgumentException($conflict->message);
+            }
+        }
+
+        return DB::transaction(function () use ($asset, $customer, $expectedReturn, $observacoes, $user, $localObra, $pricingPeriod, $scheduledStartDate, $isFutureReservation, $rangeStart) {
             $asset = Asset::query()->whereKey($asset->id)->lockForUpdate()->firstOrFail();
 
-            if ($this->assetHasActiveRental($asset->id)) {
-                throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
+            if (! $isFutureReservation) {
+                if ($this->assetHasImmediateReservation($asset->id)) {
+                    throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
+                }
+
+                if (! $asset->isAvailableForRental()) {
+                    throw new InvalidArgumentException('Patrimônio não está disponível para reserva.');
+                }
+            } elseif (! $this->assetAllowsFutureReservation($asset)) {
+                throw new InvalidArgumentException('Patrimônio não está disponível para reserva futura neste momento.');
             }
 
-            if (! $asset->isAvailableForRental()) {
-                throw new InvalidArgumentException('Patrimônio não está disponível para reserva.');
+            if ($expectedReturn !== null) {
+                $recheck = $this->scheduleConflict->analyze(
+                    $asset->id,
+                    $rangeStart,
+                    $expectedReturn->copy()->startOfDay(),
+                );
+
+                if ($recheck->hasConflict) {
+                    throw new InvalidArgumentException($recheck->message);
+                }
             }
 
             $ficha = RentalFichaBuilder::prefillForReservation($asset, $customer);
+            $localObraValue = filled($localObra) ? trim($localObra) : $ficha['local_obra'];
 
             try {
                 $rental = Rental::create([
@@ -92,28 +142,33 @@ class RentalService
                     'customer_id' => $customer->id,
                     'status' => RentalStatus::Reservado->value,
                     'reserved_at' => now(),
+                    'scheduled_start_at' => $isFutureReservation ? $scheduledStartDate?->toDateString() : null,
                     'reserved_by' => $user?->id,
                     'commercial_user_id' => $user?->id,
                     'expected_return_at' => $expectedReturn,
                     'observacoes' => $observacoes,
                     'horimetro_saida' => $ficha['horimetro_saida'],
                     'ficha_descricao' => $ficha['ficha_descricao'],
-                    'local_obra' => filled($localObra) ? trim($localObra) : $ficha['local_obra'],
+                    'local_obra' => $localObraValue,
+                    'regiao_geografica' => app(\App\Support\GeographicRegionClassifier::class)
+                        ->classifyValue($localObraValue, $customer->endereco),
                 ]);
             } catch (QueryException $exception) {
                 if ($this->isActiveRentalUniqueViolation($exception)) {
-                    throw new InvalidArgumentException('Patrimônio já possui locação ativa.');
+                    throw new InvalidArgumentException('Patrimônio já possui locação ativa ou reserva imediata pendente.');
                 }
 
                 throw $exception;
             }
 
-            $this->assetStatusService->transition(
-                $asset,
-                AssetStatus::Reservado,
-                "Reserva {$rental->codigo}",
-                $user,
-            );
+            if (! $isFutureReservation) {
+                $this->assetStatusService->transition(
+                    $asset,
+                    AssetStatus::Reservado,
+                    "Reserva {$rental->codigo}",
+                    $user,
+                );
+            }
 
             $this->auditService->log(
                 AuditAction::Created,
@@ -142,6 +197,14 @@ class RentalService
         $user ??= auth()->user();
         $this->assertStatus($rental, RentalStatus::Reservado);
 
+        if ($rental->isFutureReservation()) {
+            throw new InvalidArgumentException('A data de início da reserva ainda não foi atingida.');
+        }
+
+        if ($this->assetHasOtherOccupancy($rental->asset_id, $rental->id)) {
+            throw new InvalidArgumentException('Patrimônio ainda está em outra locação ativa.');
+        }
+
         $this->validateChecklistItems(self::CHECKLIST_SAIDA, $checkedItems);
 
         return DB::transaction(function () use ($rental, $checkedItems, $observacoes, $user) {
@@ -163,7 +226,9 @@ class RentalService
                 $user,
             );
 
-            $this->applyWorkSiteLocation($rental->fresh(), $user);
+            $rental = $rental->fresh(['asset', 'customer']);
+            $this->applyWorkSiteLocation($rental, $user);
+            $this->syncWorksiteGeocode($rental);
 
             $this->auditService->log(
                 AuditAction::StatusChanged,
@@ -232,10 +297,23 @@ class RentalService
     public function updateLocalObra(Rental $rental, ?string $localObra, ?User $user = null): Rental
     {
         $user ??= auth()->user();
-        $rental->update(['local_obra' => filled($localObra) ? trim($localObra) : null]);
+        $value = filled($localObra) ? trim($localObra) : null;
+        $rental->loadMissing('customer');
+        $rental->update([
+            'local_obra' => $value,
+            'regiao_geografica' => app(\App\Support\GeographicRegionClassifier::class)
+                ->classifyValue($value, $rental->customer?->endereco),
+            'obra_latitude' => null,
+            'obra_longitude' => null,
+            'obra_geocode_precision' => null,
+            'obra_geocoded_at' => null,
+        ]);
+
+        $rental = $rental->fresh(['asset', 'customer']);
 
         if ($rental->statusEnum() === RentalStatus::Locado) {
-            $this->applyWorkSiteLocation($rental->fresh(), $user);
+            $this->applyWorkSiteLocation($rental, $user);
+            $this->syncWorksiteGeocode($rental);
         }
 
         return $rental->fresh(['asset', 'customer']);
@@ -380,13 +458,20 @@ class RentalService
                 user: $user,
             );
 
-            $this->rentalBillingService->queueIndemnity(
+            $entry = $this->rentalBillingService->queueIndemnity(
                 $rental->fresh(),
                 $valorIndenizacao,
                 "Indenização — OS {$order->codigo}: {$motivo}",
                 invoiceImmediately: true,
                 user: $user,
             );
+
+            app(MaintenanceIndemnityService::class)->linkTitleFromBillingEntry(
+                $order->fresh(),
+                $entry->fresh(['receivableTitle']),
+            );
+
+            $order->update(['valor_indenizacao' => $valorIndenizacao]);
 
             $this->auditService->log(
                 AuditAction::StatusChanged,
@@ -502,6 +587,17 @@ class RentalService
                 "Locação deve estar com status {$expected->label()}."
             );
         }
+    }
+
+    private function syncWorksiteGeocode(Rental $rental): void
+    {
+        if (blank($rental->local_obra)) {
+            $this->worksiteGeocoding->clearCoordinates($rental);
+
+            return;
+        }
+
+        $this->worksiteGeocoding->geocodeAndStore($rental->fresh(['customer']));
     }
 
     private function applyWorkSiteLocation(Rental $rental, ?User $user): void
@@ -675,10 +771,47 @@ class RentalService
             ->exists();
     }
 
+    private function assetHasImmediateReservation(int $assetId): bool
+    {
+        return Rental::query()
+            ->withoutGlobalScope('operating_company')
+            ->where('asset_id', $assetId)
+            ->where('status', RentalStatus::Reservado->value)
+            ->whereNull('scheduled_start_at')
+            ->exists()
+            || Rental::query()
+                ->withoutGlobalScope('operating_company')
+                ->where('asset_id', $assetId)
+                ->whereIn('status', [RentalStatus::Locado->value, RentalStatus::EmInspecao->value])
+                ->exists();
+    }
+
+    private function assetAllowsFutureReservation(Asset $asset): bool
+    {
+        return match ($asset->statusEnum()) {
+            AssetStatus::Disponivel,
+            AssetStatus::Locado,
+            AssetStatus::Reservado => true,
+            default => false,
+        };
+    }
+
+    private function assetHasOtherOccupancy(int $assetId, int $excludeRentalId): bool
+    {
+        return Rental::query()
+            ->withoutGlobalScope('operating_company')
+            ->where('asset_id', $assetId)
+            ->where('id', '!=', $excludeRentalId)
+            ->whereIn('status', [RentalStatus::Locado->value, RentalStatus::EmInspecao->value])
+            ->exists();
+    }
+
     private function isActiveRentalUniqueViolation(QueryException $exception): bool
     {
         $message = strtolower($exception->getMessage());
 
-        return str_contains($message, 'rentals_one_active_per_asset');
+        return str_contains($message, 'rentals_one_active_per_asset')
+            || str_contains($message, 'rentals_one_occupied_per_asset')
+            || str_contains($message, 'rentals_one_immediate_reserve_per_asset');
     }
 }

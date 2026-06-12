@@ -60,6 +60,11 @@ class LogisticsDailyCommand extends AbstractReadAgentCommand
                     'maximum' => 50,
                     'description' => 'Máximo de itens por seção retornados.',
                 ],
+                'region' => [
+                    'type' => 'string',
+                    'enum' => ['bh', 'rmbh', 'interior', 'indefinido'],
+                    'description' => 'Filtrar por região da obra (BH, RMBH, interior MG).',
+                ],
             ],
         ];
     }
@@ -71,9 +76,10 @@ class LogisticsDailyCommand extends AbstractReadAgentCommand
             : now()->startOfDay();
         $section = $input['section'] ?? 'all';
         $limit = min(max((int) ($input['limit'] ?? 25), 1), 50);
+        $region = $input['region'] ?? null;
 
-        $counts = $this->dailyQuery->countsForDate($date);
-        $sections = $this->buildSections($date, $section, $limit);
+        $counts = $this->dailyQuery->countsForDate($date, $region);
+        $sections = $this->buildSections($date, $section, $limit, $region);
 
         $totalItems = array_sum(array_map(fn (array $s) => $s['count'], $sections));
 
@@ -104,38 +110,42 @@ class LogisticsDailyCommand extends AbstractReadAgentCommand
                     'url' => CopilotNavigationLinks::logisticsDaily($date->toDateString()),
                     'primary' => true,
                 ],
+                [
+                    'label' => 'Mapa de obras ativas',
+                    'url' => CopilotNavigationLinks::activeWorksMap($region),
+                ],
             ],
         );
     }
 
     /** @return list<array{key: string, label: string, count: int, items: list<array<string, mixed>>}> */
-    private function buildSections(Carbon $date, string $section, int $limit): array
+    private function buildSections(Carbon $date, string $section, int $limit, ?string $region = null): array
     {
         $all = [
             'entregas' => [
                 'label' => 'Entregas pela frota',
                 'kind' => 'entrega',
-                'rows' => $this->dailyQuery->scheduledDeliveries($date),
+                'rows' => $this->dailyQuery->scheduledDeliveries($date, $region),
             ],
             'cliente_retira' => [
                 'label' => 'Cliente retira no pátio',
                 'kind' => 'cliente_retira',
-                'rows' => $this->dailyQuery->customerPickupsAtYard($date),
+                'rows' => $this->dailyQuery->customerPickupsAtYard($date, $region),
             ],
             'retiradas' => [
                 'label' => 'Recolhidas pela frota',
                 'kind' => 'retirada',
-                'rows' => $this->dailyQuery->scheduledPickups($date),
+                'rows' => $this->dailyQuery->scheduledPickups($date, $region),
             ],
             'cliente_devolve' => [
                 'label' => 'Cliente devolve no pátio',
                 'kind' => 'cliente_devolve',
-                'rows' => $this->dailyQuery->customerReturnsAtYard($date),
+                'rows' => $this->dailyQuery->customerReturnsAtYard($date, $region),
             ],
             'retornos_previstos' => [
                 'label' => 'Retornos previstos sem agenda',
                 'kind' => 'retorno',
-                'rows' => $this->dailyQuery->expectedReturnsWithoutPickupSchedule($date),
+                'rows' => $this->dailyQuery->expectedReturnsWithoutPickupSchedule($date, $region),
             ],
         ];
 

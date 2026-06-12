@@ -12,9 +12,9 @@ use Illuminate\Support\Collection;
 class LogisticsDailyQuery
 {
     /** @return Collection<int, Rental> */
-    public function scheduledDeliveries(CarbonInterface $date): Collection
+    public function scheduledDeliveries(CarbonInterface $date, ?string $region = null): Collection
     {
-        return $this->baseQuery()
+        return $this->baseQuery($region)
             ->whereDate('entrega_agendada_em', $date->toDateString())
             ->whereIn('status', [
                 RentalStatus::Reservado->value,
@@ -30,9 +30,9 @@ class LogisticsDailyQuery
     }
 
     /** Cliente vem buscar no pátio na data agendada. @return Collection<int, Rental> */
-    public function customerPickupsAtYard(CarbonInterface $date): Collection
+    public function customerPickupsAtYard(CarbonInterface $date, ?string $region = null): Collection
     {
-        return $this->baseQuery()
+        return $this->baseQuery($region)
             ->whereDate('entrega_agendada_em', $date->toDateString())
             ->whereIn('status', [
                 RentalStatus::Reservado->value,
@@ -45,9 +45,9 @@ class LogisticsDailyQuery
     }
 
     /** @return Collection<int, Rental> */
-    public function scheduledPickups(CarbonInterface $date): Collection
+    public function scheduledPickups(CarbonInterface $date, ?string $region = null): Collection
     {
-        return $this->baseQuery()
+        return $this->baseQuery($region)
             ->whereDate('retirada_agendada_em', $date->toDateString())
             ->where('status', RentalStatus::Locado->value)
             ->where(function ($query) {
@@ -60,9 +60,9 @@ class LogisticsDailyQuery
     }
 
     /** Cliente devolve equipamento no pátio na data agendada. @return Collection<int, Rental> */
-    public function customerReturnsAtYard(CarbonInterface $date): Collection
+    public function customerReturnsAtYard(CarbonInterface $date, ?string $region = null): Collection
     {
-        return $this->baseQuery()
+        return $this->baseQuery($region)
             ->where('status', RentalStatus::Locado->value)
             ->where('retirada_modalidade', LogisticsReturnMode::ClienteDevolve->value)
             ->where(function ($query) use ($date) {
@@ -77,9 +77,9 @@ class LogisticsDailyQuery
     }
 
     /** Retornos previstos no dia sem retirada agendada — só quando a empresa recolhe. @return Collection<int, Rental> */
-    public function expectedReturnsWithoutPickupSchedule(CarbonInterface $date): Collection
+    public function expectedReturnsWithoutPickupSchedule(CarbonInterface $date, ?string $region = null): Collection
     {
-        return $this->baseQuery()
+        return $this->baseQuery($region)
             ->where('status', RentalStatus::Locado->value)
             ->whereDate('expected_return_at', $date->toDateString())
             ->whereNull('retirada_agendada_em')
@@ -92,20 +92,21 @@ class LogisticsDailyQuery
     }
 
     /** @return array{entregas: int, cliente_retira: int, retiradas: int, cliente_devolve: int, retornos_previstos: int} */
-    public function countsForDate(CarbonInterface $date): array
+    public function countsForDate(CarbonInterface $date, ?string $region = null): array
     {
         return [
-            'entregas' => $this->scheduledDeliveries($date)->count(),
-            'cliente_retira' => $this->customerPickupsAtYard($date)->count(),
-            'retiradas' => $this->scheduledPickups($date)->count(),
-            'cliente_devolve' => $this->customerReturnsAtYard($date)->count(),
-            'retornos_previstos' => $this->expectedReturnsWithoutPickupSchedule($date)->count(),
+            'entregas' => $this->scheduledDeliveries($date, $region)->count(),
+            'cliente_retira' => $this->customerPickupsAtYard($date, $region)->count(),
+            'retiradas' => $this->scheduledPickups($date, $region)->count(),
+            'cliente_devolve' => $this->customerReturnsAtYard($date, $region)->count(),
+            'retornos_previstos' => $this->expectedReturnsWithoutPickupSchedule($date, $region)->count(),
         ];
     }
 
-    private function baseQuery()
+    private function baseQuery(?string $region = null)
     {
         return Rental::query()
-            ->with(['customer', 'asset.yard', 'asset.equipmentModel.category']);
+            ->with(['customer', 'asset.yard', 'asset.equipmentModel.category'])
+            ->inGeographicRegion($region);
     }
 }

@@ -7,6 +7,7 @@ enum CompanyType: string
     case Propria = 'propria';
     case Externa = 'externa';
     case Cliente = 'cliente';
+    case Fornecedor = 'fornecedor';
 
     public function label(): string
     {
@@ -14,6 +15,7 @@ enum CompanyType: string
             self::Propria => 'Empresa própria',
             self::Externa => 'Empresa externa',
             self::Cliente => 'Cliente',
+            self::Fornecedor => 'Fornecedor de peças',
         };
     }
 }

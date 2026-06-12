@@ -46,7 +46,7 @@ class AgentApiTest extends TestCase
 
         $this->getJson('/api/agent/manifest')
             ->assertOk()
-            ->assertJsonPath('version', '1.2')
+            ->assertJsonPath('version', '1.4')
             ->assertJsonFragment(['name' => 'rental.get', 'surface' => 'visualization'])
             ->assertJsonFragment(['name' => 'rental.return', 'surface' => 'execution'])
             ->assertJsonFragment(['name' => 'maintenance.open', 'surface' => 'execution'])
@@ -669,7 +669,122 @@ class AgentApiTest extends TestCase
       ->assertJsonFragment(['name' => 'finance.delinquency', 'surface' => 'visualization'])
       ->assertJsonFragment(['name' => 'search.global', 'surface' => 'visualization'])
       ->assertJsonFragment(['name' => 'person.create', 'surface' => 'execution'])
-      ->assertJsonFragment(['name' => 'company.update', 'surface' => 'execution']);
+      ->assertJsonFragment(['name' => 'company.update', 'surface' => 'execution'])
+      ->assertJsonFragment(['name' => 'pricing.list', 'surface' => 'visualization'])
+      ->assertJsonFragment(['name' => 'document.export', 'surface' => 'visualization'])
+      ->assertJsonFragment(['name' => 'report.commercial', 'surface' => 'visualization'])
+      ->assertJsonStructure(['document_exports' => ['types']]);
+  }
+
+  public function test_pricing_list_command(): void
+  {
+    $user = $this->agentUser();
+    $asset = $this->asset('PAT-PRICING', AssetStatus::Disponivel);
+
+    EquipmentPricing::create([
+      'equipment_category_id' => $asset->equipmentModel->equipment_category_id,
+      'periodo' => RentalPricingPeriod::Diaria->value,
+      'valor' => 150,
+      'ativo' => true,
+    ]);
+
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/agent/commands/pricing.list', ['input' => []])
+      ->assertOk()
+      ->assertJsonPath('ok', true)
+      ->assertJsonPath('data.entity', 'pricing_list');
+  }
+
+  public function test_report_commercial_command(): void
+  {
+    Sanctum::actingAs($this->agentUser());
+
+    $this->postJson('/api/agent/commands/report.commercial', [
+      'input' => [
+        'date_from' => now()->startOfMonth()->toDateString(),
+        'date_to' => now()->toDateString(),
+      ],
+    ])
+      ->assertOk()
+      ->assertJsonPath('ok', true)
+      ->assertJsonPath('data.entity', 'report_commercial');
+  }
+
+  public function test_document_export_rental_pdf(): void
+  {
+    $user = $this->agentUser();
+    $rental = $this->reservedRental();
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/agent/commands/document.export', [
+      'input' => [
+        'document_type' => 'rental_summary',
+        'rental_codigo' => $rental->codigo,
+      ],
+    ])
+      ->assertOk()
+      ->assertJsonPath('ok', true)
+      ->assertJsonPath('data.document_type', 'rental_summary')
+      ->assertJsonStructure(['data' => ['pdf_url']]);
+  }
+
+  public function test_context_endpoints_for_person_company_billing_yard_logistics(): void
+  {
+    $user = $this->agentUser();
+    Sanctum::actingAs($user);
+
+    $person = \App\Models\Domain\Person\Person::create([
+      'nome' => 'Contato Contexto',
+      'cpf' => '52998224725',
+      'ativo' => true,
+    ]);
+
+    $company = \App\Models\Domain\Person\Company::create([
+      'nome' => 'Empresa Contexto',
+      'cnpj' => '11222333000181',
+      'tipo' => 'fornecedor',
+      'ativo' => true,
+    ]);
+
+    $yard = \App\Models\Domain\Logistics\Yard::create([
+      'nome' => 'Pátio Teste',
+      'cidade' => 'BH',
+      'ativo' => true,
+      'principal' => false,
+    ]);
+
+    $rental = $this->reservedRental();
+    $entry = \App\Models\Domain\Rental\RentalBillingQueueEntry::create([
+      'codigo' => 'FAT-CTX-API',
+      'rental_id' => $rental->id,
+      'customer_id' => $rental->customer_id,
+      'tipo' => 'ciclo',
+      'valor_car' => 100,
+      'valor_nf' => 100,
+      'status' => 'pendente',
+      'gerado_em' => now(),
+    ]);
+
+    $this->getJson('/api/agent/context/person/'.$person->id)
+      ->assertOk()
+      ->assertJsonPath('entity', 'person');
+
+    $this->getJson('/api/agent/context/company/'.$company->id)
+      ->assertOk()
+      ->assertJsonPath('entity', 'company');
+
+    $this->getJson('/api/agent/context/billing/'.$entry->codigo)
+      ->assertOk()
+      ->assertJsonPath('entity', 'billing_entry');
+
+    $this->getJson('/api/agent/context/yard/'.$yard->id)
+      ->assertOk()
+      ->assertJsonPath('entity', 'yard');
+
+    $this->getJson('/api/agent/context/logistics')
+      ->assertOk()
+      ->assertJsonPath('entity', 'logistics_daily');
   }
 
   private function agentUser(): User

@@ -44,9 +44,12 @@ class Phase9ImmediateTest extends TestCase
 
         $this->actingAs($user);
 
-        $overdue = app(RentalService::class)->reserve($overdueAsset, $customer, now()->subDays(3));
+        $overdue = app(RentalService::class)->reserve($overdueAsset, $customer, now()->addDays(5));
         app(RentalService::class)->checkout($overdue, array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true));
-        $overdue->update(['expected_return_at' => now()->subDays(2)]);
+        $overdue->update([
+            'reserved_at' => now()->subDays(10),
+            'expected_return_at' => now()->subDays(2)->toDateString(),
+        ]);
 
         $onTime = app(RentalService::class)->reserve($okAsset, $customer, now()->addDays(5));
         app(RentalService::class)->checkout($onTime, array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true));
@@ -154,9 +157,12 @@ class Phase9ImmediateTest extends TestCase
 
         $this->actingAs($user);
 
-        $rental = app(RentalService::class)->reserve($asset, $customer, now()->subDays(5));
+        $rental = app(RentalService::class)->reserve($asset, $customer, now()->addDays(5));
         app(RentalService::class)->checkout($rental, array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true));
-        $rental->update(['expected_return_at' => now()->subDays(2)]);
+        $rental->update([
+            'reserved_at' => now()->subDays(10),
+            'expected_return_at' => now()->subDays(2)->toDateString(),
+        ]);
 
         $this->get(route('dashboard'))
             ->assertOk()

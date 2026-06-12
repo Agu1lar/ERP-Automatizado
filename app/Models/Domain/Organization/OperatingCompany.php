@@ -16,6 +16,7 @@ class OperatingCompany extends Model
         'email',
         'logo_path',
         'ativo',
+        'agent_daily_token_limit',
     ];
 
     protected function casts(): array

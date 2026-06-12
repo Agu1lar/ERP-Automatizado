@@ -23,6 +23,7 @@ class RentalBillingService
         private readonly RentalPricingService $pricingService,
         private readonly ReceivableTitleService $receivableTitleService,
         private readonly AuditService $auditService,
+        private readonly FiscalBridgeService $fiscalBridgeService,
     ) {}
 
     public function initializeOnCheckout(
@@ -44,13 +45,13 @@ class RentalBillingService
         ]);
 
         $this->syncActiveItem($rental, $user);
-        $amount = $this->firstCycleAmount($rental);
+        $amount = $this->contractPeriodAmount($rental);
+
+        $dueDate = $titleDueDate
+            ?? $rental->expected_return_at?->copy()
+            ?? $end->copy()->addDays(7);
 
         if ($amount > 0) {
-            $dueDate = $titleDueDate
-                ?? $rental->expected_return_at?->copy()
-                ?? $end->copy()->addDays(7);
-
             $this->createQueueEntry(
                 $rental->fresh(),
                 RentalBillingQueueType::Locacao,
@@ -61,6 +62,8 @@ class RentalBillingService
                 $dueDate,
             );
         }
+
+        $this->queueFreightEntrega($rental->fresh(), $user, $dueDate);
     }
 
     public function syncActiveItem(Rental $rental, ?User $user = null, ?\App\Models\Domain\Fleet\Asset $previousAsset = null): RentalItem
@@ -271,6 +274,8 @@ class RentalBillingService
                 $user,
             );
 
+            $this->fiscalBridgeService->registerFromInvoice($entry->fresh(), $title);
+
             return $entry->fresh(['rental', 'customer', 'receivableTitle']);
         });
     }
@@ -311,6 +316,31 @@ class RentalBillingService
             ->pendingInvoice()
             ->orderBy('gerado_em')
             ->get();
+    }
+
+    public function queueFreightEntrega(
+        Rental $rental,
+        ?User $user = null,
+        ?CarbonInterface $titleDueDate = null,
+    ): ?RentalBillingQueueEntry {
+        $user ??= auth()->user();
+        $amount = round((float) ($rental->valor_frete_entrega ?? 0), 2);
+
+        if ($amount <= 0) {
+            return null;
+        }
+
+        $start = $rental->checkout_at?->copy()->startOfDay() ?? now()->startOfDay();
+
+        return $this->createQueueEntry(
+            $rental,
+            RentalBillingQueueType::FreteEntrega,
+            $start,
+            $start,
+            $amount,
+            $user,
+            $titleDueDate ?? $start->copy()->addDays(7),
+        );
     }
 
     public function queueFreightRecolhida(Rental $rental, ?User $user = null): ?RentalBillingQueueEntry
@@ -430,14 +460,6 @@ class RentalBillingService
         }
 
         return $entry->fresh(['receivableTitle']);
-    }
-
-    private function firstCycleAmount(Rental $rental): float
-    {
-        $period = $this->contractPeriodAmount($rental);
-        $frete = round((float) ($rental->valor_frete_entrega ?? 0), 2);
-
-        return round($period + $frete, 2);
     }
 
     private function contractPeriodAmount(Rental $rental): float
