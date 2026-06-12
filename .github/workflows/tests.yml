@@ -88,4 +88,6 @@ jobs:
         run: npm ci && npm run build
 
       - name: Run tests (PostgreSQL)
-        run: php artisan test --configuration=phpunit.pgsql.xml
+        # php artisan test always injects --configuration=phpunit.xml; passing
+        # --configuration again triggers a PHPUnit 12 warning and exit code 1.
+        run: php vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml
