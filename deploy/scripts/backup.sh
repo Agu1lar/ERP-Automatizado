@@ -9,7 +9,7 @@
 set -euo pipefail
 
 APP_PATH="${APP_PATH:-$(cd "$(dirname "$0")/../.." && pwd)}"
-BACKUP_ROOT="${1:-${BACKUP_ROOT:-/var/backups/linha-leve}}"
+BACKUP_ROOT="${1:-${BACKUP_ROOT:-/var/backups/erp-acesso}}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 DEST="${BACKUP_ROOT}/${TIMESTAMP}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
@@ -45,4 +45,13 @@ echo "Restaurar storage: tar -xzf storage-app.tar.gz -C storage/" >> "${DEST}/RE
 
 find "${BACKUP_ROOT}" -maxdepth 1 -type d -mtime +"${RETENTION_DAYS}" -exec rm -rf {} + 2>/dev/null || true
 
-echo "[backup] Concluído."
+if command -v pg_restore >/dev/null 2>&1; then
+  if pg_restore --list "${DEST}/database.dump" >/dev/null 2>&1; then
+    echo "[backup] Verificação: dump íntegro."
+  else
+    echo "[backup] AVISO: dump pode estar corrompido." >&2
+    exit 1
+  fi
+fi
+
+echo "[backup] Concluído: ${DEST}"

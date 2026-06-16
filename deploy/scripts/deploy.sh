@@ -27,7 +27,7 @@ php artisan view:cache
 php artisan event:cache
 
 echo "[deploy] Reiniciando fila (Supervisor)..."
-sudo supervisorctl restart linha-leve-worker:* || echo "Aviso: Supervisor não configurado"
+sudo supervisorctl restart erp-acesso-worker:* || echo "Aviso: Supervisor não configurado"
 
 echo "[deploy] Saindo do modo manutenção..."
 php artisan up

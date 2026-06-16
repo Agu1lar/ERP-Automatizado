@@ -2,4 +2,4 @@
 # Instalar: sudo crontab -u www-data -e
 # Colar a linha abaixo (ajustar caminho):
 
-* * * * * cd /var/www/linha-leve && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/ERP-Acesso && php artisan schedule:run >> /dev/null 2>&1
