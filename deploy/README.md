@@ -65,7 +65,7 @@ php artisan schedule:list
 
 ```bash
 cd /var/www/ERP-Acesso
-sudo -u www-data bash deploy/scripts/backup.sh
+sudo bash deploy/scripts/backup.sh
 ```
 
 Destino padrão: `/var/backups/erp-acesso/YYYYMMDD_HHMMSS/`
@@ -91,6 +91,45 @@ php artisan down
 sudo bash deploy/scripts/restore.sh /var/backups/erp-acesso/20260616_020000 --confirm
 php artisan up
 ```
+
+### Nota importante (CRLF do Windows)
+
+Se aparecer erro como `deploy/scripts/backup.sh: line X: $'\r': command not found` ou `set: pipefail`,
+é sinal de que os `.sh` vieram com fim de linha **Windows (CRLF)**.
+
+Corrija na VM:
+
+```bash
+cd /var/www/ERP-Acesso
+sudo sed -i 's/\r$//' deploy/scripts/*.sh
+sudo chmod +x deploy/scripts/*.sh
+```
+
+Depois rode novamente o backup:
+
+```bash
+sudo bash deploy/scripts/backup.sh
+```
+
+Em validação recente na sua VM, esse fluxo gerou backup e o `testar-restore.sh` completou com sucesso.
+
+Também foi validado que o `backup.sh` atual lê as credenciais do `.env` (evitando tentativa de logar com usuário antigo).
+
+### Erro 500 — `PailServiceProvider` not found
+
+O cache `bootstrap/cache/packages.php` foi gerado com pacotes de **dev** (Pail, Breeze). Em produção (`composer install --no-dev`) eles não existem.
+
+Na VM:
+
+```bash
+cd /var/www/ERP-Acesso
+sudo rm -f bootstrap/cache/packages.php bootstrap/cache/services.php bootstrap/cache/config.php bootstrap/cache/routes-v7.php bootstrap/cache/events.php
+sudo -u www-data php artisan package:discover
+sudo -u www-data php artisan config:cache
+sudo systemctl reload php8.5-fpm
+```
+
+O `atualizar.sh` já limpa esse cache antes de recriar.
 
 ## Git remoto
 

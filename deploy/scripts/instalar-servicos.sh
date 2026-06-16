@@ -12,8 +12,25 @@ echo " Instalando fila + cron em ${APP_PATH}"
 echo "============================================"
 
 echo "[1/5] Pacotes..."
-apt-get update -qq
-apt-get install -y supervisor cron postgresql-client
+need_apt=false
+for pkg in supervisor cron postgresql-client; do
+  if ! dpkg -s "${pkg}" >/dev/null 2>&1; then
+    need_apt=true
+    break
+  fi
+done
+
+if [ "${need_apt}" = true ]; then
+  if ! apt-get update -qq; then
+    echo "  AVISO: apt-get update falhou (relógio ou mirror Ubuntu?)." >&2
+    echo "  Corrija com: sudo timedatectl set-ntp true && sudo apt-get clean && sudo apt-get update" >&2
+    echo "  Ou instale manualmente: sudo apt-get install -y supervisor cron postgresql-client" >&2
+    exit 1
+  fi
+  apt-get install -y supervisor cron postgresql-client
+else
+  echo "  supervisor, cron e postgresql-client já instalados — pulando apt."
+fi
 
 echo "[2/5] Supervisor (fila queue:work)..."
 mkdir -p "${APP_PATH}/storage/logs"

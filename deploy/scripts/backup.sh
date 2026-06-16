@@ -14,17 +14,31 @@ TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 DEST="${BACKUP_ROOT}/${TIMESTAMP}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 
+load_env_var() {
+  local key="$1"
+  grep "^${key}=" "${APP_PATH}/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r'
+}
+
+if [ -f "${APP_PATH}/.env" ]; then
+  DB_HOST="${DB_HOST:-$(load_env_var DB_HOST)}"
+  DB_PORT="${DB_PORT:-$(load_env_var DB_PORT)}"
+  DB_DATABASE="${DB_DATABASE:-$(load_env_var DB_DATABASE)}"
+  DB_USERNAME="${DB_USERNAME:-$(load_env_var DB_USERNAME)}"
+  PGPASSWORD="${PGPASSWORD:-$(load_env_var DB_PASSWORD)}"
+fi
+
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-5432}"
 DB_DATABASE="${DB_DATABASE:-linha_leve}"
 DB_USERNAME="${DB_USERNAME:-linha_leve}"
+export PGPASSWORD="${PGPASSWORD:-}"
 
 mkdir -p "${DEST}"
 
 echo "[backup] Destino: ${DEST}"
 
-echo "[backup] PostgreSQL dump..."
-PGPASSWORD="${PGPASSWORD:-}" pg_dump \
+echo "[backup] PostgreSQL dump (${DB_DATABASE} @ ${DB_HOST})..."
+pg_dump \
   -h "${DB_HOST}" \
   -p "${DB_PORT}" \
   -U "${DB_USERNAME}" \
@@ -40,7 +54,7 @@ if [ -f "${APP_PATH}/.env" ]; then
 fi
 
 echo "${TIMESTAMP}" > "${DEST}/README.txt"
-echo "Restaurar DB: pg_restore -h HOST -U USER -d linha_leve -c database.dump" >> "${DEST}/README.txt"
+echo "Restaurar DB: pg_restore -h HOST -U USER -d ${DB_DATABASE} -c database.dump" >> "${DEST}/README.txt"
 echo "Restaurar storage: tar -xzf storage-app.tar.gz -C storage/" >> "${DEST}/README.txt"
 
 find "${BACKUP_ROOT}" -maxdepth 1 -type d -mtime +"${RETENTION_DAYS}" -exec rm -rf {} + 2>/dev/null || true

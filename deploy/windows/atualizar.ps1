@@ -33,7 +33,21 @@ Write-Host "============================================" -ForegroundColor Cyan
 if (-not $SomenteServidor) {
     Write-Host "[1/2] Enviando codigo..." -ForegroundColor Yellow
 
-    ssh $Remote "rm -rf $Staging; mkdir -p $Staging"
+    # O diretório public\storage costuma ser um junction/symlink local do Laravel (storage:link).
+    # O scp do Windows pode falhar ao copiar esse reparse point, então convertemos para pasta real
+    # antes do upload. No servidor o storage:link é recriado durante deploy/scripts/atualizar.sh.
+    $publicStorage = Join-Path $LocalRoot "public\storage"
+    if (Test-Path $publicStorage) {
+        $item = Get-Item $publicStorage -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Write-Host "  Ajustando public\storage (junction -> pasta real)..." -ForegroundColor DarkYellow
+            Remove-Item $publicStorage -Force
+            New-Item -ItemType Directory -Force -Path $publicStorage | Out-Null
+        }
+    }
+
+    # -tt força pseudo-TTY: necessário quando o sudo pede senha via SSH
+    ssh -tt $Remote "rm -rf $Staging; mkdir -p $Staging"
 
     foreach ($pasta in $Pastas) {
         $origem = Join-Path $LocalRoot $pasta
@@ -51,8 +65,8 @@ if (-not $SomenteServidor) {
         }
     }
 
-    $copyCmd = "sudo cp -a $Staging/. $RemoteDir/; sudo chown -R www-data:www-data $RemoteDir; sudo chmod -R ug+rwx $RemoteDir/storage $RemoteDir/bootstrap/cache; rm -rf $Staging"
-    ssh $Remote $copyCmd
+    $copyCmd = "sudo cp -a $Staging/. $RemoteDir/; sudo chown -R www-data:www-data $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R ug+rwx $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R u+rwX,go+rX $RemoteDir/deploy; rm -rf $Staging"
+    ssh -tt $Remote $copyCmd
 
     Write-Host "  (.env NAO e enviado - fica so no servidor)" -ForegroundColor DarkGray
 }
@@ -62,7 +76,7 @@ else {
 
 Write-Host "[2/2] Rodando atualizar.sh na VM..." -ForegroundColor Yellow
 $updateCmd = "cd $RemoteDir; sudo bash deploy/scripts/atualizar.sh"
-ssh $Remote $updateCmd
+ssh -tt $Remote $updateCmd
 
 Write-Host ""
 Write-Host "Pronto: http://192.168.5.6" -ForegroundColor Green
