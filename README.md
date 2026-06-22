@@ -10,6 +10,7 @@ ERP interno para controle de frota, patrimônios, clientes, locação, manutenç
 |-----------|----------|
 | [docs/VISAO_PRODUTO.md](docs/VISAO_PRODUTO.md) | Visão de produto — jornadas, funcionalidades, limites |
 | [docs/GO_LIVE.md](docs/GO_LIVE.md) | **Go-live** — deploy, Asaas, transição fiscal, checklist |
+| [docs/TESTE_INTERFACE.md](docs/TESTE_INTERFACE.md) | **Testes de interface** — roteiro manual + smoke automatizado |
 | [docs/IA.md](docs/IA.md) | **Copiloto / IA** — personalidade, fluxos, modos, API, configuração |
 | [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) | Arquitetura técnica do agente (camadas, concorrência) |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | Deploy, fila, cron, backup |

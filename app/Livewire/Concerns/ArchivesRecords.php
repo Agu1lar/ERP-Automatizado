@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Concerns;
 
+use App\Exceptions\ArchiveBlockedException;
 use App\Services\ArchiveService;
 use Illuminate\Database\Eloquent\Model;
 
@@ -23,7 +24,13 @@ trait ArchivesRecords
 
         $this->authorize('delete', $record);
 
-        app(ArchiveService::class)->archive($record);
+        try {
+            app(ArchiveService::class)->archive($record);
+        } catch (ArchiveBlockedException $exception) {
+            session()->flash('error', $exception->getMessage());
+
+            return;
+        }
 
         session()->flash('success', 'Registro arquivado. Pode ser restaurado em até '.config('archive.retention_days', 30).' dias.');
 

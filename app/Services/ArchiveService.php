@@ -9,6 +9,10 @@ use InvalidArgumentException;
 
 class ArchiveService
 {
+    public function __construct(
+        private readonly ArchiveValidator $validator,
+    ) {}
+
     public function retentionDays(): int
     {
         return max(1, (int) config('archive.retention_days', 30));
@@ -21,6 +25,8 @@ class ArchiveService
         if ($model->trashed()) {
             return;
         }
+
+        $this->validator->validate($model);
 
         if ($this->hasAtivoColumn($model)) {
             $model->ativo = false;
