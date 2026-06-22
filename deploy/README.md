@@ -141,7 +141,13 @@ php artisan up
 
 ### Nota importante (CRLF do Windows)
 
-Se aparecer erro como `deploy/scripts/backup.sh: line X: $'\r': command not found`, corrija na VM:
+O repositório já força LF em scripts via `.gitattributes` (`*.sh text eol=lf`). No PC Windows, configure também:
+
+```powershell
+git config --global core.autocrlf false
+```
+
+Se ainda aparecer erro como `deploy/scripts/backup.sh: line X: $'\r': command not found` ou `bad interpreter`, corrija na VM:
 
 ```bash
 cd /var/www/ERP-Acesso
@@ -156,8 +162,9 @@ sudo chmod +x deploy/scripts/*.sh
 | Erro 500 após deploy | `sudo bash deploy/scripts/corrigir-500.sh` |
 | `Permission denied` em `storage/` ou `bootstrap/cache` | Ver [CICD.md](CICD.md) — permissões antes do composer |
 | Menu lateral não abre / links não clicam | `npm run build` na VM + `sudo bash deploy/scripts/atualizar.sh` |
-| Job Deploy *Queued* | Runner offline — `sudo ~/actions-runner/svc.sh status` |
+| Job Deploy *Queued* | Runner offline — `sudo ~/actions-runner/svc.sh status` → `start` |
 | `sudo: a password is required` / `A terminal is required to authenticate` | Criar `/etc/sudoers.d/erp-deploy` — ver [CICD.md](CICD.md). Usar `sudo /var/www/.../deploy-from-git.sh`, não `sudo bash ...` |
+| `bad interpreter` / `$'\r'` em scripts `.sh` | [CICD.md](CICD.md) — `core.autocrlf false` no Windows; repo já usa `.gitattributes` com `*.sh eol=lf` |
 | IP mudou (curl não responde) | `hostname -I` na VM; atualizar Nginx e `APP_URL` |
 
 ### Erro 500 — `PailServiceProvider` not found

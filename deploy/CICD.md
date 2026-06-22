@@ -109,6 +109,77 @@ Verifique o runner em **GitHub → Actions → Runners** (deve aparecer `Servido
 
 ---
 
+## Dicas de ouro (evite deploy quebrado)
+
+### 1. Quebra de linha dos scripts (CRLF vs LF)
+
+Você desenvolve no **Windows** e roda na **Linux**. Scripts em `deploy/scripts/*.sh` com `\r\n` causam erros como `command not found`, `bad interpreter` ou `$'\r': command not found`.
+
+**No repositório (já configurado):** `.gitattributes` força LF em `*.sh`:
+
+```
+*.sh text eol=lf
+```
+
+**No seu PC Windows** (recomendado, uma vez):
+
+```powershell
+git config --global core.autocrlf false
+```
+
+Depois, se algum `.sh` já foi commitado com CRLF, renormalize:
+
+```powershell
+cd C:\Users\User\Documents\ERP_Acesso
+git add --renormalize deploy/scripts/*.sh
+git commit -m "Normalize shell scripts to LF"
+```
+
+**Na VM** (plano B — o `deploy-from-git.sh` já roda isso após cada pull):
+
+```bash
+sed -i 's/\r$//' /var/www/ERP-Acesso/deploy/scripts/*.sh
+chmod +x /var/www/ERP-Acesso/deploy/scripts/*.sh
+```
+
+### 2. Runner como serviço (`svc.sh`) — ciclo de vida
+
+O `install-github-runner.sh` chama `./svc.sh install jose` e `./svc.sh start`. Isso registra um **serviço systemd** que deve subir sozinho após reboot da VM.
+
+**Comandos do dia a dia** (na VM):
+
+```bash
+cd ~/actions-runner
+
+sudo ./svc.sh status    # deve mostrar active (running)
+sudo ./svc.sh start     # se estiver parado
+sudo ./svc.sh stop      # manutenção
+sudo ./svc.sh restart   # após atualizar o runner ou mudar config
+
+journalctl -u actions.runner.* -f   # logs em tempo real
+```
+
+**Após reiniciar a VM**, confira:
+
+```bash
+sudo ~/actions-runner/svc.sh status
+```
+
+Se estiver *inactive*, o job **Deploy** fica *Queued* no GitHub até o runner voltar.
+
+**Checklist pós-instalação:**
+
+| Verificação | Comando / onde olhar |
+|-------------|----------------------|
+| Serviço ativo | `sudo ~/actions-runner/svc.sh status` |
+| Runner online | GitHub → Actions → Runners → verde |
+| Sudo sem senha | `sudo -u jose sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh` |
+| Scripts LF + executáveis | `file deploy/scripts/atualizar.sh` → `ASCII text` (sem `CRLF`) |
+
+**Não** rode `config.sh` de novo sem necessidade (token expira em ~1h). Para reinstalar ou trocar de máquina, gere um token novo em GitHub → Runners → New self-hosted runner.
+
+---
+
 ## Passo 3 — Workflows no repositório
 
 Já incluídos:
@@ -141,8 +212,7 @@ git push origin main
 Na VM, deploy manual equivalente:
 
 ```bash
-cd /var/www/ERP-Acesso
-sudo bash deploy/scripts/deploy-from-git.sh
+sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 ```
 
 ---
@@ -169,6 +239,8 @@ sudo bash deploy/scripts/deploy-from-git.sh
 | Erro 500 após deploy | `sudo bash deploy/scripts/corrigir-500.sh` |
 | `Permission denied` em `storage/logs` ou `bootstrap/cache` no `composer install` | Rode `sudo bash deploy/scripts/corrigir-500.sh` e depois `sudo bash deploy/scripts/atualizar.sh` de novo; o usuário de deploy (`jose`) deve estar no grupo `www-data`: `sudo usermod -aG www-data jose` (faça logout/login) |
 | Tests falham, deploy não roda | Corrija testes antes; deploy só após CI verde |
+| `bad interpreter` / `$'\r': command not found` em `.sh` | Ver seção **Dicas de ouro → CRLF**; `git config --global core.autocrlf false` no Windows |
+| Runner parou após reboot da VM | `sudo ~/actions-runner/svc.sh start` e `svc.sh status` |
 
 ### VM não resolve `github.com` (DNS)
 
