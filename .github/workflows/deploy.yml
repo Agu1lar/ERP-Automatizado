@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Deploy (git pull + atualizar.sh)
-        run: sudo bash /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
+        run: sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 
       - name: Resumo
         if: success()

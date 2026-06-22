@@ -56,6 +56,7 @@ new class extends Component
         hoveredGroup: null,
         mobileGroup: null,
         flyoutTop: 0,
+        flyoutLeft: 256,
         closeTimer: null,
         isDesktop: window.matchMedia('(min-width: 1024px)').matches,
         init() {
@@ -71,15 +72,28 @@ new class extends Component
             }
             this.cancelClose();
             this.hoveredGroup = id;
-            const top = event.currentTarget.getBoundingClientRect().top;
+            const rect = event.currentTarget.getBoundingClientRect();
             const maxTop = window.innerHeight - 280;
-            this.flyoutTop = Math.max(56, Math.min(top, maxTop));
+            this.flyoutTop = Math.max(56, Math.min(rect.top, maxTop));
+            this.flyoutLeft = Math.round(rect.right);
+        },
+        toggleGroup(id, event) {
+            if (! this.isDesktop) {
+                this.mobileGroup = this.mobileGroup === id ? null : id;
+                return;
+            }
+            this.cancelClose();
+            if (this.hoveredGroup === id) {
+                this.hoveredGroup = null;
+                return;
+            }
+            this.showFlyout(id, event);
         },
         scheduleClose() {
             if (! this.isDesktop) {
                 return;
             }
-            this.closeTimer = setTimeout(() => { this.hoveredGroup = null; }, 120);
+            this.closeTimer = setTimeout(() => { this.hoveredGroup = null; }, 200);
         },
         cancelClose() {
             if (this.closeTimer) {

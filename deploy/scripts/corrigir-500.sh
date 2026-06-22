@@ -40,7 +40,7 @@ chown -R "${DEPLOY_USER}:www-data" "${APP_PATH}"
 find "${APP_PATH}" -type f ! -path '*/storage/*' ! -path '*/bootstrap/cache/*' -exec chmod 644 {} + 2>/dev/null || true
 find "${APP_PATH}" -type d ! -path '*/storage/*' ! -path '*/bootstrap/cache/*' -exec chmod 755 {} + 2>/dev/null || true
 mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cache
-chown -R www-data:www-data storage bootstrap/cache
+chown -R "${DEPLOY_USER}:www-data" storage bootstrap/cache
 chmod -R ug+rwx storage bootstrap/cache
 
 echo "[3/5] Limpando caches..."
@@ -56,7 +56,7 @@ sudo -u www-data php artisan package:discover --ansi
 sudo -u www-data php artisan config:cache
 sudo -u www-data php artisan route:cache
 sudo -u www-data php artisan event:cache
-chown -R www-data:www-data storage bootstrap/cache
+chown -R "${DEPLOY_USER}:www-data" storage bootstrap/cache
 chmod -R ug+rwx storage bootstrap/cache
 
 echo "[5/5] PHP-FPM..."

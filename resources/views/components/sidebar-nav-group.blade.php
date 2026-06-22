@@ -11,7 +11,7 @@
         type="button"
         @mouseenter="showFlyout('{{ $id }}', $event)"
         @mouseleave="scheduleClose()"
-        @click="if (!isDesktop) mobileGroup = mobileGroup === '{{ $id }}' ? null : '{{ $id }}'"
+        @click="toggleGroup('{{ $id }}', $event)"
         @class([
             'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide transition',
             'bg-indigo-50 text-indigo-700' => $active,
@@ -32,19 +32,29 @@
         </svg>
     </button>
 
-    <div
-        x-show="(isDesktop && hoveredGroup === '{{ $id }}') || mobileOpen('{{ $id }}', @json($active))"
-        x-cloak
-        :class="isDesktop
-            ? 'fixed z-[55] w-56 max-h-[min(70vh,24rem)] overflow-y-auto rounded-r-lg border border-gray-200 bg-white py-2 shadow-lg'
-            : 'mt-0.5 space-y-0.5 border-l-2 border-indigo-100 py-1 ps-2 ms-3 lg:!hidden'"
-        :style="isDesktop && hoveredGroup === '{{ $id }}' ? `top: ${flyoutTop}px; left: 16rem` : ''"
-        @mouseenter="isDesktop && (cancelClose(), hoveredGroup = '{{ $id }}')"
-        @mouseleave="isDesktop && scheduleClose()"
-    >
-        <p x-show="isDesktop" class="mb-1 border-b border-gray-100 px-3 pb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ $label }}</p>
-        <div :class="isDesktop ? 'space-y-0.5 px-2' : ''">
-            {{ $slot }}
+    {{-- Desktop: flyout no body (evita transform/overflow da sidebar bloquear cliques) --}}
+    <template x-teleport="body">
+        <div
+            x-show="isDesktop && hoveredGroup === '{{ $id }}'"
+            x-cloak
+            class="pointer-events-auto fixed z-[65] w-56 max-h-[min(70vh,24rem)] overflow-y-auto rounded-r-lg border border-gray-200 bg-white py-2 shadow-lg"
+            :style="`top: ${flyoutTop}px; left: ${flyoutLeft}px`"
+            @mouseenter="cancelClose(); hoveredGroup = '{{ $id }}'"
+            @mouseleave="scheduleClose()"
+        >
+            <p class="mb-1 border-b border-gray-100 px-3 pb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">{{ $label }}</p>
+            <div class="space-y-0.5 px-2">
+                {{ $slot }}
+            </div>
         </div>
+    </template>
+
+    {{-- Mobile: acordeão inline --}}
+    <div
+        x-show="mobileOpen('{{ $id }}', @json($active))"
+        x-cloak
+        class="mt-0.5 space-y-0.5 border-l-2 border-indigo-100 py-1 ps-2 ms-3 lg:hidden"
+    >
+        {{ $slot }}
     </div>
 </div>

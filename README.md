@@ -13,6 +13,9 @@ ERP interno para controle de frota, patrimônios, clientes, locação, manutenç
 | [docs/IA.md](docs/IA.md) | **Copiloto / IA** — personalidade, fluxos, modos, API, configuração |
 | [docs/AGENT_ARCHITECTURE.md](docs/AGENT_ARCHITECTURE.md) | Arquitetura técnica do agente (camadas, concorrência) |
 | [docs/PRODUCTION.md](docs/PRODUCTION.md) | Deploy, fila, cron, backup |
+| [deploy/CICD.md](deploy/CICD.md) | **CI/CD** — push no `main`, testes GitHub, deploy automático na VM |
+| [deploy/VIRTUALBOX.md](deploy/VIRTUALBOX.md) | VM Ubuntu + VirtualBox (rede, SSH, primeira instalação) |
+| [deploy/README.md](deploy/README.md) | Runbook de deploy — scripts, serviços, backup, troubleshooting |
 | [docs/TRANSICAO_FISCAL.md](docs/TRANSICAO_FISCAL.md) | Transição Sisloc → Omie/Bling |
 | `.env.example` | Variáveis (copiloto/LLM, Asaas, fiscal, exportação contábil, geocoding, CRM) |
 
@@ -165,6 +168,8 @@ php artisan test --configuration=phpunit.pgsql.xml
 
 **CI:** GitHub Actions roda os dois bancos em todo push para `main` (`.github/workflows/tests.yml`).
 
+**CD:** após testes verdes no `main`, um **runner self-hosted** na VM executa `deploy/scripts/deploy-from-git.sh` (git pull + `atualizar.sh`). Guia: [deploy/CICD.md](deploy/CICD.md).
+
 ### Testes de integração críticos
 
 | Arquivo | Cobertura |
@@ -193,9 +198,9 @@ Requer `php artisan schedule:run` a cada minuto (ver `docs/PRODUCTION.md`):
 
 ## Produção (P7)
 
-Runbook completo: **[docs/PRODUCTION.md](docs/PRODUCTION.md)**
+Runbook completo: **[docs/PRODUCTION.md](docs/PRODUCTION.md)** · deploy na VM: **[deploy/README.md](deploy/README.md)** · CI/CD: **[deploy/CICD.md](deploy/CICD.md)**
 
-- PostgreSQL, Supervisor (`deploy/supervisor/laravel-worker.conf`), cron, backup (`deploy/scripts/backup.sh`), deploy (`deploy/scripts/deploy.sh`)
+- PostgreSQL, Supervisor (`deploy/supervisor/erp-acesso-worker.conf`), cron, backup (`deploy/scripts/backup.sh`), atualização (`deploy/scripts/atualizar.sh`)
 - **Não subir em produção** sem fila supervisionada e backup automatizado
 
 ## Fase 2 — Frota e status (implementada)
@@ -759,7 +764,7 @@ Itens pequenos, discutidos e ainda **não implementados**, que complementam as f
 | 11.2 | **Relatório de inadimplência** | Aging (30/60/90 dias), por cliente | ✅ Implementada |
 | 11.3 | Baixa manual de pagamento | Data, forma, observação | ✅ Implementada |
 | 11.4 | **Fluxo de caixa previsto** | Entradas por vencimento de títulos | ✅ Implementada |
-| 11.5 | Contas a pagar básico | Fornecedores, oficina externa | Baixa |
+| 11.5 | Contas a pagar básico | Fornecedores, oficina externa | ✅ Implementada (`/financeiro/pagar`) |
 | 11.6 | Integração exportação contador | CSV + layouts **Omie** e **Sisloc** (sem NF-e) | ✅ Implementada |
 | 11.7 | Boleto / PIX (gateway) | Asaas, Gerencianet, etc. | Média |
 | 11.8 | Conciliação bancária simples | Importação OFX | Baixa |
@@ -770,18 +775,18 @@ Itens pequenos, discutidos e ainda **não implementados**, que complementam as f
 
 ---
 
-## Roadmap — Fase 12: Logística regional (BH e região)
+## Roadmap — Fase 12: Logística regional (BH e região) — parcialmente implementada
 
-**Objetivo:** suportar operação em múltiplas cidades da região metropolitana.
+Módulo **Logística** no menu: lista do dia, mapa de obras, frota de entrega, pátios (`/logistica/*`).
 
 | # | Funcionalidade | Descrição | Prioridade |
 |---|----------------|-----------|------------|
-| 12.1 | **Múltiplos pátios / filiais** | BH, Contagem, Betim etc. como cadastro (não só texto) | Crítica |
+| 12.1 | **Múltiplos pátios / filiais** | Cadastro de pátios | ✅ Implementada |
 | 12.2 | Patrimônio vinculado ao pátio de origem | Transferência entre pátios com histórico | Alta |
 | 12.3 | **Agenda de entrega e retirada** | Data/turno por locação | Crítica |
-| 12.4 | **Romaneio do dia** | Lista de entregas/retiradas por rota/motorista | Crítica |
+| 12.4 | **Romaneio do dia** | Lista do dia por rota/motorista | ✅ Implementada |
 | 12.5 | Cidade/bairro na obra | Filtro por região (BH, RMBH, interior MG) | Alta |
-| 12.6 | Motorista e veículo de entrega | Cadastro simples + vínculo ao romaneio | Média |
+| 12.6 | Motorista e veículo de entrega | Cadastro + vínculo ao romaneio | ✅ Implementada |
 | 12.7 | Comprovante de entrega/retirada | Foto + assinatura no celular | Alta |
 | 12.8 | Custo de frete na locação | Campo opcional no faturamento | Média |
 | 12.9 | Mapa ou lista geográfica | Visualização de obras ativas na região | Baixa |
@@ -832,15 +837,15 @@ Itens pequenos, discutidos e ainda **não implementados**, que complementam as f
 
 ---
 
-## Roadmap — Fase 15: CRM e relacionamento comercial
+## Roadmap — Fase 15: CRM e relacionamento comercial — parcialmente implementada
 
-**Objetivo:** comercial externo e retenção de clientes da construção civil regional.
+Módulo **CRM** no menu Comercial: pipeline, campanha de inativos, mensagens (`/crm/*`).
 
 | # | Funcionalidade | Descrição | Prioridade |
 |---|----------------|-----------|------------|
-| 15.1 | Pipeline de oportunidades | Lead → proposta → locação | Média |
+| 15.1 | Pipeline de oportunidades | Lead → proposta → locação | ✅ Implementada |
 | 15.2 | Histórico comercial ampliado | Último contato, próximo follow-up | Média |
-| 15.3 | Bloqueio por inadimplência | Automático ao gerar título vencido | Alta |
+| 15.3 | Bloqueio por inadimplência | Automático ao gerar título vencido | ✅ Implementada |
 | 15.4 | Consulta de crédito (Serasa/SPC) | Integração opcional | Baixa |
 | 15.5 | Campanhas / clientes inativos | Relatório “não loca há X meses” | Média |
 | 15.6 | Múltiplos contatos por cliente | Obras diferentes, engenheiro, financeiro | Média |
@@ -979,7 +984,7 @@ Marque quando todos estiverem concluídos:
 - [x] Copiloto operacional com auditoria
 - [x] Notificações automáticas (e-mail) de retorno atrasado, OS atrasada e preventiva — job `notifications:operational-alerts` às 07:45
 - [x] Runbook produção (PostgreSQL, fila, backup) — ver `docs/PRODUCTION.md`
-- [ ] Deploy efetivo em servidor com Supervisor + backup cron ativos ([docs/GO_LIVE.md](docs/GO_LIVE.md))
+- [ ] Deploy efetivo em servidor com Supervisor + backup cron ativos ([deploy/CICD.md](deploy/CICD.md) · [docs/GO_LIVE.md](docs/GO_LIVE.md))
 - [ ] Gateway Asaas em produção validado (PIX/boleto + webhook)
 - [ ] Fiscal: NF emitida no Omie/Bling após exportação (não no Gestão Acesso)
 - [x] Romaneio do dia e múltiplos pátios — implementados em Logística

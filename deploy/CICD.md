@@ -94,7 +94,16 @@ jose ALL=(ALL) NOPASSWD: /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 jose ALL=(ALL) NOPASSWD: /var/www/ERP-Acesso/deploy/scripts/atualizar.sh
 EOF
 sudo chmod 440 /etc/sudoers.d/erp-deploy
+sudo visudo -cf /etc/sudoers.d/erp-deploy   # validar sintaxe
 ```
+
+Teste (como `jose`, sem pedir senha):
+
+```bash
+sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
+```
+
+> **Não use** `sudo bash deploy/scripts/...` — o sudoers libera só o caminho do script executável.
 
 Verifique o runner em **GitHub → Actions → Runners** (deve aparecer `ServidorTecAcesso` com label `erp-acesso`).
 
@@ -153,11 +162,65 @@ sudo bash deploy/scripts/deploy-from-git.sh
 
 | Problema | Solução |
 |----------|---------|
+| `Could not resolve host: github.com` | Corrigir DNS na VM — seção abaixo |
 | Job Deploy fica *Queued* | Runner offline — `sudo /home/jose/actions-runner/svc.sh status` |
 | `git pull` falha na VM | Token/SSH — ver Passo 1 |
-| `sudo: a password is required` | Configurar `/etc/sudoers.d/erp-deploy` |
+| `sudo: a password is required` / `A terminal is required to authenticate` | Configurar `/etc/sudoers.d/erp-deploy` (ver Passo 2). O workflow usa `sudo /caminho/script.sh` — **não** `sudo bash script.sh` |
 | Erro 500 após deploy | `sudo bash deploy/scripts/corrigir-500.sh` |
+| `Permission denied` em `storage/logs` ou `bootstrap/cache` no `composer install` | Rode `sudo bash deploy/scripts/corrigir-500.sh` e depois `sudo bash deploy/scripts/atualizar.sh` de novo; o usuário de deploy (`jose`) deve estar no grupo `www-data`: `sudo usermod -aG www-data jose` (faça logout/login) |
 | Tests falham, deploy não roda | Corrija testes antes; deploy só após CI verde |
+
+### VM não resolve `github.com` (DNS)
+
+Sem DNS, **nada** que dependa do GitHub funciona na VM: `curl`, `git pull`, registro do runner.
+
+**1. Teste na VM:**
+
+```bash
+ping -c 2 8.8.8.8          # internet OK?
+ping -c 2 github.com       # DNS OK?
+cat /etc/resolv.conf
+```
+
+**2. Se `8.8.8.8` funciona mas `github.com` não** — configure DNS:
+
+```bash
+# Ubuntu (systemd-resolved)
+sudo mkdir -p /etc/systemd/resolved.conf.d
+sudo tee /etc/systemd/resolved.conf.d/dns.conf <<'EOF'
+[Resolve]
+DNS=8.8.8.8 1.1.1.1
+FallbackDNS=8.8.4.4
+EOF
+sudo systemctl restart systemd-resolved
+resolvectl status
+ping -c 2 github.com
+```
+
+**3. Se nada na internet funciona** — rede VirtualBox:
+
+- VM desligada → VirtualBox → Configurações → Rede → Adaptador 1
+- **Bridge** (recomendado): mesma rede do roteador (`192.168.5.x`)
+- Ou **NAT** + encaminhamento — ver `deploy/VIRTUALBOX.md`
+
+**4. Enviar o runner pelo PC** (só o `.tar.gz`; o `config.sh` ainda precisa de DNS):
+
+```powershell
+# No Windows (com internet)
+cd $env:USERPROFILE\Downloads
+curl.exe -L -o actions-runner-linux-x64-2.335.1.tar.gz `
+  https://github.com/actions/runner/releases/download/v2.335.1/actions-runner-linux-x64-2.335.1.tar.gz
+scp actions-runner-linux-x64-2.335.1.tar.gz jose@192.168.5.29:~/actions-runner/
+```
+
+Na VM, após DNS OK:
+
+```bash
+cd ~/actions-runner
+tar xzf actions-runner-linux-x64-2.335.1.tar.gz
+./config.sh --url https://github.com/Agu1lar/ERP-Automatizado --token TOKEN --name ServidorTecAcesso --labels erp-acesso
+sudo ./svc.sh install jose && sudo ./svc.sh start
+```
 
 Logs do runner:
 

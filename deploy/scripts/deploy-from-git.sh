@@ -28,7 +28,7 @@ if [ -d deploy/scripts ]; then
 fi
 
 echo "[2/3] Rodando atualizar.sh..."
-bash deploy/scripts/atualizar.sh
+"${APP_PATH}/deploy/scripts/atualizar.sh"
 
 echo "[3/3] Deploy concluído."
 echo "============================================"
