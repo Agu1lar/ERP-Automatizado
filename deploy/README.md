@@ -164,6 +164,7 @@ sudo chmod +x deploy/scripts/*.sh
 | Menu lateral não abre / links não clicam | `npm run build` na VM + `sudo bash deploy/scripts/atualizar.sh` |
 | Job Deploy *Queued* | Runner offline — `sudo ~/actions-runner/svc.sh status` → `start` |
 | `sudo: a password is required` / `A terminal is required to authenticate` | Criar `/etc/sudoers.d/erp-deploy` — ver [CICD.md](CICD.md). Usar `sudo /var/www/.../deploy-from-git.sh`, não `sudo bash ...` |
+| `Permission denied (os error 13)` no deploy | `sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh /var/www/ERP-Acesso/deploy/scripts/atualizar.sh` |
 | `bad interpreter` / `$'\r'` em scripts `.sh` | [CICD.md](CICD.md) — `core.autocrlf false` no Windows; repo já usa `.gitattributes` com `*.sh eol=lf` |
 | IP mudou (curl não responde) | `hostname -I` na VM; atualizar Nginx e `APP_URL` |
 

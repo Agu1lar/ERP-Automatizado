@@ -68,6 +68,10 @@ EOF
     chmod 440 "${SUDOERS_FILE}"
     visudo -cf "${SUDOERS_FILE}"
     echo "  OK: ${SUDOERS_FILE}"
+    if [ -d /var/www/ERP-Acesso/deploy/scripts ]; then
+        chmod +x /var/www/ERP-Acesso/deploy/scripts/*.sh 2>/dev/null || true
+        echo "  OK: deploy/scripts/*.sh executáveis"
+    fi
 else
     echo "AVISO: rode com sudo para criar ${SUDOERS_FILE} automaticamente."
 fi

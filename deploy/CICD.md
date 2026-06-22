@@ -100,10 +100,13 @@ sudo visudo -cf /etc/sudoers.d/erp-deploy   # validar sintaxe
 Teste (como `jose`, sem pedir senha):
 
 ```bash
-sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
+sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
+sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/atualizar.sh
+sudo -u jose sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 ```
 
-> **Não use** `sudo bash deploy/scripts/...` — o sudoers libera só o caminho do script executável.
+> **Não use** `sudo bash deploy/scripts/...` — o sudoers libera só o caminho do script executável.  
+> Se aparecer `Permission denied (os error 13)`, os scripts estão sem `+x`: rode os `chmod` acima (o repositório já versiona `*.sh` como executáveis).
 
 Verifique o runner em **GitHub → Actions → Runners** (deve aparecer `ServidorTecAcesso` com label `erp-acesso`).
 
@@ -174,7 +177,7 @@ Se estiver *inactive*, o job **Deploy** fica *Queued* no GitHub até o runner vo
 | Serviço ativo | `sudo ~/actions-runner/svc.sh status` |
 | Runner online | GitHub → Actions → Runners → verde |
 | Sudo sem senha | `sudo -u jose sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh` |
-| Scripts LF + executáveis | `file deploy/scripts/atualizar.sh` → `ASCII text` (sem `CRLF`) |
+| Scripts LF + executáveis | `file deploy/scripts/atualizar.sh` → `ASCII text` (sem `CRLF`); `ls -l deploy/scripts/deploy-from-git.sh` → `-rwxr-xr-x` |
 
 **Não** rode `config.sh` de novo sem necessidade (token expira em ~1h). Para reinstalar ou trocar de máquina, gere um token novo em GitHub → Runners → New self-hosted runner.
 
@@ -236,6 +239,7 @@ sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 | Job Deploy fica *Queued* | Runner offline — `sudo /home/jose/actions-runner/svc.sh status` |
 | `git pull` falha na VM | Token/SSH — ver Passo 1 |
 | `sudo: a password is required` / `A terminal is required to authenticate` | Configurar `/etc/sudoers.d/erp-deploy` (ver Passo 2). O workflow usa `sudo /caminho/script.sh` — **não** `sudo bash script.sh` |
+| `Permission denied (os error 13)` ao executar script | `sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh /var/www/ERP-Acesso/deploy/scripts/atualizar.sh` |
 | Erro 500 após deploy | `sudo bash deploy/scripts/corrigir-500.sh` |
 | `Permission denied` em `storage/logs` ou `bootstrap/cache` no `composer install` | Rode `sudo bash deploy/scripts/corrigir-500.sh` e depois `sudo bash deploy/scripts/atualizar.sh` de novo; o usuário de deploy (`jose`) deve estar no grupo `www-data`: `sudo usermod -aG www-data jose` (faça logout/login) |
 | Tests falham, deploy não roda | Corrija testes antes; deploy só após CI verde |
