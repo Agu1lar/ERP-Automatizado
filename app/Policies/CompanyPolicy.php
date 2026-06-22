@@ -4,9 +4,11 @@ namespace App\Policies;
 
 use App\Models\Domain\Person\Company;
 use App\Models\User;
+use App\Policies\Concerns\RestoresWhenDeleted;
 
 class CompanyPolicy
 {
+    use RestoresWhenDeleted;
     public function viewAny(User $user): bool
     {
         return $user->can('people.view');

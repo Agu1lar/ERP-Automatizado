@@ -11,7 +11,9 @@
                     </p>
                 </div>
                 @can('create', App\Models\Domain\Person\Company::class)
-                    <x-btn-primary wire:click="create">+ Nova empresa</x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">+ Nova empresa</x-btn-primary>
+                    @endunless
                 @endcan
             </div>
 
@@ -28,6 +30,7 @@
                         <option value="{{ $type->value }}">{{ $type->label() }}</option>
                     @endforeach
                 </select>
+                <x-archive-filter />
             </div>
 
             @if($showForm)
@@ -180,9 +183,14 @@
                                 <td class="px-4 py-3 text-gray-600">{{ $company->contactSummary() }}</td>
                                 <td class="px-4 py-3 text-gray-600">{{ $company->people_count }}</td>
                                 <td class="px-4 py-3 text-right">
-                                    @can('update', $company)
-                                        <button wire:click="edit({{ $company->id }})" class="text-indigo-600 hover:underline">Editar</button>
-                                    @endcan
+                                    <span class="inline-flex items-center gap-3">
+                                        @unless($showArchived)
+                                            @can('update', $company)
+                                                <button wire:click="edit({{ $company->id }})" class="text-indigo-600 hover:underline">Editar</button>
+                                            @endcan
+                                        @endunless
+                                        <x-archive-record-button :model="$company" />
+                                    </span>
                                 </td>
                             </tr>
                         @empty

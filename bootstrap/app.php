@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('notifications:operational-alerts')->dailyAt('07:45');
         $schedule->command('crm:follow-up-reminders')->dailyAt('08:00');
         $schedule->command('crm:process-outbound')->everyFiveMinutes();
+        $schedule->command('archive:purge')->dailyAt('03:30');
         $schedule->command('queue:prune-failed --hours=168')->weekly();
     })
     ->withMiddleware(function (Middleware $middleware): void {

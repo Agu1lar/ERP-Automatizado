@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Maintenance;
 
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Maintenance\PartCatalogItem;
 use App\Services\PartStockService;
 use Illuminate\Contracts\View\View;
@@ -13,7 +14,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class PartCatalogIndex extends Component
 {
-    use AuthorizesRequests, WithPagination;
+    use ArchivesRecords, AuthorizesRequests, WithPagination;
 
     public string $search = '';
 
@@ -117,7 +118,7 @@ class PartCatalogIndex extends Component
 
     public function render(): View
     {
-        $items = PartCatalogItem::query()
+        $items = $this->archivableQuery(PartCatalogItem::class)
             ->when($this->search, function ($query) {
                 $term = '%'.$this->search.'%';
                 $query->where(function ($q) use ($term) {

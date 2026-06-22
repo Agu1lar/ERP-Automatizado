@@ -6,10 +6,11 @@ use App\Models\Concerns\BelongsToOperatingCompany;
 use App\Models\Domain\Fleet\Asset;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Yard extends Model
 {
-    use BelongsToOperatingCompany;
+    use BelongsToOperatingCompany, SoftDeletes;
 
     protected $fillable = [
         'operating_company_id',

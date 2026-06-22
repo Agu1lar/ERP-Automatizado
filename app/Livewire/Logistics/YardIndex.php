@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Logistics;
 
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Logistics\Yard;
 use App\Support\ActiveOperatingCompany;
 use Illuminate\Contracts\View\View;
@@ -14,7 +15,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class YardIndex extends Component
 {
-    use AuthorizesRequests, WithPagination;
+    use ArchivesRecords, AuthorizesRequests, WithPagination;
 
     public string $search = '';
 
@@ -121,7 +122,7 @@ class YardIndex extends Component
     {
         $term = trim($this->search);
 
-        $yards = Yard::query()
+        $yards = $this->archivableQuery(Yard::class)
             ->withCount('assets')
             ->when($term !== '', function ($query) use ($term) {
                 $like = '%'.$term.'%';

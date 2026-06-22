@@ -4,9 +4,11 @@ namespace App\Policies;
 
 use App\Models\Domain\Maintenance\PreventiveMaintenanceRule;
 use App\Models\User;
+use App\Policies\Concerns\RestoresWhenDeleted;
 
 class PreventiveMaintenanceRulePolicy
 {
+    use RestoresWhenDeleted;
     public function viewAny(User $user): bool
     {
         return $user->can('maintenance.view');

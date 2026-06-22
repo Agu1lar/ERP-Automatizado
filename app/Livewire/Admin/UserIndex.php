@@ -3,6 +3,7 @@
 namespace App\Livewire\Admin;
 
 use App\Enums\UserRole;
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -16,7 +17,7 @@ use Spatie\Permission\Models\Role;
 #[Layout('layouts.app')]
 class UserIndex extends Component
 {
-    use AuthorizesRequests, WithPagination;
+    use ArchivesRecords, AuthorizesRequests, WithPagination;
 
     public string $search = '';
 
@@ -130,7 +131,7 @@ class UserIndex extends Component
 
     public function render(): View
     {
-        $users = User::query()
+        $users = $this->archivableQuery(User::class)
             ->with('roles')
             ->when($this->search, fn ($q) => $q->where(function ($q) {
                 $q->where('name', 'like', '%'.$this->search.'%')

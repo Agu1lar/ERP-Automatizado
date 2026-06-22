@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Maintenance;
 
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Fleet\EquipmentModel;
 use App\Models\Domain\Maintenance\PreventiveMaintenanceRule;
 use App\Services\PreventiveMaintenanceService;
@@ -14,7 +15,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class PreventiveRuleIndex extends Component
 {
-    use AuthorizesRequests, WithPagination;
+    use ArchivesRecords, AuthorizesRequests, WithPagination;
 
     public string $search = '';
 
@@ -100,7 +101,7 @@ class PreventiveRuleIndex extends Component
 
     public function render(): View
     {
-        $query = PreventiveMaintenanceRule::query()
+        $query = $this->archivableQuery(PreventiveMaintenanceRule::class)
             ->with('equipmentModel.category')
             ->when($this->search !== '', function ($q) {
                 $term = '%'.$this->search.'%';

@@ -12,7 +12,9 @@
                     </p>
                 </div>
                 @can('create', App\Models\Domain\Person\Person::class)
-                    <x-btn-primary wire:click="create">+ Nova pessoa</x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">+ Nova pessoa</x-btn-primary>
+                    @endunless
                 @endcan
             </div>
 
@@ -40,6 +42,7 @@
                     <option value="ativo">Ativos</option>
                     <option value="inativo">Inativos</option>
                 </select>
+                <x-archive-filter />
             </div>
 
             @if($showForm)
@@ -153,9 +156,14 @@
                                 </td>
                                 <td class="px-4 py-3">{{ $person->ativo ? 'Ativo' : 'Inativo' }}</td>
                                 <td class="px-4 py-3 text-right">
-                                    @can('update', $person)
-                                        <button wire:click="edit({{ $person->id }})" class="text-indigo-600 hover:underline">Editar</button>
-                                    @endcan
+                                    <span class="inline-flex items-center gap-3">
+                                        @unless($showArchived)
+                                            @can('update', $person)
+                                                <button wire:click="edit({{ $person->id }})" class="text-indigo-600 hover:underline">Editar</button>
+                                            @endcan
+                                        @endunless
+                                        <x-archive-record-button :model="$person" />
+                                    </span>
                                 </td>
                             </tr>
                         @empty

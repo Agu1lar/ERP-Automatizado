@@ -6,11 +6,16 @@
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-semibold text-gray-800">Clientes</h2>
                 @can('create', App\Models\Domain\Customer\Customer::class)
-                    <x-btn-primary wire:click="create">+ Novo cliente</x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">+ Novo cliente</x-btn-primary>
+                    @endunless
                 @endcan
             </div>
 
-            <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar nome ou CPF/CNPJ..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
+            <div class="flex flex-wrap items-center gap-3">
+                <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar nome ou CPF/CNPJ..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
+                <x-archive-filter />
+            </div>
 
             @if($showForm)
                 <div class="bg-white rounded-lg shadow p-6">
@@ -112,9 +117,14 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    @can('update', $customer)
-                                        <button wire:click="edit({{ $customer->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
-                                    @endcan
+                                    <span class="inline-flex items-center gap-3">
+                                        @unless($showArchived)
+                                            @can('update', $customer)
+                                                <button wire:click="edit({{ $customer->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
+                                            @endcan
+                                        @endunless
+                                        <x-archive-record-button :model="$customer" />
+                                    </span>
                                 </td>
                             </tr>
                         @endforeach

@@ -10,7 +10,9 @@
                     <p class="text-sm text-gray-500">Defina intervalos por tipo de equipamento (modelo). Aplicam-se a todos os patrimônios daquele modelo.</p>
                 </div>
                 @can('create', App\Models\Domain\Maintenance\PreventiveMaintenanceRule::class)
-                    <x-btn-primary wire:click="create">+ Nova regra</x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">+ Nova regra</x-btn-primary>
+                    @endunless
                 @endcan
             </div>
 
@@ -34,7 +36,10 @@
                 </div>
             </div>
 
-            <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar modelo ou descrição..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
+            <div class="flex flex-wrap items-center gap-3">
+                <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar modelo ou descrição..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
+                <x-archive-filter />
+            </div>
 
             @if($showForm)
                 @can('create', App\Models\Domain\Maintenance\PreventiveMaintenanceRule::class)
@@ -104,9 +109,14 @@
                                     ])>{{ $rule->ativo ? 'Ativa' : 'Inativa' }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    @can('update', $rule)
-                                        <button wire:click="edit({{ $rule->id }})" class="text-indigo-600 hover:underline">Editar</button>
-                                    @endcan
+                                    <span class="inline-flex items-center gap-3">
+                                        @unless($showArchived)
+                                            @can('update', $rule)
+                                                <button wire:click="edit({{ $rule->id }})" class="text-indigo-600 hover:underline">Editar</button>
+                                            @endcan
+                                        @endunless
+                                        <x-archive-record-button :model="$rule" />
+                                    </span>
                                 </td>
                             </tr>
                         @empty

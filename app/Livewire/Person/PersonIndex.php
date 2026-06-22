@@ -3,6 +3,7 @@
 namespace App\Livewire\Person;
 
 use App\Enums\CompanyType;
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Person\Company;
 use App\Models\Domain\Person\Person;
 use App\Rules\ValidCpf;
@@ -15,7 +16,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class PersonIndex extends Component
 {
-    use AuthorizesRequests, WithPagination;
+    use ArchivesRecords, AuthorizesRequests, WithPagination;
 
     public string $search = '';
 
@@ -160,7 +161,7 @@ class PersonIndex extends Component
 
     public function render(): View
     {
-        $people = Person::query()
+        $people = $this->archivableQuery(Person::class)
             ->with('company')
             ->when($this->search, fn ($query) => $query->search($this->search))
             ->when($this->companyFilter, fn ($query) => $query->where('company_id', $this->companyFilter))

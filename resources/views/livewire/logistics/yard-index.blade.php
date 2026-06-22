@@ -9,11 +9,16 @@
                     <x-help-hint text="Cadastro de pátios de origem dos patrimônios (ex.: BH principal, Contagem, Betim). Usado na logística e na ficha do equipamento." />
                 </h2>
                 @can('create', App\Models\Domain\Logistics\Yard::class)
-                    <x-btn-primary wire:click="create">+ Novo pátio</x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">+ Novo pátio</x-btn-primary>
+                    @endunless
                 @endcan
             </div>
 
-            <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar pátio..." class="w-full max-w-md rounded-md border-gray-300 shadow-sm" />
+            <div class="flex flex-wrap items-center gap-3">
+                <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar pátio..." class="w-full max-w-md rounded-md border-gray-300 shadow-sm" />
+                <x-archive-filter />
+            </div>
 
             @if($showForm)
                 <div class="bg-white rounded-lg shadow p-6">
@@ -80,9 +85,14 @@
                                     <span class="{{ $yard->ativo ? 'text-green-600' : 'text-gray-400' }}">{{ $yard->ativo ? 'Ativo' : 'Inativo' }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    @can('update', $yard)
-                                        <button wire:click="edit({{ $yard->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
-                                    @endcan
+                                    <span class="inline-flex items-center gap-3">
+                                        @unless($showArchived)
+                                            @can('update', $yard)
+                                                <button wire:click="edit({{ $yard->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
+                                            @endcan
+                                        @endunless
+                                        <x-archive-record-button :model="$yard" />
+                                    </span>
                                 </td>
                             </tr>
                         @empty

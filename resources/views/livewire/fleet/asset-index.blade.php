@@ -6,11 +6,13 @@
             <div class="flex flex-wrap justify-between items-center gap-4">
                 <h2 class="text-xl font-semibold text-gray-800">Patrimônios</h2>
                 @can('create', App\Models\Domain\Fleet\Asset::class)
-                    <x-btn-primary wire:click="create">+ Novo patrimônio</x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">+ Novo patrimônio</x-btn-primary>
+                    @endunless
                 @endcan
             </div>
 
-            <div class="flex flex-wrap gap-4">
+            <div class="flex flex-wrap gap-4 items-center">
                 <input wire:model.live.debounce.300ms="search" type="search" placeholder="Código, série, marca..." class="rounded-md border-gray-300 shadow-sm" />
                 <select wire:model.live="statusFilter" class="rounded-md border-gray-300 shadow-sm">
                     <option value="">Todos status</option>
@@ -24,6 +26,7 @@
                         <option value="{{ $cat->id }}">{{ $cat->nome }}</option>
                     @endforeach
                 </select>
+                <x-archive-filter />
             </div>
 
             @if($showForm)
@@ -119,10 +122,13 @@
                                 </td>
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $asset->localizacao ?? '—' }}</td>
                                 <td class="px-4 py-3 text-right space-x-2">
-                                    <a href="{{ route('assets.show', $asset) }}" wire:navigate class="text-indigo-600 text-sm hover:underline">Ficha</a>
-                                    @can('update', $asset)
-                                        <button wire:click="edit({{ $asset->id }})" class="text-gray-600 text-sm hover:underline">Editar</button>
-                                    @endcan
+                                    @unless($showArchived)
+                                        <a href="{{ route('assets.show', $asset) }}" wire:navigate class="text-indigo-600 text-sm hover:underline">Ficha</a>
+                                        @can('update', $asset)
+                                            <button wire:click="edit({{ $asset->id }})" class="text-gray-600 text-sm hover:underline">Editar</button>
+                                        @endcan
+                                    @endunless
+                                    <x-archive-record-button :model="$asset" />
                                 </td>
                             </tr>
                         @endforeach

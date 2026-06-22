@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Fleet;
 
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Fleet\EquipmentCategory;
 use App\Models\Domain\Fleet\EquipmentModel;
 use App\Support\TextSearch;
@@ -14,7 +15,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class ModelIndex extends Component
 {
-    use AuthorizesRequests, WithPagination;
+    use ArchivesRecords, AuthorizesRequests, WithPagination;
 
     public string $search = '';
 
@@ -199,7 +200,7 @@ class ModelIndex extends Component
 
     public function render(): View
     {
-        $query = EquipmentModel::query()
+        $query = $this->archivableQuery(EquipmentModel::class)
             ->with('category')
             ->when($this->categoryFilter, fn ($q) => $q->where('equipment_category_id', $this->categoryFilter))
             ->orderBy('marca')

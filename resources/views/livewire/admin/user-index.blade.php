@@ -6,11 +6,16 @@
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-semibold text-gray-800">Usuários</h2>
                 @can('create', App\Models\User::class)
-                    <x-btn-primary wire:click="create">+ Novo usuário</x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">+ Novo usuário</x-btn-primary>
+                    @endunless
                 @endcan
             </div>
 
-            <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
+            <div class="flex flex-wrap items-center gap-3">
+                <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
+                <x-archive-filter />
+            </div>
 
             @if($showForm)
                 <div class="bg-white rounded-lg shadow p-6">
@@ -71,9 +76,14 @@
                                 <td class="px-4 py-3 text-sm">{{ $user->roles->first()?->name ? \App\Enums\UserRole::from($user->roles->first()->name)->label() : '—' }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $user->ultimo_login?->format('d/m/Y H:i') ?? '—' }}</td>
                                 <td class="px-4 py-3 text-right">
-                                    @can('update', $user)
-                                        <button wire:click="edit({{ $user->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
-                                    @endcan
+                                    <span class="inline-flex items-center gap-3">
+                                        @unless($showArchived)
+                                            @can('update', $user)
+                                                <button wire:click="edit({{ $user->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
+                                            @endcan
+                                        @endunless
+                                        <x-archive-record-button :model="$user" />
+                                    </span>
                                 </td>
                             </tr>
                         @endforeach

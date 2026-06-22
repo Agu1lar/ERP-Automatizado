@@ -9,13 +9,15 @@
                     <x-help-hint text="Cadastre modelos vinculados a uma categoria. Você pode copiar um modelo existente ou digitar marca e modelo novos manualmente." />
                 </h2>
                 @can('create', App\Models\Domain\Fleet\EquipmentModel::class)
-                    <x-btn-primary wire:click="create">
-                        + Novo modelo
-                        <x-help-hint text="Abre o formulário para cadastrar marca e modelo. Use 'Copiar de modelo existente' para preencher automaticamente ou digite valores novos." class="ml-2" />
-                    </x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">
+                            + Novo modelo
+                            <x-help-hint text="Abre o formulário para cadastrar marca e modelo. Use 'Copiar de modelo existente' para preencher automaticamente ou digite valores novos." class="ml-2" />
+                        </x-btn-primary>
+                    @endunless
                 @endcan
             </div>
-            <div class="flex flex-wrap gap-4">
+            <div class="flex flex-wrap gap-4 items-center">
                 <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar marca ou modelo..." class="rounded-md border-gray-300 shadow-sm" />
                 <select wire:model.live="categoryFilter" class="rounded-md border-gray-300 shadow-sm">
                     <option value="">Todas categorias</option>
@@ -23,6 +25,7 @@
                         <option value="{{ $cat->id }}">{{ $cat->nome }}</option>
                     @endforeach
                 </select>
+                <x-archive-filter />
             </div>
 
             @if($showForm)
@@ -130,9 +133,14 @@
                                 <td class="px-4 py-3 text-sm text-gray-500">{{ $model->category->nome }}</td>
                                 <td class="px-4 py-3 text-sm">{{ $model->ativo ? 'Ativo' : 'Inativo' }}</td>
                                 <td class="px-4 py-3 text-right">
-                                    @can('update', $model)
-                                        <button wire:click="edit({{ $model->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
-                                    @endcan
+                                    <span class="inline-flex items-center gap-3">
+                                        @unless($showArchived)
+                                            @can('update', $model)
+                                                <button wire:click="edit({{ $model->id }})" class="text-indigo-600 text-sm hover:underline">Editar</button>
+                                            @endcan
+                                        @endunless
+                                        <x-archive-record-button :model="$model" />
+                                    </span>
                                 </td>
                             </tr>
                         @endforeach

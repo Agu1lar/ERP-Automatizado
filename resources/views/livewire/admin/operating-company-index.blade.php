@@ -3,11 +3,14 @@
 <div>
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div>
-                <h2 class="text-xl font-semibold text-gray-800">Empresas operacionais</h2>
-                <p class="text-sm text-gray-500 mt-1">
-                    Dados de cada CNPJ usados em contratos, PDFs e exportações. O sistema {{ config('app.name') }} agrupa as duas empresas.
-                </p>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-800">Empresas operacionais</h2>
+                    <p class="text-sm text-gray-500 mt-1">
+                        Dados de cada CNPJ usados em contratos, PDFs e exportações. O sistema {{ config('app.name') }} agrupa as duas empresas.
+                    </p>
+                </div>
+                <x-archive-filter />
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -41,13 +44,18 @@
                         </dl>
 
                         @if($editingId !== $company->id)
-                            <button
-                                type="button"
-                                wire:click="edit({{ $company->id }})"
-                                class="mt-4 text-sm text-indigo-600 hover:underline font-medium"
-                            >
-                                Editar dados e logo
-                            </button>
+                            <div class="mt-4 flex flex-wrap items-center gap-4">
+                                @unless($showArchived)
+                                    <button
+                                        type="button"
+                                        wire:click="edit({{ $company->id }})"
+                                        class="text-sm text-indigo-600 hover:underline font-medium"
+                                    >
+                                        Editar dados e logo
+                                    </button>
+                                @endunless
+                                <x-archive-record-button :model="$company" />
+                            </div>
                         @endif
                     </div>
                 @endforeach

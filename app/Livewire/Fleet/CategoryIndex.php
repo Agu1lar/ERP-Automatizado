@@ -3,6 +3,7 @@
 namespace App\Livewire\Fleet;
 
 use App\Enums\AssetStatus;
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Fleet\Asset;
 use App\Models\Domain\Fleet\EquipmentCategory;
 use App\Support\CategoryAssetBoard;
@@ -16,7 +17,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class CategoryIndex extends Component
 {
-    use AuthorizesRequests, WithPagination;
+    use ArchivesRecords, AuthorizesRequests, WithPagination;
 
     public string $search = '';
 
@@ -140,7 +141,7 @@ class CategoryIndex extends Component
 
     public function render(): View
     {
-        $categories = EquipmentCategory::query()
+        $categories = $this->archivableQuery(EquipmentCategory::class)
             ->when($this->search, fn ($q) => $q->where('nome', 'like', '%'.$this->search.'%'))
             ->withCount('models')
             ->orderBy('nome')

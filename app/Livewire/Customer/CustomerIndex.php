@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Customer;
 
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Customer\Customer;
 use App\Rules\ValidCpfCnpj;
 use Illuminate\Contracts\View\View;
@@ -13,7 +14,7 @@ use Livewire\WithPagination;
 #[Layout('layouts.app')]
 class CustomerIndex extends Component
 {
-    use AuthorizesRequests, WithPagination;
+    use ArchivesRecords, AuthorizesRequests, WithPagination;
 
     public string $search = '';
 
@@ -138,7 +139,7 @@ class CustomerIndex extends Component
 
     public function render(): View
     {
-        $customers = Customer::query()
+        $customers = $this->archivableQuery(Customer::class)
             ->when($this->search, fn ($q) => $q->where(function ($q) {
                 $q->where('nome', 'like', '%'.$this->search.'%')
                     ->orWhere('cpf_cnpj', 'like', '%'.preg_replace('/\D/', '', $this->search).'%');

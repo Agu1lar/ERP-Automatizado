@@ -12,12 +12,17 @@
                 @if($canManage)
                     <div class="flex gap-2">
                         <a href="{{ route('maintenance.purchase-orders.index') }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Pedidos de compra</a>
-                        <x-btn-primary wire:click="create">+ Nova peça</x-btn-primary>
+                        @unless($showArchived)
+                            <x-btn-primary wire:click="create">+ Nova peça</x-btn-primary>
+                        @endunless
                     </div>
                 @endif
             </div>
 
-            <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar código ou descrição..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
+            <div class="flex flex-wrap items-center gap-3">
+                <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar código ou descrição..." class="rounded-md border-gray-300 shadow-sm max-w-md" />
+                <x-archive-filter />
+            </div>
 
             @if($showForm && $canManage)
                 <div class="bg-white rounded-lg shadow p-6 max-w-2xl">
@@ -86,8 +91,11 @@
                                 </td>
                                 <td class="px-4 py-3">{{ $item->ativo ? 'Ativo' : 'Inativo' }}</td>
                                 @if($canManage)
-                                    <td class="px-4 py-3 text-right">
-                                        <button wire:click="edit({{ $item->id }})" class="text-indigo-600 hover:underline text-xs">Editar</button>
+                                    <td class="px-4 py-3 text-right space-x-3">
+                                        @unless($showArchived)
+                                            <button wire:click="edit({{ $item->id }})" class="text-indigo-600 hover:underline text-xs">Editar</button>
+                                        @endunless
+                                        <x-archive-record-button :model="$item" />
                                     </td>
                                 @endif
                             </tr>

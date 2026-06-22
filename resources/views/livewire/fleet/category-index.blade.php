@@ -9,13 +9,18 @@
                     <x-help-hint text="Agrupe equipamentos por tipo (ex.: Marteletes, Betoneiras). Cada patrimônio pertence a um modelo, e cada modelo a uma categoria." />
                 </h2>
                 @can('create', App\Models\Domain\Fleet\EquipmentCategory::class)
-                    <x-btn-primary wire:click="create">
-                        + Nova categoria
-                        <x-help-hint text="Crie um grupo para organizar modelos e patrimônios. O tipo de linha costuma ser 'linha_leve' neste sistema." class="ml-2" />
-                    </x-btn-primary>
+                    @unless($showArchived)
+                        <x-btn-primary wire:click="create">
+                            + Nova categoria
+                            <x-help-hint text="Crie um grupo para organizar modelos e patrimônios. O tipo de linha costuma ser 'linha_leve' neste sistema." class="ml-2" />
+                        </x-btn-primary>
+                    @endunless
                 @endcan
             </div>
-            <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar categoria..." class="w-full max-w-md rounded-md border-gray-300 shadow-sm" />
+            <div class="flex flex-wrap items-center gap-3">
+                <input wire:model.live.debounce.300ms="search" type="search" placeholder="Buscar categoria..." class="w-full max-w-md rounded-md border-gray-300 shadow-sm" />
+                <x-archive-filter />
+            </div>
 
             @if($showForm)
                 <div class="bg-white rounded-lg shadow p-6">
@@ -79,10 +84,13 @@
                                     <span class="{{ $category->ativo ? 'text-green-600' : 'text-gray-400' }}">{{ $category->ativo ? 'Ativo' : 'Inativo' }}</span>
                                 </td>
                                 <td class="px-4 py-3 text-right space-x-3">
-                                    <a href="{{ route('fleet.categories.show', $category) }}" wire:navigate data-tab-title="{{ $category->nome }}" class="text-indigo-600 text-sm hover:underline">Ver patrimônios</a>
-                                    @can('update', $category)
-                                        <button wire:click="edit({{ $category->id }})" class="text-gray-600 text-sm hover:underline">Editar</button>
-                                    @endcan
+                                    @unless($showArchived)
+                                        <a href="{{ route('fleet.categories.show', $category) }}" wire:navigate data-tab-title="{{ $category->nome }}" class="text-indigo-600 text-sm hover:underline">Ver patrimônios</a>
+                                        @can('update', $category)
+                                            <button wire:click="edit({{ $category->id }})" class="text-gray-600 text-sm hover:underline">Editar</button>
+                                        @endcan
+                                    @endunless
+                                    <x-archive-record-button :model="$category" />
                                 </td>
                             </tr>
                         @endforeach

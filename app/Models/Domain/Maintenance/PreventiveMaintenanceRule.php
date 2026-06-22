@@ -10,10 +10,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PreventiveMaintenanceRule extends Model
 {
-    use BelongsToOperatingCompany;
+    use BelongsToOperatingCompany, SoftDeletes;
 
     protected $fillable = [
         'operating_company_id',

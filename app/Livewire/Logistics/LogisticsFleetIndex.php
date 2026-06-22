@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Logistics;
 
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Logistics\DeliveryDriver;
 use App\Models\Domain\Logistics\DeliveryVehicle;
 use Illuminate\Contracts\View\View;
@@ -12,7 +13,7 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class LogisticsFleetIndex extends Component
 {
-    use AuthorizesRequests;
+    use ArchivesRecords, AuthorizesRequests;
 
     public string $tab = 'motoristas';
 
@@ -144,11 +145,24 @@ class LogisticsFleetIndex extends Component
     public function render(): View
     {
         return view('livewire.logistics.logistics-fleet-index', [
-            'drivers' => DeliveryDriver::query()->orderBy('nome')->get(),
-            'vehicles' => DeliveryVehicle::query()->orderBy('placa')->get(),
+            'drivers' => $this->archivableQuery(DeliveryDriver::class)->orderBy('nome')->get(),
+            'vehicles' => $this->archivableQuery(DeliveryVehicle::class)->orderBy('placa')->get(),
             'canManageDrivers' => auth()->user()->can('create', DeliveryDriver::class),
             'canManageVehicles' => auth()->user()->can('create', DeliveryVehicle::class),
         ]);
+    }
+
+    protected function afterArchiveRecord(\Illuminate\Database\Eloquent\Model $record): void
+    {
+        if ($record instanceof DeliveryDriver && $this->editingDriverId === $record->getKey()) {
+            $this->resetDriverForm();
+        }
+
+        if ($record instanceof DeliveryVehicle && $this->editingVehicleId === $record->getKey()) {
+            $this->resetVehicleForm();
+        }
+
+        parent::afterArchiveRecord($record);
     }
 
     private function resetDriverForm(): void

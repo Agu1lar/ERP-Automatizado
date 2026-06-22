@@ -4,9 +4,11 @@ namespace App\Policies;
 
 use App\Models\Domain\Logistics\Yard;
 use App\Models\User;
+use App\Policies\Concerns\RestoresWhenDeleted;
 
 class YardPolicy
 {
+    use RestoresWhenDeleted;
     public function viewAny(User $user): bool
     {
         return $user->can('fleet.assets.view');

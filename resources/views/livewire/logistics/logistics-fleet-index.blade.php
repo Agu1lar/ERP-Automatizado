@@ -9,15 +9,20 @@
                 <p class="text-sm text-gray-500">Cadastro usado nos romaneios da frota própria.</p>
             </div>
 
-            <div class="flex gap-2 border-b border-gray-200 pb-1">
+            <div class="flex flex-wrap gap-2 border-b border-gray-200 pb-1 items-center justify-between">
+                <div class="flex gap-2">
                 <button type="button" wire:click="$set('tab', 'motoristas')" @class(['px-4 py-2 text-sm font-medium border-b-2 -mb-px', 'border-indigo-600 text-indigo-700' => $tab === 'motoristas', 'border-transparent text-gray-500' => $tab !== 'motoristas'])>Motoristas</button>
                 <button type="button" wire:click="$set('tab', 'veiculos')" @class(['px-4 py-2 text-sm font-medium border-b-2 -mb-px', 'border-indigo-600 text-indigo-700' => $tab === 'veiculos', 'border-transparent text-gray-500' => $tab !== 'veiculos'])>Veículos</button>
+                </div>
+                <x-archive-filter />
             </div>
 
             @if($tab === 'motoristas')
                 @if($canManageDrivers)
                     <div class="flex justify-end">
-                        <x-btn-primary wire:click="createDriver">+ Motorista</x-btn-primary>
+                        @unless($showArchived)
+                            <x-btn-primary wire:click="createDriver">+ Motorista</x-btn-primary>
+                        @endunless
                     </div>
                 @endif
 
@@ -44,7 +49,12 @@
                                     <td class="px-4 py-3">{{ $driver->cnh ?? '—' }}</td>
                                     <td class="px-4 py-3">{{ $driver->telefone ?? '—' }}</td>
                                     <td class="px-4 py-3">{{ $driver->ativo ? 'Ativo' : 'Inativo' }}</td>
-                                    @if($canManageDrivers)<td class="px-4 py-3 text-right"><button wire:click="editDriver({{ $driver->id }})" class="text-indigo-600 text-xs hover:underline">Editar</button></td>@endif
+                                    @if($canManageDrivers)<td class="px-4 py-3 text-right space-x-3">
+                                        @unless($showArchived)
+                                            <button wire:click="editDriver({{ $driver->id }})" class="text-indigo-600 text-xs hover:underline">Editar</button>
+                                        @endunless
+                                        <x-archive-record-button :model="$driver" />
+                                    </td>@endif
                                 </tr>
                             @empty
                                 <tr><td colspan="{{ $canManageDrivers ? 5 : 4 }}" class="px-4 py-8 text-center text-gray-500">Nenhum motorista cadastrado.</td></tr>
@@ -57,7 +67,9 @@
             @if($tab === 'veiculos')
                 @if($canManageVehicles)
                     <div class="flex justify-end">
-                        <x-btn-primary wire:click="createVehicle">+ Veículo</x-btn-primary>
+                        @unless($showArchived)
+                            <x-btn-primary wire:click="createVehicle">+ Veículo</x-btn-primary>
+                        @endunless
                     </div>
                 @endif
 
@@ -83,7 +95,12 @@
                                     <td class="px-4 py-3 font-medium">{{ $vehicle->placa }}</td>
                                     <td class="px-4 py-3">{{ $vehicle->descricao }}</td>
                                     <td class="px-4 py-3">{{ $vehicle->ativo ? 'Ativo' : 'Inativo' }}</td>
-                                    @if($canManageVehicles)<td class="px-4 py-3 text-right"><button wire:click="editVehicle({{ $vehicle->id }})" class="text-indigo-600 text-xs hover:underline">Editar</button></td>@endif
+                                    @if($canManageVehicles)<td class="px-4 py-3 text-right space-x-3">
+                                        @unless($showArchived)
+                                            <button wire:click="editVehicle({{ $vehicle->id }})" class="text-indigo-600 text-xs hover:underline">Editar</button>
+                                        @endunless
+                                        <x-archive-record-button :model="$vehicle" />
+                                    </td>@endif
                                 </tr>
                             @empty
                                 <tr><td colspan="{{ $canManageVehicles ? 4 : 3 }}" class="px-4 py-8 text-center text-gray-500">Nenhum veículo cadastrado.</td></tr>

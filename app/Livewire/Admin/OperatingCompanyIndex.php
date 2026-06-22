@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Livewire\Concerns\ArchivesRecords;
 use App\Models\Domain\Organization\OperatingCompany;
 use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -12,7 +13,7 @@ use Livewire\WithFileUploads;
 #[Layout('layouts.app')]
 class OperatingCompanyIndex extends Component
 {
-    use AuthorizesRequests, WithFileUploads;
+    use ArchivesRecords, AuthorizesRequests, WithFileUploads;
 
     public ?int $editingId = null;
 
@@ -114,7 +115,7 @@ class OperatingCompanyIndex extends Component
     public function render(): View
     {
         return view('livewire.admin.operating-company-index', [
-            'companies' => OperatingCompany::query()->orderBy('id')->get(),
+            'companies' => $this->archivableQuery(OperatingCompany::class)->orderBy('id')->get(),
         ]);
     }
 }
