@@ -22,13 +22,15 @@ echo "[1/3] Atualizando código (git)..."
 git fetch origin "${BRANCH}"
 git reset --hard "origin/${BRANCH}"
 
+git config core.hooksPath deploy/git-hooks 2>/dev/null || true
+
 if [ -d deploy/scripts ]; then
-    sed -i 's/\r$//' deploy/scripts/*.sh 2>/dev/null || true
-    chmod +x deploy/scripts/*.sh 2>/dev/null || true
+    sed -i 's/\r$//' deploy/scripts/*.sh deploy/git-hooks/* 2>/dev/null || true
+    chmod +x deploy/scripts/*.sh deploy/git-hooks/* 2>/dev/null || true
 fi
 
 echo "[2/3] Rodando atualizar.sh..."
-"${APP_PATH}/deploy/scripts/atualizar.sh"
+bash "${APP_PATH}/deploy/scripts/atualizar.sh"
 
 echo "[3/3] Deploy concluído."
 echo "============================================"

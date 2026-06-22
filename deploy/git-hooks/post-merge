@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Após git pull/merge na VM: mantém scripts executáveis e sem CRLF
+root="$(git rev-parse --show-toplevel)"
+if [ -d "${root}/deploy/scripts" ]; then
+    sed -i 's/\r$//' "${root}"/deploy/scripts/*.sh 2>/dev/null || true
+    chmod +x "${root}"/deploy/scripts/*.sh 2>/dev/null || true
+fi

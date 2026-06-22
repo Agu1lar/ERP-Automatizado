@@ -27,7 +27,7 @@ Guia completo (runner, sudoers, DNS, troubleshooting): **[CICD.md](CICD.md)**
 Deploy manual na VM (equivalente ao automático):
 
 ```bash
-cd /var/www/ERP-Acesso && sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
+cd /var/www/ERP-Acesso && sudo bash /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 ```
 
 ## Primeira instalação (uma vez)
@@ -163,8 +163,8 @@ sudo chmod +x deploy/scripts/*.sh
 | `Permission denied` em `storage/` ou `bootstrap/cache` | Ver [CICD.md](CICD.md) — permissões antes do composer |
 | Menu lateral não abre / links não clicam | `npm run build` na VM + `sudo bash deploy/scripts/atualizar.sh` |
 | Job Deploy *Queued* | Runner offline — `cd /home/jose/actions-runner && sudo ./svc.sh status` → `start` |
-| `sudo: a password is required` / `A terminal is required to authenticate` | Criar `/etc/sudoers.d/erp-deploy` — ver [CICD.md](CICD.md). Usar `sudo /var/www/.../deploy-from-git.sh`, não `sudo bash ...` |
-| `Permission denied (os error 13)` no deploy | `sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh /var/www/ERP-Acesso/deploy/scripts/atualizar.sh` |
+| `sudo: a password is required` / `A terminal is required to authenticate` | Atualizar `/etc/sudoers.d/erp-deploy` — ver [CICD.md](CICD.md) (`/usr/bin/bash` + caminho do script) |
+| `Permission denied (os error 13)` no deploy | `sudo bash /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh` — não precisa de `chmod +x` |
 | `bad interpreter` / `$'\r'` em scripts `.sh` | [CICD.md](CICD.md) — `core.autocrlf false` no Windows; repo já usa `.gitattributes` com `*.sh eol=lf` |
 | IP mudou (curl não responde) | `hostname -I` na VM; atualizar Nginx e `APP_URL` |
 

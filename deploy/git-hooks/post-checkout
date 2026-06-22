@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Após git checkout/reset na VM
+root="$(git rev-parse --show-toplevel)"
+if [ -d "${root}/deploy/scripts" ]; then
+    sed -i 's/\r$//' "${root}"/deploy/scripts/*.sh 2>/dev/null || true
+    chmod +x "${root}"/deploy/scripts/*.sh 2>/dev/null || true
+fi
