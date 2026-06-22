@@ -152,7 +152,7 @@ O `install-github-runner.sh` chama `./svc.sh install jose` e `./svc.sh start`. I
 **Comandos do dia a dia** (na VM):
 
 ```bash
-cd ~/actions-runner
+cd /home/jose/actions-runner
 
 sudo ./svc.sh status    # deve mostrar active (running)
 sudo ./svc.sh start     # se estiver parado
@@ -162,10 +162,13 @@ sudo ./svc.sh restart   # após atualizar o runner ou mudar config
 journalctl -u actions.runner.* -f   # logs em tempo real
 ```
 
+> **Atenção:** `sudo ~/actions-runner/svc.sh` **não funciona** — com `sudo`, o `~` vira `/root`. Sempre `cd /home/jose/actions-runner` e depois `sudo ./svc.sh`.
+```
+
 **Após reiniciar a VM**, confira:
 
 ```bash
-sudo ~/actions-runner/svc.sh status
+cd /home/jose/actions-runner && sudo ./svc.sh status
 ```
 
 Se estiver *inactive*, o job **Deploy** fica *Queued* no GitHub até o runner voltar.
@@ -174,7 +177,7 @@ Se estiver *inactive*, o job **Deploy** fica *Queued* no GitHub até o runner vo
 
 | Verificação | Comando / onde olhar |
 |-------------|----------------------|
-| Serviço ativo | `sudo ~/actions-runner/svc.sh status` |
+| Serviço ativo | `cd /home/jose/actions-runner && sudo ./svc.sh status` |
 | Runner online | GitHub → Actions → Runners → verde |
 | Sudo sem senha | `sudo -u jose sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh` |
 | Scripts LF + executáveis | `file deploy/scripts/atualizar.sh` → `ASCII text` (sem `CRLF`); `ls -l deploy/scripts/deploy-from-git.sh` → `-rwxr-xr-x` |
@@ -236,15 +239,15 @@ sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 | Problema | Solução |
 |----------|---------|
 | `Could not resolve host: github.com` | Corrigir DNS na VM — seção abaixo |
-| Job Deploy fica *Queued* | Runner offline — `sudo /home/jose/actions-runner/svc.sh status` |
+| Job Deploy fica *Queued* | Runner offline — `cd /home/jose/actions-runner && sudo ./svc.sh status` |
 | `git pull` falha na VM | Token/SSH — ver Passo 1 |
 | `sudo: a password is required` / `A terminal is required to authenticate` | Configurar `/etc/sudoers.d/erp-deploy` (ver Passo 2). O workflow usa `sudo /caminho/script.sh` — **não** `sudo bash script.sh` |
-| `Permission denied (os error 13)` ao executar script | `sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh /var/www/ERP-Acesso/deploy/scripts/atualizar.sh` |
+| `Permission denied (os error 13)` ao executar script | Na VM: `sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh /var/www/ERP-Acesso/deploy/scripts/atualizar.sh` — confira com `ls -l` (`-rwxr-xr-x`). Sem DNS para `git pull`, rode o `chmod` manualmente. |
 | Erro 500 após deploy | `sudo bash deploy/scripts/corrigir-500.sh` |
 | `Permission denied` em `storage/logs` ou `bootstrap/cache` no `composer install` | Rode `sudo bash deploy/scripts/corrigir-500.sh` e depois `sudo bash deploy/scripts/atualizar.sh` de novo; o usuário de deploy (`jose`) deve estar no grupo `www-data`: `sudo usermod -aG www-data jose` (faça logout/login) |
 | Tests falham, deploy não roda | Corrija testes antes; deploy só após CI verde |
 | `bad interpreter` / `$'\r': command not found` em `.sh` | Ver seção **Dicas de ouro → CRLF**; `git config --global core.autocrlf false` no Windows |
-| Runner parou após reboot da VM | `sudo ~/actions-runner/svc.sh start` e `svc.sh status` |
+| Runner parou após reboot da VM | `cd /home/jose/actions-runner && sudo ./svc.sh start` |
 
 ### VM não resolve `github.com` (DNS)
 

@@ -13,7 +13,7 @@
 
 <a
     href="{{ $href }}"
-    @click="hoveredGroup = null"
+    @click="hoveredGroup = null; flyoutLabel = ''"
     {{ $attributes->except(['href', 'active', 'badge', 'badgeColor'])->merge(['class' => $classes]) }}
 >
     <span class="truncate">{{ $slot }}</span>

@@ -20,8 +20,8 @@ jobs:
     steps:
       - name: Deploy (git pull + atualizar.sh)
         run: |
-          chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh \
-                    /var/www/ERP-Acesso/deploy/scripts/atualizar.sh
+          sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh \
+                        /var/www/ERP-Acesso/deploy/scripts/atualizar.sh
           sudo /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 
       - name: Resumo

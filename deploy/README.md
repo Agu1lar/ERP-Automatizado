@@ -162,7 +162,7 @@ sudo chmod +x deploy/scripts/*.sh
 | Erro 500 após deploy | `sudo bash deploy/scripts/corrigir-500.sh` |
 | `Permission denied` em `storage/` ou `bootstrap/cache` | Ver [CICD.md](CICD.md) — permissões antes do composer |
 | Menu lateral não abre / links não clicam | `npm run build` na VM + `sudo bash deploy/scripts/atualizar.sh` |
-| Job Deploy *Queued* | Runner offline — `sudo ~/actions-runner/svc.sh status` → `start` |
+| Job Deploy *Queued* | Runner offline — `cd /home/jose/actions-runner && sudo ./svc.sh status` → `start` |
 | `sudo: a password is required` / `A terminal is required to authenticate` | Criar `/etc/sudoers.d/erp-deploy` — ver [CICD.md](CICD.md). Usar `sudo /var/www/.../deploy-from-git.sh`, não `sudo bash ...` |
 | `Permission denied (os error 13)` no deploy | `sudo chmod +x /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh /var/www/ERP-Acesso/deploy/scripts/atualizar.sh` |
 | `bad interpreter` / `$'\r'` em scripts `.sh` | [CICD.md](CICD.md) — `core.autocrlf false` no Windows; repo já usa `.gitattributes` com `*.sh eol=lf` |

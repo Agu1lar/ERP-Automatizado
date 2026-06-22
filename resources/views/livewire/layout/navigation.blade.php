@@ -55,6 +55,7 @@ new class extends Component
         sidebarOpen: false,
         hoveredGroup: null,
         mobileGroup: null,
+        flyoutLabel: '',
         flyoutTop: 0,
         flyoutLeft: 256,
         closeTimer: null,
@@ -72,6 +73,7 @@ new class extends Component
             }
             this.cancelClose();
             this.hoveredGroup = id;
+            this.flyoutLabel = event.currentTarget.dataset.label || id;
             const rect = event.currentTarget.getBoundingClientRect();
             const maxTop = window.innerHeight - 280;
             this.flyoutTop = Math.max(56, Math.min(rect.top, maxTop));
@@ -85,6 +87,7 @@ new class extends Component
             this.cancelClose();
             if (this.hoveredGroup === id) {
                 this.hoveredGroup = null;
+                this.flyoutLabel = '';
                 return;
             }
             this.showFlyout(id, event);
@@ -93,7 +96,10 @@ new class extends Component
             if (! this.isDesktop) {
                 return;
             }
-            this.closeTimer = setTimeout(() => { this.hoveredGroup = null; }, 200);
+            this.closeTimer = setTimeout(() => {
+                this.hoveredGroup = null;
+                this.flyoutLabel = '';
+            }, 200);
         },
         cancelClose() {
             if (this.closeTimer) {
@@ -105,7 +111,7 @@ new class extends Component
             return ! this.isDesktop && (this.mobileGroup === id || active);
         },
     }"
-    @keydown.window.escape="sidebarOpen = false; hoveredGroup = null"
+    @keydown.window.escape="sidebarOpen = false; hoveredGroup = null; flyoutLabel = ''"
 >
     {{-- Overlay mobile --}}
     <div
@@ -173,6 +179,28 @@ new class extends Component
             Ctrl+clique abre nova aba
         </div>
     </aside>
+
+    {{-- Flyout desktop único (um teleport evita painéis fantasmas sobrepostos) --}}
+    <template x-teleport="body">
+        <div
+            x-show="isDesktop && hoveredGroup"
+            x-cloak
+            class="pointer-events-auto fixed z-[65] w-56 max-h-[min(70vh,24rem)] overflow-y-auto rounded-r-lg border border-gray-200 bg-white py-2 shadow-lg"
+            :style="`top: ${flyoutTop}px; left: ${flyoutLeft}px`"
+            @mouseenter="cancelClose()"
+            @mouseleave="scheduleClose()"
+            role="menu"
+            :aria-label="flyoutLabel"
+        >
+            <p
+                class="mb-1 border-b border-gray-100 px-3 pb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400"
+                x-text="flyoutLabel"
+            ></p>
+            <div class="space-y-0.5 px-2">
+                @stack('sidebar-flyouts')
+            </div>
+        </div>
+    </template>
 
     {{-- Barra superior (área de conteúdo) — z acima da sidebar para cliques funcionarem --}}
     <header class="fixed top-0 right-0 z-[60] flex h-14 w-full items-center gap-2 border-b border-gray-200 bg-white px-3 shadow-sm sm:gap-3 sm:px-4 lg:left-64 lg:w-[calc(100%-16rem)]">
