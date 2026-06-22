@@ -5,8 +5,8 @@
     class="border-b border-gray-200 bg-slate-50"
     aria-label="Abas do sistema"
 >
-    <div class="mx-auto flex max-w-7xl items-center gap-2 px-4 sm:px-6 lg:px-8">
-        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-2">
+    <div class="flex items-center gap-2 px-4 py-2 sm:px-6 lg:px-8">
+        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             <template x-for="tab in $store.workspace.tabs" :key="tab.id">
                 <div
                     class="group flex max-w-[220px] shrink-0 items-center rounded-md border text-xs transition"

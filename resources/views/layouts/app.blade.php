@@ -21,27 +21,27 @@
         <div class="min-h-screen bg-gray-100">
             <livewire:layout.navigation />
 
-            <x-workspace-tabs />
+            <div class="flex min-h-screen flex-col pt-14 lg:pl-64">
+                <x-workspace-tabs />
 
-            <!-- Page Heading -->
-            @if (isset($header))
-                <header class="bg-white shadow">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
-                    </div>
-                </header>
-            @endif
+                @if (isset($header))
+                    <header class="bg-white shadow">
+                        <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                            {{ $header }}
+                        </div>
+                    </header>
+                @endif
 
-            <!-- Page Content -->
-            <main>
-                {{ $slot }}
-            </main>
+                <main class="flex-1">
+                    {{ $slot }}
+                </main>
 
-            @auth
-                @can('agent.api')
-                    <livewire:copilot.copilot-panel />
-                @endcan
-            @endauth
+                @auth
+                    @can('agent.api')
+                        <livewire:copilot.copilot-panel />
+                    @endcan
+                @endauth
+            </div>
         </div>
     </body>
 </html>

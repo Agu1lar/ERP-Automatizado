@@ -1,0 +1,28 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy na VM
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+    runs-on: [self-hosted, erp-acesso]
+
+    steps:
+      - name: Deploy (git pull + atualizar.sh)
+        run: sudo bash /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
+
+      - name: Resumo
+        if: success()
+        run: |
+          echo "Deploy OK em $(hostname) — branch main"
+          php /var/www/ERP-Acesso/artisan --version 2>/dev/null || true

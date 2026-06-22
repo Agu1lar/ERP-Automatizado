@@ -1,5 +1,5 @@
 <div
-    class="relative w-full max-w-xs lg:max-w-md"
+    class="relative z-[70] w-full max-w-2xl"
     x-data="{ open: @entangle('open') }"
     @click.outside="open = false"
 >

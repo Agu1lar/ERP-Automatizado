@@ -20,8 +20,15 @@ use App\Models\Domain\Maintenance\PreventiveMaintenanceRule;
 use App\Models\Domain\Organization\OperatingCompany;
 use App\Models\Domain\Person\Company;
 use App\Models\Domain\Person\Person;
+use App\Models\Domain\Logistics\DeliveryDriver;
+use App\Models\Domain\Logistics\Yard;
+use App\Models\Domain\Maintenance\PartPurchaseOrder;
 use App\Models\Domain\Rental\Rental;
+use App\Models\Domain\Rental\RentalQuote;
 use App\Models\User;
+use App\Enums\RentalQuoteStatus;
+use App\Services\PartPurchaseOrderService;
+use App\Services\RentalQuoteService;
 use App\Services\AssetStatusService;
 use App\Services\CompanyService;
 use App\Services\MaintenanceOrderService;
@@ -40,17 +47,39 @@ use Illuminate\Support\Str;
  */
 class BulkDemoSeeder extends Seeder
 {
-    private const CUSTOMERS_TARGET = 250;
+    protected int $customersTarget = 250;
 
-    private const COMPANIES_TARGET = 45;
+    protected int $companiesTarget = 45;
 
-    private const PEOPLE_TARGET = 120;
+    protected int $peopleTarget = 120;
 
-    private const ASSETS_PER_COMPANY = 150;
+    protected int $assetsPerCompany = 150;
 
-    private const OPEN_ORDERS_TOTAL = 20;
+    protected int $openOrdersTotal = 20;
 
-    private const COMPLETED_ORDERS_TARGET = 40;
+    protected int $completedOrdersTarget = 40;
+
+    protected bool $compactRentals = false;
+
+    protected string $rentalProfile = 'bulk';
+
+    protected bool $seedSupplemental = false;
+
+    protected int $driversPerCompany = 0;
+
+    protected int $quotesRascunhoPerCompany = 3;
+
+    protected int $quotesEnviadoPerCompany = 2;
+
+    protected int $quotesExpiradoPerCompany = 1;
+
+    protected int $purchaseOrdersPerCompany = 3;
+
+    protected int $preventiveOrdersPerCompany = 2;
+
+    protected int $partCatalogItemCount = 10;
+
+    protected int $suppliersTarget = 4;
 
     /** @var list<array{nome: string, tipo: string, tipo_linha: string, modelos: list<array{marca: string, modelo: string}>}> */
     private const FLEET_BLUEPRINT = [
@@ -96,6 +125,9 @@ class BulkDemoSeeder extends Seeder
 
     public function run(): void
     {
+        // Evita chamadas HTTP (Nominatim) durante seed — falham em VM/offline e interrompem a carga.
+        config(['geocoding.enabled' => false]);
+
         $this->call([
             RolePermissionSeeder::class,
             OperatingCompanySeeder::class,
@@ -116,6 +148,10 @@ class BulkDemoSeeder extends Seeder
             $allAssets = array_merge($allAssets, $assets);
             $this->seedPricingForCompany();
             $this->seedPreventiveRules($admin);
+        }
+
+        if ($this->seedSupplemental) {
+            $this->seedSupplementalModules($admin, $customers, $allAssets);
         }
 
         // OS antes das locações para garantir patrimônios disponíveis no funil.
@@ -151,7 +187,7 @@ class BulkDemoSeeder extends Seeder
             ->pluck('total', 'status');
 
         $this->command?->info(sprintf(
-            'Bulk demo: %d empresas | %d pessoas | %d clientes | %d preços | %d patrimônios | %d locações | %d OS abertas',
+            'Demo: %d empresas CRM | %d pessoas | %d clientes | %d preços | %d patrimônios | %d locações | %d OS abertas | %d orçamentos | %d pedidos compra | %d motoristas',
             Company::count(),
             Person::count(),
             Customer::count(),
@@ -159,6 +195,9 @@ class BulkDemoSeeder extends Seeder
             $assets->count(),
             $rentals->count(),
             $openOrders,
+            RentalQuote::withoutGlobalScope('operating_company')->count(),
+            PartPurchaseOrder::withoutGlobalScope('operating_company')->count(),
+            DeliveryDriver::withoutGlobalScope('operating_company')->count(),
         ));
         $this->command?->info('Locações: '.$rentalByStatus->map(fn ($n, $s) => "{$s}:{$n}")->implode(', '));
         $this->command?->info('Frota: '.$assetByStatus->map(fn ($n, $s) => "{$s}:{$n}")->implode(', '));
@@ -189,7 +228,7 @@ class BulkDemoSeeder extends Seeder
         $existing = Customer::count();
         $customers = Customer::query()->orderBy('id')->get()->all();
 
-        for ($i = $existing; $i < self::CUSTOMERS_TARGET; $i++) {
+        for ($i = $existing; $i < $this->customersTarget; $i++) {
             $isCnpj = $i % 3 !== 0;
             $doc = $isCnpj ? $this->generateValidCnpj($i + 1) : $this->generateValidCpf($i + 100);
 
@@ -215,7 +254,7 @@ class BulkDemoSeeder extends Seeder
         $assets = [];
         $prefix = strtoupper(substr($company->slug, 0, 2));
         $counter = 1;
-        $unitsPerModel = (int) ceil(self::ASSETS_PER_COMPANY / (
+        $unitsPerModel = (int) ceil($this->assetsPerCompany / (
             collect(self::FLEET_BLUEPRINT)->sum(fn ($c) => count($c['modelos']))
         ));
 
@@ -273,7 +312,7 @@ class BulkDemoSeeder extends Seeder
 
         $companies = Company::query()->orderBy('id')->get()->all();
 
-        for ($i = count($companies); $i < self::COMPANIES_TARGET; $i++) {
+        for ($i = count($companies); $i < $this->companiesTarget; $i++) {
             $type = $types[$i % count($types)];
             $company = Company::create([
                 'nome' => match ($type) {
@@ -308,7 +347,7 @@ class BulkDemoSeeder extends Seeder
 
         $existingPeople = Person::count();
 
-        for ($i = $existingPeople; $i < self::PEOPLE_TARGET; $i++) {
+        for ($i = $existingPeople; $i < $this->peopleTarget; $i++) {
             $company = $companies[$i % max(1, count($companies))] ?? null;
 
             Person::create([
@@ -418,7 +457,7 @@ class BulkDemoSeeder extends Seeder
         $periods = [RentalPricingPeriod::Diaria, RentalPricingPeriod::Semanal, RentalPricingPeriod::Mensal];
 
         // Locado — equipamento em campo
-        for ($i = 0; $i < 40 && $available->isNotEmpty(); $i++) {
+        for ($i = 0; $i < $this->rentalCount('locado') && $available->isNotEmpty(); $i++) {
             $rental = $rentalService->reserve(
                 $available->shift(),
                 $customers[$i % $customerCount],
@@ -437,7 +476,7 @@ class BulkDemoSeeder extends Seeder
         }
 
         // Reservado — aguardando saída
-        for ($i = 0; $i < 15 && $available->isNotEmpty(); $i++) {
+        for ($i = 0; $i < $this->rentalCount('reservado') && $available->isNotEmpty(); $i++) {
             $rentalService->reserve(
                 $available->shift(),
                 $customers[($i + 7) % $customerCount],
@@ -450,7 +489,7 @@ class BulkDemoSeeder extends Seeder
         }
 
         // Em inspeção — retorno registrado
-        for ($i = 0; $i < 10 && $available->isNotEmpty(); $i++) {
+        for ($i = 0; $i < $this->rentalCount('inspecao') && $available->isNotEmpty(); $i++) {
             $rental = $rentalService->reserve(
                 $available->shift(),
                 $customers[($i + 15) % $customerCount],
@@ -464,7 +503,7 @@ class BulkDemoSeeder extends Seeder
         }
 
         // Cancelado — reserva desistida
-        for ($i = 0; $i < 8 && $available->isNotEmpty(); $i++) {
+        for ($i = 0; $i < $this->rentalCount('cancelado') && $available->isNotEmpty(); $i++) {
             $rental = $rentalService->reserve(
                 $available->shift(),
                 $customers[($i + 22) % $customerCount],
@@ -476,7 +515,7 @@ class BulkDemoSeeder extends Seeder
         }
 
         // Locado com manutenção em campo
-        for ($i = 0; $i < 5 && $available->isNotEmpty(); $i++) {
+        for ($i = 0; $i < $this->rentalCount('manut_campo') && $available->isNotEmpty(); $i++) {
             $rental = $rentalService->reserve(
                 $available->shift(),
                 $customers[($i + 30) % $customerCount],
@@ -494,22 +533,27 @@ class BulkDemoSeeder extends Seeder
             );
         }
 
-        // Concluído — fluxo completo via serviço
-        for ($i = 0; $i < 30 && $available->isNotEmpty(); $i++) {
+        // Concluído — fluxo completo via serviço (datas históricas aplicadas após reserve)
+        for ($i = 0; $i < $this->rentalCount('concluido_svc') && $available->isNotEmpty(); $i++) {
+            $completedAt = now()->subDays(1 + ($i % 89));
+            $returnAt = $completedAt->copy()->subHours(rand(2, 48));
+            $checkoutAt = $returnAt->copy()->subDays(rand(3, 15));
+            $reservedAt = $checkoutAt->copy()->subDays(rand(1, 5));
+
             $rental = $rentalService->reserve(
                 $available->shift(),
                 $customers[($i + 40) % $customerCount],
-                now()->subDays(rand(30, 90)),
+                now()->addDays(rand(10, 30)),
                 'Locação histórica concluída.',
                 $admin,
             );
 
-            $completedAt = now()->subDays(1 + ($i % 89));
-            $returnAt = $completedAt->copy()->subHours(rand(2, 48));
-            $checkoutAt = $returnAt->copy()->subDays(rand(3, 15));
-
             $rental = $rentalService->checkout($rental, $saida, null, $admin);
-            $rental->update(['checkout_at' => $checkoutAt]);
+            $rental->update([
+                'reserved_at' => $reservedAt,
+                'checkout_at' => $checkoutAt,
+                'expected_return_at' => $returnAt->copy()->startOfDay(),
+            ]);
             $rental = $rentalService->registerReturn($rental, $retorno, null, $admin);
             $rental->update(['returned_at' => $returnAt]);
             $rental = $rentalService->completeInspection($rental, $i % 7 === 0, $i % 7 === 0 ? 'Avaria leve na inspeção.' : null, $admin);
@@ -523,7 +567,7 @@ class BulkDemoSeeder extends Seeder
         $companyId = ActiveOperatingCompany::id();
         $slugPrefix = strtoupper(substr(OperatingCompany::find($companyId)?->slug ?? 'x', 0, 2));
 
-        for ($i = 0; $i < 50; $i++) {
+        for ($i = 0; $i < $this->rentalCount('concluido_hist'); $i++) {
             $asset = $available->isNotEmpty() ? $available->shift() : $assets[array_rand($assets)];
             $completedAt = now()->subDays(rand(5, 400));
 
@@ -564,11 +608,23 @@ class BulkDemoSeeder extends Seeder
             ->shuffle()
             ->values();
 
-        $mix = [
-            [AssetStatus::Bloqueado, 6, 'Bloqueado para auditoria interna (demo)'],
-            [AssetStatus::Extraviado, 3, 'Extraviado — aguardando localização (demo)'],
-            [AssetStatus::Sucata, 2, 'Baixado como sucata (demo)'],
-        ];
+        $mix = match ($this->rentalProfile) {
+            'compact' => [
+                [AssetStatus::Bloqueado, 2, 'Bloqueado para auditoria interna (demo)'],
+                [AssetStatus::Extraviado, 1, 'Extraviado — aguardando localização (demo)'],
+                [AssetStatus::Sucata, 1, 'Baixado como sucata (demo)'],
+            ],
+            'standard' => [
+                [AssetStatus::Bloqueado, 5, 'Bloqueado para auditoria interna (demo)'],
+                [AssetStatus::Extraviado, 3, 'Extraviado — aguardando localização (demo)'],
+                [AssetStatus::Sucata, 2, 'Baixado como sucata (demo)'],
+            ],
+            default => [
+                [AssetStatus::Bloqueado, 6, 'Bloqueado para auditoria interna (demo)'],
+                [AssetStatus::Extraviado, 3, 'Extraviado — aguardando localização (demo)'],
+                [AssetStatus::Sucata, 2, 'Baixado como sucata (demo)'],
+            ],
+        };
 
         $index = 0;
 
@@ -591,11 +647,11 @@ class BulkDemoSeeder extends Seeder
         $candidates = Asset::withoutGlobalScope('operating_company')
             ->where('status', AssetStatus::Disponivel->value)
             ->inRandomOrder()
-            ->limit(self::COMPLETED_ORDERS_TARGET * 2)
+            ->limit($this->completedOrdersTarget * 2)
             ->get();
 
         foreach ($candidates as $asset) {
-            if ($created >= self::COMPLETED_ORDERS_TARGET) {
+            if ($created >= $this->completedOrdersTarget) {
                 break;
             }
 
@@ -647,24 +703,25 @@ class BulkDemoSeeder extends Seeder
     private function seedOpenMaintenanceFunnel(User $admin, array $allAssets): void
     {
         $maintenanceService = app(MaintenanceOrderService::class);
+        $total = $this->openOrdersTotal;
         $distribution = [
-            MaintenanceOrderStatus::Aberta->value => 7,
-            MaintenanceOrderStatus::EmExecucao->value => 7,
-            MaintenanceOrderStatus::AguardandoPeca->value => 6,
+            MaintenanceOrderStatus::Aberta->value => (int) max(1, round($total * 0.4)),
+            MaintenanceOrderStatus::EmExecucao->value => (int) max(1, round($total * 0.35)),
+            MaintenanceOrderStatus::AguardandoPeca->value => (int) max(1, $total - (int) max(1, round($total * 0.4)) - (int) max(1, round($total * 0.35))),
         ];
 
         $pool = collect($allAssets)
             ->map(fn (Asset $a) => $a->fresh())
             ->filter(fn (Asset $a) => $a->status === AssetStatus::Disponivel->value)
             ->shuffle()
-            ->take(self::OPEN_ORDERS_TOTAL)
+            ->take($this->openOrdersTotal)
             ->values();
 
-        if ($pool->count() < self::OPEN_ORDERS_TOTAL) {
+        if ($pool->count() < $this->openOrdersTotal) {
             $this->command?->warn(sprintf(
                 'Apenas %d patrimônios disponíveis para OS (meta: %d).',
                 $pool->count(),
-                self::OPEN_ORDERS_TOTAL,
+                $this->openOrdersTotal,
             ));
         }
 
@@ -707,30 +764,313 @@ class BulkDemoSeeder extends Seeder
         }
     }
 
-    private function seedPartCatalog(): void
+    protected function rentalCount(string $key): int
     {
-        $parts = [
-            ['codigo' => 'PEC-001', 'descricao' => 'Escova de carvão universal', 'valor' => 45.90],
-            ['codigo' => 'PEC-002', 'descricao' => 'Mandril SDS Plus', 'valor' => 89.00],
-            ['codigo' => 'PEC-003', 'descricao' => 'Correia V A-42', 'valor' => 32.50],
-            ['codigo' => 'PEC-004', 'descricao' => 'Filtro de ar gerador', 'valor' => 58.00],
-            ['codigo' => 'PEC-005', 'descricao' => 'Óleo lubrificante 1L', 'valor' => 28.90],
-            ['codigo' => 'PEC-006', 'descricao' => 'Rolamento 6203', 'valor' => 22.00],
-            ['codigo' => 'PEC-007', 'descricao' => 'Vela de ignição', 'valor' => 18.50],
-            ['codigo' => 'PEC-008', 'descricao' => 'Kit gaxetas betoneira', 'valor' => 120.00],
-            ['codigo' => 'PEC-009', 'descricao' => 'Mangueira hidráulica 1/2"', 'valor' => 185.00],
-            ['codigo' => 'PEC-010', 'descricao' => 'Filtro de óleo motor', 'valor' => 42.00],
+        $profiles = [
+            'compact' => [
+                'locado' => 6,
+                'reservado' => 4,
+                'inspecao' => 2,
+                'cancelado' => 2,
+                'manut_campo' => 2,
+                'concluido_svc' => 8,
+                'concluido_hist' => 12,
+            ],
+            'standard' => [
+                'locado' => 22,
+                'reservado' => 14,
+                'inspecao' => 8,
+                'cancelado' => 6,
+                'manut_campo' => 5,
+                'concluido_svc' => 28,
+                'concluido_hist' => 40,
+            ],
+            'bulk' => [
+                'locado' => 40,
+                'reservado' => 15,
+                'inspecao' => 10,
+                'cancelado' => 8,
+                'manut_campo' => 5,
+                'concluido_svc' => 30,
+                'concluido_hist' => 50,
+            ],
+        ];
+
+        $profile = $profiles[$this->rentalProfile] ?? $profiles['bulk'];
+
+        return $profile[$key] ?? 0;
+    }
+
+    /**
+     * @param  list<Customer>  $customers
+     * @param  list<Asset>  $allAssets
+     */
+    protected function seedSupplementalModules(User $admin, array $customers, array $allAssets): void
+    {
+        $this->seedYardsForAllCompanies();
+        $this->seedPartSuppliers();
+        $this->assignAssetsToYards($allAssets);
+
+        foreach (OperatingCompany::query()->where('ativo', true)->orderBy('id')->get() as $company) {
+            ActiveOperatingCompany::set($company->id);
+            $this->seedDriversForCompany($company);
+            $companyAssets = collect($allAssets)
+                ->filter(fn (Asset $a) => (int) $a->operating_company_id === (int) $company->id)
+                ->values();
+            $this->seedRentalQuotesForCompany($admin, $customers, $companyAssets);
+            $this->seedPartPurchaseOrdersForCompany($admin);
+            $this->seedPreventiveOrdersForCompany($admin, $companyAssets);
+        }
+    }
+
+    private function seedYardsForAllCompanies(): void
+    {
+        $yardSets = [
+            'acesso' => [
+                ['nome' => 'Pátio BH Principal', 'cidade' => 'Belo Horizonte', 'principal' => true],
+                ['nome' => 'Filial Contagem', 'cidade' => 'Contagem', 'principal' => false],
+            ],
+            'supermaquinas' => [
+                ['nome' => 'Pátio Super — Betim', 'cidade' => 'Betim', 'principal' => true],
+                ['nome' => 'Base Super — Sarzedo', 'cidade' => 'Sarzedo', 'principal' => false],
+            ],
         ];
 
         foreach (OperatingCompany::query()->where('ativo', true)->get() as $company) {
             ActiveOperatingCompany::set($company->id);
 
-            foreach ($parts as $part) {
-                PartCatalogItem::firstOrCreate(
-                    ['codigo_peca' => $part['codigo'].'-'.$company->slug],
+            foreach ($yardSets[$company->slug] ?? [['nome' => "Pátio {$company->nome}", 'cidade' => 'Belo Horizonte', 'principal' => true]] as $yard) {
+                Yard::updateOrCreate(
+                    ['operating_company_id' => $company->id, 'nome' => $yard['nome']],
                     [
-                        'descricao' => $part['descricao'],
-                        'valor_unitario_padrao' => $part['valor'],
+                        'cidade' => $yard['cidade'],
+                        'endereco' => "Rua Demo, 100 — {$yard['cidade']}",
+                        'telefone' => '(31) 3333-'.rand(1000, 9999),
+                        'principal' => $yard['principal'],
+                        'ativo' => true,
+                    ],
+                );
+            }
+        }
+    }
+
+    private function seedPartSuppliers(): void
+    {
+        $baseNames = [
+            'Auto Peças Minas', 'Hidráulica Industrial MG', 'Distribuidora CAT Parts',
+            'Ferragens e Rolamentos BH', 'Motores & Cia', 'Filtros Brasil',
+            'Mangueiras e Conexões', 'Lubrificantes Centro-Oeste',
+        ];
+
+        for ($i = 0; $i < $this->suppliersTarget; $i++) {
+            $name = $baseNames[$i % count($baseNames)].($i >= count($baseNames) ? ' '.($i + 1) : '');
+            Company::updateOrCreate(
+                ['nome' => $name],
+                [
+                    'cnpj' => $this->generateValidCnpj(9000 + $i),
+                    'tipo' => CompanyType::Fornecedor->value,
+                    'endereco' => fake()->streetAddress().', Contagem — MG',
+                    'observacoes' => 'Fornecedor demo',
+                    'ativo' => true,
+                ],
+            );
+        }
+    }
+
+    /** @param  list<Asset>  $allAssets */
+    private function assignAssetsToYards(array $allAssets): void
+    {
+        foreach ($allAssets as $asset) {
+            ActiveOperatingCompany::set((int) $asset->operating_company_id);
+            $yard = Yard::query()->where('ativo', true)->inRandomOrder()->first();
+
+            if ($yard && $asset->yard_id === null) {
+                $asset->update(['yard_id' => $yard->id, 'localizacao' => $yard->nome]);
+            }
+        }
+    }
+
+    private function seedDriversForCompany(OperatingCompany $company): void
+    {
+        if ($this->driversPerCompany < 1) {
+            return;
+        }
+
+        $driverNames = ['Carlos Motorista', 'Paulo Entregas', 'Ricardo Logística'];
+
+        for ($i = 0; $i < $this->driversPerCompany; $i++) {
+            DeliveryDriver::updateOrCreate(
+                [
+                    'operating_company_id' => $company->id,
+                    'nome' => $driverNames[$i % count($driverNames)].' ('.Str::title($company->slug).')',
+                ],
+                [
+                    'cnh' => 'MG'.str_pad((string) (10000000000 + $company->id * 10 + $i), 11, '0', STR_PAD_LEFT),
+                    'telefone' => '(31) 9'.rand(1000, 9999).'-'.rand(1000, 9999),
+                    'ativo' => true,
+                ],
+            );
+        }
+    }
+
+    /** @param  list<Customer>  $customers */
+    private function seedRentalQuotesForCompany(User $admin, array $customers, $companyAssets): void
+    {
+        if ($companyAssets->isEmpty() || $customers === []) {
+            return;
+        }
+
+        $quoteService = app(RentalQuoteService::class);
+        $available = $companyAssets
+            ->map(fn (Asset $a) => $a->fresh())
+            ->filter(fn (Asset $a) => $a->status === AssetStatus::Disponivel->value)
+            ->values();
+
+        $customerCount = max(1, count($customers));
+
+        for ($i = 0; $i < $this->quotesRascunhoPerCompany && $available->isNotEmpty(); $i++) {
+            $quoteService->create(
+                $available->shift(),
+                $customers[$i % $customerCount],
+                now()->addDays(rand(5, 20)),
+                fake()->streetAddress().', Obra orçamento '.($i + 1),
+                'Orçamento demo',
+                RentalPricingPeriod::Diaria,
+                $admin,
+            );
+        }
+
+        for ($i = 0; $i < $this->quotesEnviadoPerCompany && $available->isNotEmpty(); $i++) {
+            $quote = $quoteService->create(
+                $available->shift(),
+                $customers[($i + 2) % $customerCount],
+                now()->addDays(rand(7, 25)),
+                fake()->streetAddress(),
+                'Orçamento enviado ao cliente',
+                RentalPricingPeriod::Semanal,
+                $admin,
+            );
+            $quoteService->send($quote, 10, $admin);
+        }
+
+        for ($i = 0; $i < $this->quotesExpiradoPerCompany && $available->isNotEmpty(); $i++) {
+            $expired = $quoteService->create(
+                $available->shift(),
+                $customers[($i + 5) % $customerCount],
+                now()->addDays(14),
+                fake()->streetAddress(),
+                'Orçamento expirado (demo)',
+                RentalPricingPeriod::Mensal,
+                $admin,
+            );
+            $quoteService->send($expired, 1, $admin);
+            $expired->update([
+                'valid_until' => now()->subDay(),
+                'status' => RentalQuoteStatus::Expirado->value,
+            ]);
+        }
+    }
+
+    private function seedPartPurchaseOrdersForCompany(User $admin): void
+    {
+        $purchaseService = app(PartPurchaseOrderService::class);
+        $supplier = Company::query()->where('tipo', CompanyType::Fornecedor->value)->where('ativo', true)->inRandomOrder()->first();
+        $parts = PartCatalogItem::query()->where('ativo', true)->limit(4)->get();
+
+        if (! $supplier || $parts->isEmpty()) {
+            return;
+        }
+
+        $items = $parts->map(fn (PartCatalogItem $part) => [
+            'part_catalog_item_id' => $part->id,
+            'quantidade' => (float) rand(2, 12),
+        ])->all();
+
+        for ($n = 0; $n < $this->purchaseOrdersPerCompany; $n++) {
+            $order = $purchaseService->create(
+                $supplier,
+                $items,
+                "Pedido demo #{$n} — ".(['rascunho', 'aguardando envio', 'em trânsito', 'recebimento'][$n % 4]),
+                $admin,
+            );
+
+            if ($n % 3 === 1) {
+                $purchaseService->markSent($order, $admin);
+            }
+
+            if ($n % 3 === 2) {
+                $purchaseService->markSent($order, $admin);
+                $purchaseService->receive($order, $admin);
+            }
+        }
+    }
+
+    private function seedPreventiveOrdersForCompany(User $admin, $companyAssets): void
+    {
+        $maintenanceService = app(MaintenanceOrderService::class);
+        $created = 0;
+
+        foreach ($companyAssets as $asset) {
+            if ($created >= $this->preventiveOrdersPerCompany) {
+                break;
+            }
+
+            $asset = $asset->fresh();
+
+            if ($asset->status !== AssetStatus::Disponivel->value) {
+                continue;
+            }
+
+            if (MaintenanceOrder::query()->where('asset_id', $asset->id)->open()->exists()) {
+                continue;
+            }
+
+            $rule = PreventiveMaintenanceRule::query()
+                ->where('equipment_model_id', $asset->equipment_model_id)
+                ->where('ativo', true)
+                ->first();
+
+            if (! $rule) {
+                continue;
+            }
+
+            try {
+                $order = $maintenanceService->openPreventive($asset, $rule, $admin);
+
+                if ($created === 1) {
+                    $maintenanceService->start($order, $admin);
+                }
+
+                $created++;
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+        }
+    }
+
+    private function seedPartCatalog(): void
+    {
+        $descriptions = [
+            'Escova de carvão universal', 'Mandril SDS Plus', 'Correia V A-42', 'Filtro de ar gerador',
+            'Óleo lubrificante 1L', 'Rolamento 6203', 'Vela de ignição', 'Kit gaxetas betoneira',
+            'Mangueira hidráulica 1/2"', 'Filtro de óleo motor', 'Pastilha de freio', 'Disco de corte',
+            'Lona de transmissão', 'Bomba d\'água', 'Radiador compacto', 'Mangueira combustível',
+            'Filtro diesel', 'Bateria 12V 60Ah', 'Alternador 12V', 'Motor de partida',
+            'Junta do cabeçote', 'Kit embreagem', 'Cilindro hidráulico', 'Válvula de alívio',
+        ];
+
+        foreach (OperatingCompany::query()->where('ativo', true)->get() as $company) {
+            ActiveOperatingCompany::set($company->id);
+
+            for ($i = 0; $i < $this->partCatalogItemCount; $i++) {
+                $codigo = sprintf('PEC-%03d', $i + 1);
+                PartCatalogItem::updateOrCreate(
+                    ['codigo_peca' => $codigo.'-'.$company->slug],
+                    [
+                        'descricao' => $descriptions[$i % count($descriptions)].' #'.($i + 1),
+                        'valor_unitario_padrao' => round(15 + ($i * 7.5) + rand(0, 50), 2),
+                        'estoque_atual' => $this->seedSupplemental ? rand(3, 40) : 0,
+                        'estoque_minimo' => $this->seedSupplemental ? rand(5, 15) : 0,
                         'ativo' => true,
                     ],
                 );

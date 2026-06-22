@@ -1,29 +1,83 @@
-*.log
-.DS_Store
+# --- Segredos e ambiente (NUNCA commitar) ---
 .env
-.env.backup
-.env.production
-deploy/env/*.env
+.env.*
+!.env.example
+!.env.testing
+!.env.ci-test
+auth.json
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.json
+
+deploy/env/*
 !deploy/env/.env.production.example
-.phpactor.json
-.phpunit.result.cache
-/.codex
-/.cursor/
-/.idea
-/.nova
-/.phpunit.cache
-/.vscode
-/.zed
-/auth.json
+
+# --- Dependências e build ---
 /node_modules
+/vendor
 /public/build
-/public/fonts-manifest.dev.json
 /public/hot
+/public/fonts-manifest.dev.json
 /public/storage
+
+# --- Laravel / runtime ---
 /storage/*.key
 /storage/pail
-/vendor
+/bootstrap/cache/*
+!bootstrap/cache/.gitignore
+.phpunit.result.cache
+.phpunit.cache
 _ide_helper.php
+_ide_helper_models.php
+.phpactor.json
+
+# --- Logs e bancos locais ---
+*.log
+/storage/logs/*
+!storage/logs/.gitignore
+/database/*.sqlite*
+/database/schema/*.sql
+
+# --- Testes e cobertura ---
+/coverage
+/.phpunit.cache
+htmlcov/
+
+# --- IDE e editores ---
+/.idea
+/.vscode
+/.nova
+/.zed
+/.codex
+/.cursor/
+*.swp
+*.swo
+*~
+
+# --- SO ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Node / npm ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+
+# --- Deploy / VM / CI local ---
+/actions-runner/
+/home/*/actions-runner/
+/var/backups/
+*.sql.gz
+*.dump
+deploy/env/.env
+deploy/env/.env.*
+
+# --- Misc ---
 Homestead.json
 Homestead.yaml
-Thumbs.db

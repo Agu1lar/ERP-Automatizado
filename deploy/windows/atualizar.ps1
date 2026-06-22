@@ -3,16 +3,20 @@
 #   cd C:\Users\User\Documents\ERP_Acesso
 #   powershell -ExecutionPolicy Bypass -File .\deploy\windows\atualizar.ps1
 #
-# Opcional: -SomenteServidor  (sem enviar arquivos)
+# Opcional:
+#   -VmHost 192.168.0.45   IP da VM VirtualBox
+#   -SomenteServidor       (sem enviar arquivos)
 
 param(
+    [string]$VmHost = "192.168.5.6",
+    [string]$VmUser = "jose",
     [switch]$SomenteServidor
 )
 
 $ErrorActionPreference = "Stop"
 
 $LocalRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$Remote    = "jose@192.168.5.6"
+$Remote    = "${VmUser}@${VmHost}"
 $RemoteDir = "/var/www/ERP-Acesso"
 $Staging   = "/tmp/erp-acesso-sync"
 
@@ -23,11 +27,12 @@ $Pastas = @(
 
 $Arquivos = @(
     "artisan", "composer.json", "composer.lock",
-    "package.json", "package-lock.json", "vite.config.js"
+    "package.json", "package-lock.json", "vite.config.js",
+    "tailwind.config.js", "postcss.config.js"
 )
 
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host " Atualizar ERP -> $RemoteDir" -ForegroundColor Cyan
+Write-Host " Atualizar ERP -> $Remote ($RemoteDir)" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 
 if (-not $SomenteServidor) {
@@ -65,7 +70,7 @@ if (-not $SomenteServidor) {
         }
     }
 
-    $copyCmd = "sudo cp -a $Staging/. $RemoteDir/; sudo chown -R www-data:www-data $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R ug+rwx $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R u+rwX,go+rX $RemoteDir/deploy; rm -rf $Staging"
+    $copyCmd = "sudo cp -a $Staging/. $RemoteDir/; sudo chown -R ${VmUser}:www-data $RemoteDir; sudo find $RemoteDir -type f ! -path '*/storage/*' ! -path '*/bootstrap/cache/*' -exec chmod 644 {} +; sudo find $RemoteDir -type d ! -path '*/storage/*' ! -path '*/bootstrap/cache/*' -exec chmod 755 {} +; sudo chown -R www-data:www-data $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R ug+rwx $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R u+rwX,go+rX $RemoteDir/deploy; rm -rf $Staging"
     ssh -tt $Remote $copyCmd
 
     Write-Host "  (.env NAO e enviado - fica so no servidor)" -ForegroundColor DarkGray
@@ -79,5 +84,5 @@ $updateCmd = "cd $RemoteDir; sudo bash deploy/scripts/atualizar.sh"
 ssh -tt $Remote $updateCmd
 
 Write-Host ""
-Write-Host "Pronto: http://192.168.5.6" -ForegroundColor Green
+Write-Host "Pronto: http://${VmHost}" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Cyan

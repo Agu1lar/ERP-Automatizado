@@ -26,7 +26,10 @@ sudo APP_PATH=/var/www/ERP-Acesso bash deploy/scripts/instalar-servicos.sh
 
 ## Atualizar código
 
-**Na VM** (após `git pull`):
+**CI/CD (recomendado):** push no `main` → testes no GitHub → deploy automático na VM.  
+Guia completo: **[deploy/CICD.md](CICD.md)**
+
+**Na VM** (manual ou após git pull):
 
 ```bash
 cd /var/www/ERP-Acesso && sudo bash deploy/scripts/atualizar.sh
