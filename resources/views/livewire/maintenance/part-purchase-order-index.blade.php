@@ -34,7 +34,7 @@
                                 </select>
                             </div>
                             <button type="button" wire:click="createFromLowStock" class="text-sm text-indigo-700 hover:underline">Gerar pedido do estoque baixo</button>
-                            <a href="{{ route('person.companies.index') }}" wire:navigate class="text-xs text-gray-500 hover:underline">Cadastrar fornecedor no CRM</a>
+                            <a href="{{ route('companies.index') }}" wire:navigate class="text-xs text-gray-500 hover:underline">Cadastrar fornecedor (empresas)</a>
                         </div>
                     @endif
                 </div>
@@ -117,7 +117,7 @@
                         @forelse($orders as $order)
                             <tr>
                                 <td class="px-4 py-3 font-medium text-gray-900">{{ $order->codigo }}</td>
-                                <td class="px-4 py-3">{{ $order->supplier->nome }}</td>
+                                <td class="px-4 py-3">{{ $order->supplier?->nome ?? '—' }}</td>
                                 <td class="px-4 py-3">
                                     {{ $order->statusEnum()->label() }}
                                     @if($order->payableTitle)

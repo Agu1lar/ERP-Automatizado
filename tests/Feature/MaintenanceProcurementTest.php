@@ -98,6 +98,32 @@ class MaintenanceProcurementTest extends TestCase
         $this->assertSame(4.0, (float) $order->items()->first()->quantidade_pedida);
     }
 
+    public function test_purchase_orders_page_renders_with_low_stock_banner(): void
+    {
+        $admin = $this->adminUser();
+        $this->actingAs($admin);
+
+        Company::create([
+            'nome' => 'Fornecedor Teste',
+            'tipo' => CompanyType::Fornecedor->value,
+            'ativo' => true,
+        ]);
+
+        PartCatalogItem::create([
+            'codigo_peca' => 'BAIXO-UI',
+            'descricao' => 'Peça abaixo do mínimo',
+            'estoque_atual' => 0,
+            'estoque_minimo' => 3,
+            'ativo' => true,
+        ]);
+
+        $this->get(route('maintenance.purchase-orders.index'))
+            ->assertOk()
+            ->assertSee('Pedidos de compra')
+            ->assertSee('abaixo do estoque mínimo')
+            ->assertSee('Cadastrar fornecedor');
+    }
+
     public function test_indemnity_order_completion_creates_receivable_title(): void
     {
         $admin = $this->adminUser();
