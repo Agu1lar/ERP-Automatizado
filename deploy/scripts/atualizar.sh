@@ -31,11 +31,19 @@ do
     fi
 done
 
-echo "[1/8] Modo manutenção..."
-php artisan down --retry=60 || true
+run_as_deploy() {
+    if [ -n "${SUDO_USER:-}" ] && [ "$(id -u)" -eq 0 ]; then
+        sudo -u "${SUDO_USER}" "$@"
+    else
+        "$@"
+    fi
+}
 
-echo "[2/8] Composer..."
-composer install --no-dev --optimize-autoloader --no-interaction
+echo "[1/8] Composer..."
+run_as_deploy composer install --no-dev --optimize-autoloader --no-interaction
+
+echo "[2/8] Modo manutenção..."
+php artisan down --retry=60 || true
 
 echo "[3/8] Frontend (npm)..."
 if [ -f package-lock.json ]; then
