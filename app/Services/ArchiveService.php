@@ -29,7 +29,7 @@ class ArchiveService
         $this->validator->validate($model);
 
         if ($this->hasAtivoColumn($model)) {
-            $model->ativo = false;
+            $model->forceFill(['ativo' => false])->save();
         }
 
         $model->delete();
@@ -80,7 +80,7 @@ class ArchiveService
     private function ensureSoftDeletes(Model $model): void
     {
         if (! $this->usesSoftDeletes($model::class)) {
-            throw new InvalidArgumentException("O modelo {$model::class} não suporta arquivamento.");
+            throw new InvalidArgumentException('O modelo '.$model::class.' não suporta arquivamento.');
         }
     }
 
