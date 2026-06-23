@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\UserRole;
 use App\Livewire\Admin\OperatingCompanyIndex;
 use App\Models\Domain\Organization\OperatingCompany;
@@ -12,6 +14,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class OperatingCompanyAdminTest extends TestCase
 {
     use RefreshDatabase;

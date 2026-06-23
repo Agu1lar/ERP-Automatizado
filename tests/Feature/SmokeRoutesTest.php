@@ -2,11 +2,15 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\CreatesSmokeContext;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class SmokeRoutesTest extends TestCase
 {
     use CreatesSmokeContext;

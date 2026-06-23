@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\UserRole;
 use App\Livewire\Maintenance\MaintenanceOrderShow;
@@ -18,6 +20,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class WorkflowNextStepTest extends TestCase
 {
     use RefreshDatabase;

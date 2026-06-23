@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\ReceivableTitleStatus;
@@ -30,6 +32,8 @@ use App\Livewire\Finance\DelinquencyReportIndex;
 use App\Livewire\Finance\ReceivableIndex;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class Phase11FinanceTest extends TestCase
 {
     use RefreshDatabase;

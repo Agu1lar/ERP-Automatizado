@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\CompanyType;
 use App\Enums\MaintenanceOrderStatus;
@@ -27,6 +29,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class PayableTitleTest extends TestCase
 {
     use RefreshDatabase;

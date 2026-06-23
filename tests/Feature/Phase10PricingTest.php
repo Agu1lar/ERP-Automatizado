@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\RentalPricingPeriod;
 use App\Enums\RentalStatus;
@@ -22,6 +24,8 @@ use App\Livewire\Pricing\PricingIndex;
 use App\Livewire\Rental\RentalShow;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class Phase10PricingTest extends TestCase
 {
     use RefreshDatabase;

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\RentalBillingQueueStatus;
 use App\Enums\RentalBillingQueueType;
@@ -28,6 +30,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class RentalBillingTest extends TestCase
 {
     use RefreshDatabase;

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\FiscalDocumentStatus;
 use App\Enums\RentalPricingPeriod;
@@ -23,6 +25,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class FiscalBridgeTest extends TestCase
 {
     use RefreshDatabase;

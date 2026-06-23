@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\CompanyType;
 use App\Enums\UserRole;
@@ -48,6 +50,8 @@ use Livewire\Livewire;
 use Tests\Concerns\CreatesSmokeContext;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class LivewirePagesSmokeTest extends TestCase
 {
     use CreatesSmokeContext;

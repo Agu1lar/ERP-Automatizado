@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\MaintenanceOrderType;
 use App\Enums\UserRole;
@@ -19,6 +21,8 @@ use Livewire\Livewire;
 use App\Livewire\Maintenance\MaintenanceOrderShow;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class PortugueseValidationTest extends TestCase
 {
     use RefreshDatabase;

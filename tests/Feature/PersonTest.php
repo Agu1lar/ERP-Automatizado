@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\CompanyType;
 use App\Enums\UserRole;
 use App\Livewire\Person\CompanyIndex;
@@ -15,6 +17,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class PersonTest extends TestCase
 {
     use RefreshDatabase;

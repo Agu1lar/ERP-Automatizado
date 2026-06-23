@@ -40,8 +40,14 @@ jobs:
       - name: Build frontend assets
         run: npm ci && npm run build
 
-      - name: Run tests (SQLite, parallel by class)
-        run: vendor/bin/paratest --configuration=phpunit.xml --processes=4 --exclude-group=llm-live
+      - name: Run core tests (SQLite)
+        run: php artisan test --exclude-group=agent,livewire,llm-live
+
+      - name: Run Livewire and HTTP smoke tests (SQLite)
+        run: php artisan test --group=livewire --exclude-group=agent,llm-live
+
+      - name: Run agent tests (SQLite)
+        run: php artisan test --group=agent --exclude-group=llm-live
 
   test-pgsql:
     name: PHPUnit (PostgreSQL)
@@ -87,5 +93,11 @@ jobs:
       - name: Build frontend assets
         run: npm ci && npm run build
 
-      - name: Run tests (PostgreSQL, parallel by class)
-        run: vendor/bin/paratest --configuration=phpunit.pgsql.xml --processes=4 --exclude-group=llm-live
+      - name: Run core tests (PostgreSQL)
+        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --exclude-group agent,livewire,llm-live
+
+      - name: Run Livewire and HTTP smoke tests (PostgreSQL)
+        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --group livewire --exclude-group agent,llm-live
+
+      - name: Run agent tests (PostgreSQL)
+        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --group agent --exclude-group llm-live

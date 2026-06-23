@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\LateFeeRuleScope;
 use App\Enums\ReceivableTitleStatus;
 use App\Enums\UserRole;
@@ -23,6 +25,8 @@ use Livewire\Livewire;
 use App\Livewire\Finance\DelinquencyReportIndex;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class Phase11LateFeeTest extends TestCase
 {
     use RefreshDatabase;

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\PaymentMethod;
 use App\Enums\ReceivableTitleStatus;
 use App\Enums\UserRole;
@@ -15,6 +17,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class PaymentGatewayTest extends TestCase
 {
     use RefreshDatabase;

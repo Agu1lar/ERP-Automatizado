@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\AuditAction;
 use App\Enums\CustomFieldEntity;
@@ -20,6 +22,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class HierarchyCustomFieldsTest extends TestCase
 {
     use RefreshDatabase;

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\RentalQuoteStatus;
 use App\Enums\UserRole;
@@ -24,6 +26,8 @@ use App\Livewire\Rental\QuoteIndex;
 use App\Livewire\Yard\AssetYardScan;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class Phase12FeaturesTest extends TestCase
 {
     use RefreshDatabase;

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\MaintenanceOrderStatus;
 use App\Enums\RentalStatus;
@@ -22,6 +24,8 @@ use App\Livewire\Fleet\ModelIndex;
 use App\Livewire\Reports\FinancialAnalysisIndex;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class FinancialAnalysisTest extends TestCase
 {
     use RefreshDatabase;

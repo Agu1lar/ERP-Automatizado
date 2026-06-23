@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use PHPUnit\Framework\Attributes\Group;
+
 use App\Enums\AssetStatus;
 use App\Enums\UserRole;
 use App\Models\Domain\Fleet\Asset;
@@ -14,6 +16,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
+
+#[Group('livewire')]
 class InlineFieldEditTest extends TestCase
 {
     use RefreshDatabase;
