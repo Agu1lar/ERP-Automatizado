@@ -16,8 +16,10 @@ use App\Services\AssetStatusService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('agent')]
 class AgentFleetAnalyticsTest extends TestCase
 {
     use RefreshDatabase;

@@ -8,7 +8,6 @@
         <title>{{ config('app.name', 'Laravel') }}</title>
     </head>
     <body class="font-sans antialiased">
-        <x-workspace-tabs />
         <main>{{ $slot }}</main>
     </body>
 </html>

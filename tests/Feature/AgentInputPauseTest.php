@@ -12,8 +12,10 @@ use App\Support\Agent\AgentInputCompletionService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('agent')]
 class AgentInputPauseTest extends TestCase
 {
     use RefreshDatabase;

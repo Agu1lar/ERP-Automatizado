@@ -25,8 +25,10 @@ use Laravel\Sanctum\Sanctum;
 use Livewire\Livewire;
 use App\Livewire\Admin\AgentLogIndex;
 use App\Livewire\Copilot\CopilotPanel;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('agent')]
 class AgentCopilotTest extends TestCase
 {
   use RefreshDatabase;

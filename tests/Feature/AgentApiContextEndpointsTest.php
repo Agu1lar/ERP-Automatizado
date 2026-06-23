@@ -14,8 +14,10 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\BuildsAgentApiFixtures;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('agent')]
 class AgentApiContextEndpointsTest extends TestCase
 {
     use BuildsAgentApiFixtures;

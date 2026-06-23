@@ -9,8 +9,10 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
+#[Group('agent')]
 class AgentTaskStreamTest extends TestCase
 {
     use RefreshDatabase;

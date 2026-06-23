@@ -40,8 +40,11 @@ jobs:
       - name: Build frontend assets
         run: npm ci && npm run build
 
-      - name: Run tests (SQLite)
-        run: php artisan test
+      - name: Run tests (SQLite, default suite)
+        run: php artisan test --exclude-group=agent
+
+      - name: Run tests (SQLite, agent suite)
+        run: php artisan test --group=agent
 
   test-pgsql:
     name: PHPUnit (PostgreSQL)
@@ -87,7 +90,8 @@ jobs:
       - name: Build frontend assets
         run: npm ci && npm run build
 
-      - name: Run tests (PostgreSQL)
-        # php artisan test always injects --configuration=phpunit.xml; passing
-        # --configuration again triggers a PHPUnit 12 warning and exit code 1.
-        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml
+      - name: Run tests (PostgreSQL, default suite)
+        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --exclude-group agent
+
+      - name: Run tests (PostgreSQL, agent suite)
+        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --group agent

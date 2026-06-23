@@ -5,6 +5,7 @@ namespace Tests;
 use App\Models\Domain\Organization\OperatingCompany;
 use App\Support\ActiveOperatingCompany;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 abstract class TestCase extends BaseTestCase
@@ -25,5 +26,16 @@ abstract class TestCase extends BaseTestCase
                 ActiveOperatingCompany::set((int) $defaultId);
             }
         }
+    }
+
+    protected function tearDown(): void
+    {
+        if (app()->bound('db')) {
+            DB::disconnect();
+        }
+
+        parent::tearDown();
+
+        gc_collect_cycles();
     }
 }

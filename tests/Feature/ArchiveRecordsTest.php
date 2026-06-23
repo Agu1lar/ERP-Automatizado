@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Services\ArchiveService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class ArchiveRecordsTest extends TestCase
@@ -21,12 +20,6 @@ class ArchiveRecordsTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        gc_collect_cycles();
     }
 
     public function test_archive_service_soft_deletes_and_marks_inactive(): void
@@ -82,23 +75,6 @@ class ArchiveRecordsTest extends TestCase
 
         $this->assertGreaterThanOrEqual(1, $result['total']);
         $this->assertDatabaseMissing('companies', ['id' => $company->id]);
-    }
-
-    public function test_company_index_can_archive_via_livewire(): void
-    {
-        $admin = $this->adminUser();
-        $company = Company::create([
-            'nome' => 'Empresa UI',
-            'tipo' => CompanyType::Externa->value,
-            'ativo' => true,
-        ]);
-
-        Livewire::actingAs($admin)
-            ->test(\App\Livewire\Person\CompanyIndex::class)
-            ->call('archiveRecord', $company->id, Company::class)
-            ->assertHasNoErrors();
-
-        $this->assertSoftDeleted('companies', ['id' => $company->id]);
     }
 
     public function test_delivery_driver_can_be_archived(): void

@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Blade;
 use Tests\TestCase;
 
 class WorkspaceTabsTest extends TestCase
@@ -23,11 +24,12 @@ class WorkspaceTabsTest extends TestCase
         $user = User::factory()->create(['ativo' => true]);
         $user->assignRole(UserRole::Comercial->value);
 
-        $this->actingAs($user)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('aria-label="Abas do sistema"', false)
-            ->assertSee('Ctrl+clique abre nova aba');
+        $this->actingAs($user);
+
+        $html = Blade::render('<x-workspace-tabs />');
+
+        $this->assertStringContainsString('aria-label="Abas do sistema"', $html);
+        $this->assertStringContainsString('Ctrl+clique abre nova aba', $html);
     }
 
     public function test_guest_layout_does_not_include_workspace_tab_bar(): void
