@@ -127,6 +127,7 @@ class LivewirePagesSmokeTest extends TestCase
 
         Person::create([
             'nome' => 'Contato vinculado',
+            'cpf' => '39053344705',
             'company_id' => $company->id,
             'ativo' => true,
         ]);
@@ -157,6 +158,7 @@ class LivewirePagesSmokeTest extends TestCase
 
         Person::create([
             'nome' => 'Funcionário',
+            'cpf' => '15350946056',
             'company_id' => $company->id,
             'ativo' => true,
         ]);
@@ -164,7 +166,7 @@ class LivewirePagesSmokeTest extends TestCase
         Livewire::actingAs($this->admin)
             ->test(CompanyIndex::class)
             ->call('archiveRecord', $company->id, Company::class)
-            ->assertSessionHas('error');
+            ->assertSee('Não é possível arquivar: existem 1 pessoa(s) vinculada(s)');
 
         $this->assertNotSoftDeleted('companies', ['id' => $company->id]);
     }

@@ -116,6 +116,7 @@ trait CreatesSmokeContext
 
         $person = Person::create([
             'nome' => 'Pessoa Smoke',
+            'cpf' => '52998224725',
             'ativo' => true,
         ]);
 
