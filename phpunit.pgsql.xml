@@ -18,7 +18,7 @@
         </include>
     </source>
     <php>
-        <ini name="memory_limit" value="512M"/>
+        <ini name="memory_limit" value="1024M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_KEY" value="base64:2fl+KtvkdphvQdrlYFiOU4aKp75xMnrbeUIeBIq/9jo="/>
         <env name="APP_URL" value="http://localhost"/>

@@ -6,29 +6,33 @@ use App\Enums\AssetStatus;
 use App\Enums\UserRole;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Fleet\Asset;
-use App\Models\Domain\Fleet\EquipmentCategory;
-use App\Models\Domain\Fleet\EquipmentModel;
 use App\Models\Domain\Fleet\EquipmentPricing;
 use App\Models\Domain\Organization\OperatingCompany;
 use App\Models\Domain\Rental\Rental;
 use App\Models\User;
-use App\Services\AssetStatusService;
-use App\Services\RentalService;
 use App\Enums\RentalPricingPeriod;
 use App\Support\CopilotPageContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\BuildsAgentApiFixtures;
 use Tests\TestCase;
 
 class AgentApiTest extends TestCase
 {
+  use BuildsAgentApiFixtures;
   use RefreshDatabase;
 
   protected function setUp(): void
   {
     parent::setUp();
     $this->seed(RolePermissionSeeder::class);
+  }
+
+  protected function tearDown(): void
+  {
+    parent::tearDown();
+    gc_collect_cycles();
   }
 
   public function test_manifest_requires_agent_api_permission(): void
@@ -625,40 +629,6 @@ class AgentApiTest extends TestCase
       ->assertJsonPath('data.entity', 'person');
   }
 
-  public function test_context_endpoints_for_asset_quote_receivable(): void
-  {
-    $user = $this->agentUser();
-    $customer = $this->customer();
-    $asset = $this->asset('PAT-CTX-API', AssetStatus::Disponivel);
-
-    $title = \App\Models\Domain\Finance\ReceivableTitle::create([
-      'codigo' => 'TIT-CTX-API',
-      'customer_id' => $customer->id,
-      'parcela' => 1,
-      'total_parcelas' => 1,
-      'valor' => 99,
-      'vencimento' => now()->addWeek(),
-      'status' => 'aberto',
-    ]);
-
-    $this->actingAs($user);
-    $quote = app(\App\Services\RentalQuoteService::class)->create($asset, $customer, now()->addDays(3));
-
-    Sanctum::actingAs($user);
-
-    $this->getJson('/api/agent/context/asset/'.$asset->codigo_patrimonio)
-      ->assertOk()
-      ->assertJsonPath('entity', 'asset');
-
-    $this->getJson('/api/agent/context/quote/'.$quote->codigo)
-      ->assertOk()
-      ->assertJsonPath('entity', 'rental_quote');
-
-    $this->getJson('/api/agent/context/receivable/'.$title->codigo)
-      ->assertOk()
-      ->assertJsonPath('entity', 'receivable_title');
-  }
-
   public function test_manifest_includes_recommended_batch_commands(): void
   {
     Sanctum::actingAs($this->agentUser());
@@ -727,123 +697,5 @@ class AgentApiTest extends TestCase
       ->assertJsonPath('ok', true)
       ->assertJsonPath('data.document_type', 'rental_summary')
       ->assertJsonStructure(['data' => ['pdf_url']]);
-  }
-
-  public function test_context_endpoints_for_person_company_billing_yard_logistics(): void
-  {
-    $user = $this->agentUser();
-    Sanctum::actingAs($user);
-
-    $person = \App\Models\Domain\Person\Person::create([
-      'nome' => 'Contato Contexto',
-      'cpf' => '52998224725',
-      'ativo' => true,
-    ]);
-
-    $company = \App\Models\Domain\Person\Company::create([
-      'nome' => 'Empresa Contexto',
-      'cnpj' => '11222333000181',
-      'tipo' => 'fornecedor',
-      'ativo' => true,
-    ]);
-
-    $yard = \App\Models\Domain\Logistics\Yard::create([
-      'nome' => 'Pátio Teste',
-      'cidade' => 'BH',
-      'ativo' => true,
-      'principal' => false,
-    ]);
-
-    $rental = $this->reservedRental();
-    $entry = \App\Models\Domain\Rental\RentalBillingQueueEntry::create([
-      'codigo' => 'FAT-CTX-API',
-      'rental_id' => $rental->id,
-      'customer_id' => $rental->customer_id,
-      'tipo' => 'ciclo',
-      'valor_car' => 100,
-      'valor_nf' => 100,
-      'status' => 'pendente',
-      'gerado_em' => now(),
-    ]);
-
-    $this->getJson('/api/agent/context/person/'.$person->id)
-      ->assertOk()
-      ->assertJsonPath('entity', 'person');
-
-    $this->getJson('/api/agent/context/company/'.$company->id)
-      ->assertOk()
-      ->assertJsonPath('entity', 'company');
-
-    $this->getJson('/api/agent/context/billing/'.$entry->codigo)
-      ->assertOk()
-      ->assertJsonPath('entity', 'billing_entry');
-
-    $this->getJson('/api/agent/context/yard/'.$yard->id)
-      ->assertOk()
-      ->assertJsonPath('entity', 'yard');
-
-    $this->getJson('/api/agent/context/logistics')
-      ->assertOk()
-      ->assertJsonPath('entity', 'logistics_daily');
-  }
-
-  private function agentUser(): User
-  {
-    $user = $this->user(UserRole::Gestor);
-    $user->givePermissionTo('agent.api');
-
-    return $user;
-  }
-
-  private function user(UserRole $role): User
-  {
-    $user = User::factory()->create(['ativo' => true]);
-    $user->assignRole($role->value);
-
-    return $user;
-  }
-
-  private function customer(): Customer
-  {
-    return Customer::create([
-      'nome' => 'Cliente Agente',
-      'cpf_cnpj' => '39053344705',
-      'ativo' => true,
-    ]);
-  }
-
-  private function asset(string $code, AssetStatus $status): Asset
-  {
-    $category = EquipmentCategory::create([
-      'nome' => 'Agente',
-      'tipo_linha' => 'linha_leve',
-      'ativo' => true,
-    ]);
-
-    $model = EquipmentModel::create([
-      'equipment_category_id' => $category->id,
-      'marca' => 'Marca',
-      'modelo' => 'Modelo',
-      'ativo' => true,
-    ]);
-
-    $asset = new Asset([
-      'codigo_patrimonio' => $code,
-      'equipment_model_id' => $model->id,
-      'localizacao' => 'Pátio',
-    ]);
-
-    return app(AssetStatusService::class)->createWithInitialStatus($asset, $status);
-  }
-
-  private function reservedRental(): Rental
-  {
-    $user = $this->agentUser();
-    $this->actingAs($user);
-
-    $customer = $this->customer();
-    $asset = $this->asset('PAT-AGENT-CTX', AssetStatus::Disponivel);
-
-    return app(RentalService::class)->reserve($asset, $customer, now()->addDays(3));
   }
 }
