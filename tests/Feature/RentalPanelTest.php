@@ -116,6 +116,28 @@ class RentalPanelTest extends TestCase
         $this->assertSame([$rentalA->id], $results);
     }
 
+    public function test_copilot_deep_link_query_params_apply_panel_filters(): void
+    {
+        $user = $this->user(UserRole::Gestor);
+        $this->actingAs($user);
+
+        $category = EquipmentCategory::create([
+            'nome' => 'Betoneira',
+            'tipo_linha' => 'linha_leve',
+            'ativo' => true,
+        ]);
+
+        Livewire::withQueryParams([
+            'aba' => 'painel',
+            'escopo' => 'locado',
+            'categoria' => (string) $category->id,
+        ])
+            ->test(\App\Livewire\Rental\RentalIndex::class)
+            ->assertSet('activeView', 'painel')
+            ->assertSet('panelStatusScope', 'locado')
+            ->assertSet('panelCategoryId', (string) $category->id);
+    }
+
     private function user(UserRole $role): User
     {
         $user = User::factory()->create(['ativo' => true]);

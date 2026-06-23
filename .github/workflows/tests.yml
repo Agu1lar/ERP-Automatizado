@@ -90,4 +90,4 @@ jobs:
       - name: Run tests (PostgreSQL)
         # php artisan test always injects --configuration=phpunit.xml; passing
         # --configuration again triggers a PHPUnit 12 warning and exit code 1.
-        run: php -d memory_limit=1024M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml
+        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml

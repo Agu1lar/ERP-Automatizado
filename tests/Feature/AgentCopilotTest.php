@@ -37,6 +37,12 @@ class AgentCopilotTest extends TestCase
     $this->seed(RolePermissionSeeder::class);
   }
 
+  protected function tearDown(): void
+  {
+    parent::tearDown();
+    gc_collect_cycles();
+  }
+
   public function test_heuristic_parser_detects_finance_summary(): void
   {
     $parsed = app(AgentHeuristicParser::class)->parse('Me mostra o resumo financeiro');
@@ -153,28 +159,6 @@ class AgentCopilotTest extends TestCase
     $this->assertStringContainsString('escopo=locado', $panelAction['url']);
     $this->assertStringContainsString('categoria='.$category->id, $panelAction['url']);
     $this->assertTrue($panelAction['primary'] ?? false);
-  }
-
-  public function test_rental_index_deep_link_applies_panel_filters(): void
-  {
-    $user = $this->agentUser();
-    $this->actingAs($user);
-
-    $category = EquipmentCategory::create([
-      'nome' => 'Betoneira',
-      'tipo_linha' => 'linha_leve',
-      'ativo' => true,
-    ]);
-
-    Livewire::withQueryParams([
-      'aba' => 'painel',
-      'escopo' => 'locado',
-      'categoria' => (string) $category->id,
-    ])
-      ->test(\App\Livewire\Rental\RentalIndex::class)
-      ->assertSet('activeView', 'painel')
-      ->assertSet('panelStatusScope', 'locado')
-      ->assertSet('panelCategoryId', (string) $category->id);
   }
 
   public function test_rental_filter_without_category_does_not_return_unrelated_equipment(): void

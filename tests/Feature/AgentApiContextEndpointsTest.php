@@ -27,6 +27,12 @@ class AgentApiContextEndpointsTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        gc_collect_cycles();
+    }
+
     public function test_context_endpoints_for_asset_quote_receivable(): void
     {
         $user = $this->agentUser();
