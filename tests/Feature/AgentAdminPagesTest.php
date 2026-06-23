@@ -6,11 +6,9 @@ use App\Livewire\Admin\AgentMetricsIndex;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
-use PHPUnit\Framework\Attributes\RunClassInSeparateProcess;
 use Tests\Concerns\CreatesSmokeContext;
 use Tests\TestCase;
 
-#[RunClassInSeparateProcess]
 class AgentAdminPagesTest extends TestCase
 {
     use CreatesSmokeContext;

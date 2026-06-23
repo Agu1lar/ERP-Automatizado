@@ -1,3 +1,18 @@
+@environment('testing')
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+        <title>{{ config('app.name', 'Laravel') }}</title>
+    </head>
+    <body class="font-sans antialiased">
+        <x-workspace-tabs />
+        <main>{{ $slot }}</main>
+    </body>
+</html>
+@else
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
@@ -22,9 +37,7 @@
             <livewire:layout.navigation />
 
             <div class="flex min-h-screen flex-col pt-14 lg:pl-64">
-                @unless (app()->environment('testing'))
-                    <x-workspace-tabs />
-                @endunless
+                <x-workspace-tabs />
 
                 @if (isset($header))
                     <header class="bg-white shadow">
@@ -39,13 +52,12 @@
                 </main>
 
                 @auth
-                    @if (! app()->environment('testing'))
-                        @can('agent.api')
-                            <livewire:copilot.copilot-panel />
-                        @endcan
-                    @endif
+                    @can('agent.api')
+                        <livewire:copilot.copilot-panel />
+                    @endcan
                 @endauth
             </div>
         </div>
     </body>
 </html>
+@endenvironment

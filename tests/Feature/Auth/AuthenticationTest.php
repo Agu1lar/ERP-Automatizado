@@ -64,13 +64,9 @@ class AuthenticationTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole(UserRole::Admin->value);
 
-        $this->actingAs($user);
-
-        $response = $this->get('/dashboard');
-
-        $response
-            ->assertOk()
-            ->assertSeeVolt('layout.navigation');
+        Volt::test('layout.navigation')
+            ->actingAs($user)
+            ->assertOk();
     }
 
     public function test_users_can_logout(): void

@@ -23,6 +23,12 @@ class ArchiveRecordsTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        gc_collect_cycles();
+    }
+
     public function test_archive_service_soft_deletes_and_marks_inactive(): void
     {
         $company = Company::create([
