@@ -82,8 +82,8 @@ class GlobalSearchTest extends TestCase
 
         $this->assertSame(route('assets.show', $disponivel), $disponivelRow['primary_url']);
         $this->assertSame('Ficha do patrimônio', $disponivelRow['primary_label']);
-        $this->assertSame(route('rentals.show', Rental::where('codigo', 'LOC-BUSCA-1')->first()), $locadoRow['primary_url']);
-        $this->assertSame('Ficha da locação', $locadoRow['primary_label']);
+        $this->assertSame(route('rentals.show', Rental::where('codigo', 'LOC-BUSCA-1')->first()), $locadoRow['rental_url']);
+        $this->assertSame(route('assets.show', $locado), $locadoRow['asset_url']);
     }
 
     public function test_global_search_submit_redirects_to_results_page_for_category(): void
@@ -223,6 +223,64 @@ class GlobalSearchTest extends TestCase
             ->assertSee('LOC-000321')
             ->assertSee('Cliente Dropdown')
             ->assertSee('contrato');
+    }
+
+    public function test_global_search_dropdown_shows_contract_and_asset_for_rented_patrimony(): void
+    {
+        $user = $this->user();
+        $category = $this->createCategory('Vibrador');
+        $model = $this->createModel($category, 'Wacker', 'M1500');
+        $asset = $this->createAsset($model, 'PAT-0049', AssetStatus::Locado);
+        $customer = Customer::create([
+            'nome' => 'Cliente Patrimônio',
+            'cpf_cnpj' => '39053344705',
+            'ativo' => true,
+        ]);
+
+        Rental::create([
+            'codigo' => 'LOC-000048',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Locado->value,
+            'reserved_at' => now(),
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(GlobalSearch::class)
+            ->set('query', '0049')
+            ->assertSee('LOC-000048')
+            ->assertSee('PAT-0049')
+            ->assertSee('contrato')
+            ->assertSee('patrimonio')
+            ->assertSee('Ficha do contrato')
+            ->assertSee('Ficha do patrimônio');
+    }
+
+    public function test_global_search_submit_shows_results_when_rented_patrimony_has_two_destinations(): void
+    {
+        $user = $this->user();
+        $category = $this->createCategory('Placa');
+        $model = $this->createModel($category, 'Wacker', 'DPU');
+        $asset = $this->createAsset($model, 'PAT-0049', AssetStatus::Locado);
+        $customer = Customer::create([
+            'nome' => 'Cliente Duas Opções',
+            'cpf_cnpj' => '52998224725',
+            'ativo' => true,
+        ]);
+
+        Rental::create([
+            'codigo' => 'LOC-000048',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Locado->value,
+            'reserved_at' => now(),
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(GlobalSearch::class)
+            ->set('query', 'PAT-0049')
+            ->call('submit')
+            ->assertRedirect(route('search.results', ['q' => 'PAT-0049']));
     }
 
     public function test_global_search_results_page_renders_category_table(): void

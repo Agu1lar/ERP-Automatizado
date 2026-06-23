@@ -29,18 +29,32 @@
                             <span class="text-gray-400">—</span>
                         @endif
                     </td>
-                    <td class="px-4 py-3 text-right whitespace-nowrap">
-                        <a
-                            href="{{ $asset['primary_url'] }}"
-                            wire:navigate
-                            data-tab-title="{{ $asset['rental_codigo'] ?? $asset['codigo_patrimonio'] }}"
-                            class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
-                        >
-                            {{ $asset['primary_label'] }}
-                        </a>
-                        @if($asset['secondary_url'])
-                            <a href="{{ $asset['secondary_url'] }}" wire:navigate data-tab-title="{{ $asset['codigo_patrimonio'] }}" class="ml-2 text-xs text-gray-500 hover:text-indigo-600 hover:underline">
-                                {{ $asset['secondary_label'] }}
+                    <td class="px-4 py-3 text-right whitespace-nowrap space-x-2">
+                        @if($asset['rental_url'])
+                            <a
+                                href="{{ $asset['rental_url'] }}"
+                                wire:navigate
+                                data-tab-title="{{ $asset['rental_codigo'] }}"
+                                class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                            >
+                                Ficha do contrato
+                            </a>
+                            <a
+                                href="{{ $asset['asset_url'] }}"
+                                wire:navigate
+                                data-tab-title="{{ $asset['codigo_patrimonio'] }}"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Ficha do patrimônio
+                            </a>
+                        @else
+                            <a
+                                href="{{ $asset['asset_url'] }}"
+                                wire:navigate
+                                data-tab-title="{{ $asset['codigo_patrimonio'] }}"
+                                class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                            >
+                                Ficha do patrimônio
                             </a>
                         @endif
                     </td>

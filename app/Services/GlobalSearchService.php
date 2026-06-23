@@ -23,19 +23,42 @@ class GlobalSearchService
             return null;
         }
 
+        if ($this->looksLikeContractNumber($term)) {
+            $rentals = $this->findRentalsForSearch($term, 2);
+
+            if ($rentals->count() === 1) {
+                return route('rentals.show', $rentals->first());
+            }
+        }
+
         $assets = Asset::query()
             ->with(['equipmentModel.category', 'rentals' => fn ($q) => $q->active()->with('customer')])
             ->where('codigo_patrimonio', $term)
             ->get();
 
         if ($assets->count() === 1) {
-            return $this->mapAssetRow($assets->first())['primary_url'];
+            $asset = $assets->first();
+
+            if ($this->assetHasActiveRental($asset)) {
+                return null;
+            }
+
+            return route('assets.show', $asset);
         }
 
+        $matchingAssets = $this->matchingAssets($term);
         $rentals = $this->findRentalsForSearch($term, 2);
+
+        if ($this->shouldOfferAssetAndContractChoices($matchingAssets, $rentals)) {
+            return null;
+        }
 
         if ($rentals->count() === 1) {
             return route('rentals.show', $rentals->first());
+        }
+
+        if ($matchingAssets->count() === 1 && ! $this->assetHasActiveRental($matchingAssets->first())) {
+            return route('assets.show', $matchingAssets->first());
         }
 
         return null;
@@ -104,11 +127,24 @@ class GlobalSearchService
         }
 
         $results = collect();
+        $seenUrls = [];
+
+        foreach ($this->matchingAssets($term) as $asset) {
+            if ($results->count() >= $limit) {
+                break;
+            }
+
+            $this->pushAssetSuggestions($results, $seenUrls, $asset, $limit);
+        }
 
         $rentalLimit = $this->looksLikeContractNumber($term) ? min(4, $limit) : 2;
 
         foreach ($this->matchingRentals($term)->take($rentalLimit) as $rental) {
-            $results->push([
+            if ($results->count() >= $limit) {
+                break;
+            }
+
+            $this->pushSuggestion($results, $seenUrls, [
                 'type' => 'contrato',
                 'label' => $rental['codigo'],
                 'subtitle' => $rental['customer'].' · '.$rental['status_label']
@@ -116,7 +152,7 @@ class GlobalSearchService
                 'url' => $rental['url'],
                 'hint' => 'Ficha do contrato',
                 'count' => null,
-            ]);
+            ], $limit);
         }
 
         foreach ($this->matchingCategories($term)->take(2) as $category) {
@@ -130,24 +166,6 @@ class GlobalSearchService
                 'count' => $count,
             ]);
         }
-
-        $this->matchingAssets($term)
-            ->take(max(1, $limit - $results->count()))
-            ->each(function (Asset $asset) use ($results, $limit) {
-                if ($results->count() >= $limit) {
-                    return false;
-                }
-
-                $row = $this->mapAssetRow($asset);
-                $results->push([
-                    'type' => 'patrimonio',
-                    'label' => $row['codigo_patrimonio'],
-                    'subtitle' => $row['model_name'].' · '.$row['status_label'],
-                    'url' => $row['primary_url'],
-                    'hint' => $row['primary_label'],
-                    'count' => null,
-                ]);
-            });
 
         $this->matchingCustomers($term)
             ->take(max(1, $limit - $results->count()))
@@ -337,6 +355,70 @@ class GlobalSearchService
         return (bool) preg_match('/^(LOC-)?\d+/i', trim($term));
     }
 
+    private function assetHasActiveRental(Asset $asset): bool
+    {
+        if ($asset->relationLoaded('rentals')) {
+            return $asset->rentals->isNotEmpty();
+        }
+
+        return $asset->activeRental() !== null;
+    }
+
+    /** @param Collection<int, Asset> $matchingAssets @param Collection<int, Rental> $rentals */
+    private function shouldOfferAssetAndContractChoices(Collection $matchingAssets, Collection $rentals): bool
+    {
+        if ($matchingAssets->isEmpty()) {
+            return false;
+        }
+
+        if ($rentals->isNotEmpty()) {
+            return true;
+        }
+
+        return $matchingAssets->contains(fn (Asset $asset) => $this->assetHasActiveRental($asset));
+    }
+
+    /** @param Collection<int, array<string, mixed>> $results @param list<string> $seenUrls */
+    private function pushAssetSuggestions(Collection $results, array &$seenUrls, Asset $asset, int $limit): void
+    {
+        $row = $this->mapAssetRow($asset);
+
+        if ($row['rental_url']) {
+            $this->pushSuggestion($results, $seenUrls, [
+                'type' => 'contrato',
+                'label' => $row['rental_codigo'],
+                'subtitle' => $row['codigo_patrimonio'].' · '.($row['customer_nome'] ?? '—'),
+                'url' => $row['rental_url'],
+                'hint' => 'Ficha do contrato',
+                'count' => null,
+            ], $limit);
+        }
+
+        $this->pushSuggestion($results, $seenUrls, [
+            'type' => 'patrimonio',
+            'label' => $row['codigo_patrimonio'],
+            'subtitle' => $row['model_name'].' · '.$row['status_label'],
+            'url' => $row['asset_url'],
+            'hint' => 'Ficha do patrimônio',
+            'count' => null,
+        ], $limit);
+    }
+
+    /** @param Collection<int, array<string, mixed>> $results @param list<string> $seenUrls @param array<string, mixed> $item */
+    private function pushSuggestion(Collection $results, array &$seenUrls, array $item, int $limit): void
+    {
+        if ($results->count() >= $limit) {
+            return;
+        }
+
+        if (in_array($item['url'], $seenUrls, true)) {
+            return;
+        }
+
+        $seenUrls[] = $item['url'];
+        $results->push($item);
+    }
+
     /** @return array<string, mixed> */
     public function mapAssetRow(Asset $asset): array
     {
@@ -355,12 +437,14 @@ class GlobalSearchService
             'localizacao' => $asset->localizacao,
             'rental_codigo' => $rental?->codigo,
             'customer_nome' => $rental?->customer?->nome,
+            'asset_url' => route('assets.show', $asset),
+            'rental_url' => $rental ? route('rentals.show', $rental) : null,
             'primary_url' => $rental
                 ? route('rentals.show', $rental)
                 : route('assets.show', $asset),
-            'primary_label' => $rental ? 'Ficha da locação' : 'Ficha do patrimônio',
+            'primary_label' => $rental ? 'Ficha do contrato' : 'Ficha do patrimônio',
             'secondary_url' => $rental ? route('assets.show', $asset) : null,
-            'secondary_label' => $rental ? 'Ver patrimônio' : null,
+            'secondary_label' => $rental ? 'Ficha do patrimônio' : null,
         ];
     }
 }
