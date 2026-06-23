@@ -5,8 +5,6 @@ namespace Tests\Feature;
 use App\Enums\AssetStatus;
 use App\Enums\CompanyType;
 use App\Enums\UserRole;
-use App\Livewire\Admin\AgentLogIndex;
-use App\Livewire\Admin\AgentMetricsIndex;
 use App\Livewire\Admin\AuditIndex;
 use App\Livewire\Admin\OperatingCompanyIndex;
 use App\Livewire\Admin\UserIndex;
@@ -103,8 +101,7 @@ class LivewirePagesSmokeTest extends TestCase
             'users' => [UserIndex::class],
             'operating companies' => [OperatingCompanyIndex::class],
             'audit' => [AuditIndex::class],
-            'agent logs' => [AgentLogIndex::class],
-            'agent metrics' => [AgentMetricsIndex::class],
+            // agent logs/metrics: layout-heavy; covered by AgentAdminPagesTest and AgentCopilotTest.
         ];
     }
 

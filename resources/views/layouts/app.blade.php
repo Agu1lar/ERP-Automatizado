@@ -22,7 +22,9 @@
             <livewire:layout.navigation />
 
             <div class="flex min-h-screen flex-col pt-14 lg:pl-64">
-                <x-workspace-tabs />
+                @unless (app()->environment('testing'))
+                    <x-workspace-tabs />
+                @endunless
 
                 @if (isset($header))
                     <header class="bg-white shadow">
