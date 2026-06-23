@@ -7,8 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Finance\ReceivableTitle;
 use App\Models\Domain\Fleet\Asset;
+use App\Models\Domain\Fleet\EquipmentCategory;
 use App\Models\Domain\Logistics\Yard;
 use App\Models\Domain\Maintenance\MaintenanceOrder;
+use App\Models\Domain\Maintenance\PartCatalogItem;
 use App\Models\Domain\Person\Company;
 use App\Models\Domain\Person\Person;
 use App\Models\Domain\Rental\Rental;
@@ -120,6 +122,31 @@ class ContextController extends Controller
     return response()->json($builder->logisticsDaily($date));
   }
 
+  public function knowledge(AgentContextBuilder $builder): JsonResponse
+  {
+    abort_unless(auth()->user()?->can('agent.api'), 403);
+
+    return response()->json($builder->knowledge());
+  }
+
+  public function pricing(string $identifier, AgentContextBuilder $builder): JsonResponse
+  {
+    abort_unless(auth()->user()?->can('pricing.view'), 403);
+
+    $category = $this->resolveCategory($identifier);
+
+    return response()->json($builder->pricingCategory($category));
+  }
+
+  public function part(string $identifier, AgentContextBuilder $builder): JsonResponse
+  {
+    abort_unless(auth()->user()?->can('maintenance.view'), 403);
+
+    $part = $this->resolvePart($identifier);
+
+    return response()->json($builder->partCatalogItem($part));
+  }
+
   private function resolveAsset(string $identifier): Asset
   {
     if (is_numeric($identifier)) {
@@ -211,5 +238,26 @@ class ContextController extends Controller
     }
 
     return Yard::query()->where('nome', $identifier)->firstOrFail();
+  }
+
+  private function resolveCategory(string $identifier): EquipmentCategory
+  {
+    if (is_numeric($identifier)) {
+      return EquipmentCategory::query()->findOrFail((int) $identifier);
+    }
+
+    return EquipmentCategory::query()->where('nome', $identifier)->firstOrFail();
+  }
+
+  private function resolvePart(string $identifier): PartCatalogItem
+  {
+    if (is_numeric($identifier)) {
+      return PartCatalogItem::query()->findOrFail((int) $identifier);
+    }
+
+    return PartCatalogItem::query()
+      ->where('codigo_peca', $identifier)
+      ->orWhere('codigo_alternativo', $identifier)
+      ->firstOrFail();
   }
 }

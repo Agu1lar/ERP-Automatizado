@@ -12,14 +12,13 @@ use App\Agent\AgentCommandRegistry;
 
 use App\Agent\AgentSessionService;
 
-use App\Agent\Contracts\SupportsDryRun;
-
 use App\Agent\Document\AgentDocumentAnalyzer;
 
 use App\Enums\CopilotMode;
 
 use App\Models\Domain\Agent\AgentSession;
 
+use App\Support\Agent\AgentActionPreviewBuilder;
 use App\Support\Agent\AgentInputAssessment;
 use App\Support\Agent\AgentInputCompletionService;
 use App\Support\Agent\CopilotUserMessenger;
@@ -29,49 +28,6 @@ use App\Models\User;
 
 class AgentChatOrchestrator
 {
-  /** @var list<string> */
-  private array $dryRunPreviewCommands = [
-
-    'billing.authorize_entry',
-
-    'billing.invoice_entry',
-
-    'billing.process_customer_pending',
-
-    'receivable.mark_paid',
-
-    'customer.create',
-    'customer.update',
-
-    'person.create',
-    'person.update',
-    'company.create',
-    'company.update',
-
-    'rental.reserve',
-    'rental.cancel',
-    'rental.extend',
-    'rental.substitute',
-
-    'quote.convert',
-    'quote.create',
-    'quote.send',
-    'quote.cancel',
-
-    'rental.update',
-    'rental.transfer_commercial',
-
-    'billing.create_renewal',
-
-    'asset.move_location',
-    'asset.transition_status',
-
-    'document.apply_plan',
-
-  ];
-
-
-
   public function __construct(
 
     private readonly AgentHeuristicParser $parser,
@@ -89,6 +45,8 @@ class AgentChatOrchestrator
     private readonly AgentInputCompletionService $inputCompletion,
 
     private readonly CopilotUserMessenger $userMessenger,
+
+    private readonly AgentActionPreviewBuilder $actionPreviewBuilder,
 
   ) {}
 
@@ -454,6 +412,21 @@ class AgentChatOrchestrator
 
 
 
+    $planPreview = [
+      'ok' => true,
+      'command' => 'document.apply_plan',
+      'action_label' => $this->userMessenger->commandLabel('document.apply_plan'),
+      'summary' => count($actions).' ação(ões) em sequência a partir do documento.',
+      'parameters' => [],
+      'effects' => collect($actions)->values()->map(fn (array $action, int $index) => [
+        'label' => 'Passo '.($index + 1),
+        'after' => (string) ($action['label'] ?? $this->userMessenger->commandLabel((string) ($action['command'] ?? ''))),
+      ])->all(),
+      'targets' => [],
+      'warnings' => [],
+      'dry_run' => true,
+    ];
+
     return new AgentChatResponse(
 
       reply: $reply,
@@ -464,13 +437,14 @@ class AgentChatOrchestrator
 
       requiresConfirmation: true,
 
-      dryRunPreview: $this->sanitizeDryRunPreviewForUser([
-
+      dryRunPreview: [
         'ok' => true,
+        'dry_run' => true,
+        'message' => $planPreview['summary'],
+        'action_preview' => $planPreview,
+      ],
 
-        'message' => collect($actions)->pluck('label')->filter()->implode(' → '),
-
-      ]),
+      actionPreview: $planPreview,
 
       result: ['data' => ['extracted' => $plan['extracted']]],
 
@@ -543,19 +517,16 @@ class AgentChatOrchestrator
 
 
     if ($options->mode === CopilotMode::Ask && $this->registry->isExecutionCommand($command)) {
-      $preview = $this->buildDryRunPreview($command, $input, $user, $session);
-      $reply = $this->userMessenger->sanitizeReply(
-        $parsed['reply'] ?? 'No modo **Pergunta** só consulto informações — não altero cadastros nem avanço fluxos.'
-      )
-        ."\n\nMude para **Agente** se quiser que eu **".$this->userMessenger->commandLabel($command).'** por você.';
+        $preview = $this->actionPreviewBuilder->build($command, $input, $user, $session);
+        $reply = $this->userMessenger->sanitizeReply(
+          $parsed['reply'] ?? 'No modo **Pergunta** só consulto informações — não altero cadastros nem avanço fluxos.'
+        )
+          ."\n\nMude para **Agente** se quiser que eu **".$this->userMessenger->commandLabel($command).'** por você.';
 
-      if ($preview !== null && ($preview['ok'] ?? false)) {
-
-        $reply .= "\n\n**Prévia do que seria feito:** ".$this->friendlyPreviewMessage($preview);
-
-      }
-
-      return $this->withLlmStatus(new AgentChatResponse($reply), $llmDegraded, $llmNotice);
+      return $this->withLlmStatus(new AgentChatResponse(
+        reply: $reply,
+        actionPreview: $preview['ok'] ? $preview : null,
+      ), $llmDegraded, $llmNotice);
 
     }
 
@@ -588,21 +559,18 @@ class AgentChatOrchestrator
 
     if ($needsConfirm) {
 
-      $dryRunPreview = $this->buildDryRunPreview($command, $input, $user, $session);
+      $actionPreview = $this->actionPreviewBuilder->build($command, $input, $user, $session);
+
+      $dryRunPreview = [
+        'ok' => $actionPreview['ok'],
+        'dry_run' => $actionPreview['dry_run'] ?? false,
+        'message' => $actionPreview['summary'],
+        'action_preview' => $actionPreview,
+      ];
 
       $reply = $this->userMessenger->sanitizeReply(
         $parsed['reply'] ?? $this->userMessenger->confirmPrompt($command)
       );
-
-
-
-      if ($dryRunPreview !== null && ($dryRunPreview['ok'] ?? false)) {
-
-        $reply .= "\n\n**Prévia:** ".$this->friendlyPreviewMessage($dryRunPreview);
-
-      }
-
-
 
       if ($session) {
 
@@ -615,6 +583,8 @@ class AgentChatOrchestrator
           'requires_confirmation' => true,
 
           'dry_run' => $dryRunPreview,
+
+          'action_preview' => $actionPreview,
 
         ]);
 
@@ -632,7 +602,9 @@ class AgentChatOrchestrator
 
         requiresConfirmation: true,
 
-        dryRunPreview: $this->sanitizeDryRunPreviewForUser($dryRunPreview),
+        dryRunPreview: $dryRunPreview,
+
+        actionPreview: $actionPreview,
 
       ), $llmDegraded, $llmNotice);
 
@@ -656,41 +628,6 @@ class AgentChatOrchestrator
 
     return $this->withLlmStatus(new AgentChatResponse('Esta opção não está disponível no modo selecionado.'), $llmDegraded, $llmNotice);
   }
-
-  /** @param  array<string, mixed>  $input @return array<string, mixed>|null */
-  private function buildDryRunPreview(string $command, array $input, User $user, ?AgentSession $session): ?array
-
-  {
-
-    if (! in_array($command, $this->dryRunPreviewCommands, true)) {
-
-      return null;
-
-    }
-
-
-
-    $cmd = $this->registry->get($command);
-
-
-
-    if (! $cmd instanceof SupportsDryRun) {
-
-      return null;
-
-    }
-
-
-
-    $preview = $this->executor->execute($command, $input, $user, $session, dryRun: true);
-
-
-
-    return $preview->toArray();
-
-  }
-
-
 
   /** @return list<array{label: string, command?: string, params?: array<string, mixed>}> */
 
@@ -932,34 +869,10 @@ class AgentChatOrchestrator
       executed: $response->executed,
       result: $response->result,
       dryRunPreview: $response->dryRunPreview,
+      actionPreview: $response->actionPreview,
       actions: $response->actions,
       llmDegraded: $llmDegraded,
       llmNotice: $llmNotice,
-    );
-  }
-
-  /** @param  array<string, mixed>|null  $preview @return array<string, mixed>|null */
-  private function sanitizeDryRunPreviewForUser(?array $preview): ?array
-  {
-    if ($preview === null) {
-      return null;
-    }
-
-    $preview['message'] = $this->friendlyPreviewMessage($preview);
-
-    return $preview;
-  }
-
-  /** @param  array<string, mixed>  $preview */
-  private function friendlyPreviewMessage(array $preview): string
-  {
-    if ($preview['ok'] ?? false) {
-      return $this->userMessenger->sanitizeReply((string) ($preview['message'] ?? ''));
-    }
-
-    return $this->userMessenger->forError(
-      (string) ($preview['message'] ?? ''),
-      isset($preview['error_code']) ? (string) $preview['error_code'] : null,
     );
   }
 

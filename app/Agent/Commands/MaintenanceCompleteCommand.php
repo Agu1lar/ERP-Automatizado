@@ -25,7 +25,7 @@ class MaintenanceCompleteCommand extends AbstractAgentCommand
 
   public static function description(): string
   {
-    return 'Conclui uma ordem de serviço.';
+    return 'Conclui uma OS de oficina. Para OS tipo campo, use maintenance.complete_field.';
   }
 
   public function permission(): string

@@ -21,6 +21,8 @@ class AgentChatResponse
     public readonly ?array $result = null,
     /** @var array<string, mixed>|null */
     public readonly ?array $dryRunPreview = null,
+    /** @var array<string, mixed>|null */
+    public readonly ?array $actionPreview = null,
     public readonly array $actions = [],
     public readonly bool $llmDegraded = false,
     public readonly ?string $llmNotice = null,
@@ -39,6 +41,7 @@ class AgentChatResponse
       'executed' => $this->executed,
       'result' => $this->result,
       'dry_run_preview' => $this->dryRunPreview,
+      'action_preview' => $this->actionPreview,
       'actions' => $this->actions,
       'llm_degraded' => $this->llmDegraded,
       'llm_notice' => $this->llmNotice,

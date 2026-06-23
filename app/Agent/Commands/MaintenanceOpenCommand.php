@@ -59,7 +59,7 @@ class MaintenanceOpenCommand extends AbstractAgentCommand
         'rental_id' => ['type' => 'integer'],
         'rental_codigo' => ['type' => 'string'],
         'descricao' => ['type' => 'string'],
-        'tipo' => ['type' => 'string', 'enum' => ['corretiva', 'preventiva', 'retorno_locacao', 'indenizacao']],
+        'tipo' => ['type' => 'string', 'enum' => ['corretiva', 'preventiva', 'retorno_locacao', 'indenizacao', 'campo']],
         'impeditiva' => ['type' => 'boolean'],
       ],
     ];
@@ -76,19 +76,34 @@ class MaintenanceOpenCommand extends AbstractAgentCommand
 
     $tipo = MaintenanceOrderType::from($input['tipo'] ?? MaintenanceOrderType::Corretiva->value);
 
-    $order = $this->maintenanceOrderService->open(
-      $asset,
-      $input['descricao'],
-      $tipo,
-      impeditiva: (bool) ($input['impeditiva'] ?? true),
-      rental: $rental,
-      user: $user,
-    );
+    if ($tipo === MaintenanceOrderType::Campo) {
+      $rental ??= $asset->activeRental();
+      $order = $this->maintenanceOrderService->openField(
+        $asset,
+        $input['descricao'],
+        $rental,
+        $user,
+      );
+    } else {
+      $order = $this->maintenanceOrderService->open(
+        $asset,
+        $input['descricao'],
+        $tipo,
+        impeditiva: (bool) ($input['impeditiva'] ?? true),
+        rental: $rental,
+        user: $user,
+      );
+    }
 
-    return $this->success(
-      "OS {$order->codigo} aberta.",
-      $this->contextBuilder->maintenanceOrder($order),
-      [
+    $nextSteps = $tipo === MaintenanceOrderType::Campo
+      ? [
+        [
+          'label' => 'Abrir manutenção em campo',
+          'url' => route('field.maintenance.scan', $asset->codigo_patrimonio),
+          'primary' => true,
+        ],
+      ]
+      : [
         [
           'label' => 'Iniciar execução',
           'command' => 'maintenance.start',
@@ -96,7 +111,12 @@ class MaintenanceOpenCommand extends AbstractAgentCommand
           'primary' => true,
         ],
         ...WorkflowNextStep::maintenanceAfterStart($order),
-      ],
+      ];
+
+    return $this->success(
+      "OS {$order->codigo} aberta.",
+      $this->contextBuilder->maintenanceOrder($order),
+      $nextSteps,
     );
   }
 }

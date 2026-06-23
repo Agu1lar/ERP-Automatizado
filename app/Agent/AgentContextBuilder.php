@@ -2,8 +2,10 @@
 
 namespace App\Agent;
 
+use App\Enums\MaintenanceOrderType;
 use App\Enums\RentalBillingQueueStatus;
 use App\Enums\RentalPricingPeriod;
+use App\Enums\RentalStatus;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Finance\ReceivableTitle;
 use App\Models\Domain\Fleet\EquipmentCategory;
@@ -19,6 +21,7 @@ use App\Models\Domain\Rental\RentalQuote;
 use App\Services\ReceivableTitleService;
 use App\Support\CopilotNavigationLinks;
 use App\Support\DelinquencyReportQuery;
+use App\Support\FichaCompleteness;
 use App\Support\FinanceDashboardQuery;
 use App\Support\LogisticsDailyQuery;
 use App\Support\RentalWorkflow;
@@ -40,6 +43,13 @@ class AgentContextBuilder
 
     $status = $rental->statusEnum();
     $workflow = RentalWorkflow::steps($rental);
+    $usesHorimetro = $rental->asset?->usesHorimetro() ?? false;
+    $fichaWarnings = FichaCompleteness::rentalWarnings($rental);
+
+    $demoDe = $rental->checkout_at?->toDateString()
+      ?? $rental->scheduled_start_at?->toDateString()
+      ?? $rental->reserved_at->toDateString();
+    $demoAte = $rental->expected_return_at?->toDateString() ?? now()->toDateString();
 
     $pendingBilling = $rental->billingQueueEntries
       ->filter(fn ($e) => in_array($e->statusEnum(), [
@@ -54,6 +64,13 @@ class AgentContextBuilder
       ],
       $status->value === 'locado' => [
         ['command' => 'rental.return', 'params' => ['rental_id' => $rental->id]],
+        ['command' => 'maintenance.open', 'params' => [
+          'asset_id' => $rental->asset_id,
+          'rental_id' => $rental->id,
+          'tipo' => 'campo',
+          'descricao' => 'Manutenção em campo na obra',
+          'impeditiva' => false,
+        ]],
       ],
       $status->value === 'em_inspecao' => [
         ['command' => 'rental.complete_inspection', 'params' => ['rental_id' => $rental->id, 'outcome' => 'ok']],
@@ -81,11 +98,20 @@ class AgentContextBuilder
           'descricao' => $rental->asset?->equipmentDisplayName(),
         ],
         'valor_faturamento' => $rental->valor_faturamento,
+        'pricing_period' => $rental->pricing_period,
+        'billing_cycle_days' => $rental->billing_cycle_days,
+        'contrato_clausula_prorata' => (bool) ($rental->contrato_clausula_prorata ?? true),
+        'usa_horimetro' => $usesHorimetro,
+        'horimetro_saida' => $rental->horimetro_saida,
+        'horimetro_retorno' => $rental->horimetro_retorno,
+        'local_obra' => $rental->local_obra,
         'expected_return_at' => $rental->expected_return_at?->toDateString(),
         'checkout_at' => $rental->checkout_at?->toIso8601String(),
         'next_billing_at' => $rental->next_billing_at?->toDateString(),
       ],
       'workflow' => $workflow,
+      'ficha_complete' => FichaCompleteness::isRentalComplete($rental),
+      'ficha_warnings' => $fichaWarnings,
       'billing_queue' => $pendingBilling->map(fn ($e) => [
         'id' => $e->id,
         'codigo' => $e->codigo,
@@ -107,11 +133,35 @@ class AgentContextBuilder
       'document_exports' => [
         ['document_type' => 'rental_summary', 'rental_id' => $rental->id, 'label' => 'PDF resumo'],
         ['document_type' => 'rental_contract', 'rental_id' => $rental->id, 'label' => 'PDF contrato'],
+        [
+          'document_type' => 'rental_statement',
+          'rental_id' => $rental->id,
+          'periodo_de' => $demoDe,
+          'periodo_ate' => $demoAte,
+          'label' => 'Demonstrativo por período',
+        ],
       ],
       'urls' => [
         'ficha' => route('rentals.show', $rental),
         'pdf_resumo' => route('rentals.pdf', $rental),
         'pdf_contrato' => route('rentals.contract.pdf', $rental),
+        'pdf_demonstrativo' => route('rentals.statement.pdf', [
+          'rental' => $rental,
+          'de' => $demoDe,
+          'ate' => $demoAte,
+        ]),
+        'inspecao' => $status === RentalStatus::EmInspecao
+          ? route('rentals.show', $rental).'?acao=inspecao'
+          : null,
+        'manutencao_campo' => $status === RentalStatus::Locado && $rental->asset
+          ? route('field.maintenance.scan', $rental->asset->codigo_patrimonio)
+          : null,
+      ],
+      'knowledge_hints' => [
+        'sem_substituto' => 'Sem patrimônio para troca: use maintenance.open tipo=campo no equipamento atual.',
+        'pro_rata' => $rental->contrato_clausula_prorata
+          ? 'Contrato inclui cláusula de prorrogação automática e pro-rata.'
+          : 'Cláusula pro-rata desativada — ative com rental.update contrato_clausula_prorata=true.',
       ],
     ];
   }
@@ -175,6 +225,8 @@ class AgentContextBuilder
         'localizacao' => $asset->localizacao ?? '—',
         'yard' => $asset->yard?->nome,
         'horimetro' => $asset->horimetro,
+        'usa_horimetro' => $asset->usesHorimetro(),
+        'categoria_usa_horimetro' => (bool) ($category?->usa_horimetro ?? true),
       ],
       'active_rental' => $activeRental ? [
         'id' => $activeRental->id,
@@ -203,6 +255,15 @@ class AgentContextBuilder
         ! $activeOrder && $status->value !== 'locado'
           ? ['command' => 'maintenance.open', 'params' => ['asset_id' => $asset->id, 'descricao' => 'Solicitação via copiloto']]
           : null,
+        $activeRental && $activeRental->statusEnum() === RentalStatus::Locado
+          ? ['command' => 'maintenance.open', 'params' => [
+            'asset_id' => $asset->id,
+            'rental_id' => $activeRental->id,
+            'tipo' => 'campo',
+            'descricao' => 'Manutenção em campo',
+            'impeditiva' => false,
+          ]]
+          : null,
       ])),
       'document_exports' => [
         ['document_type' => 'asset_sheet', 'asset_id' => $asset->id, 'label' => 'PDF ficha patrimônio'],
@@ -210,7 +271,11 @@ class AgentContextBuilder
       'urls' => [
         'ficha' => route('assets.show', $asset),
         'pdf' => route('assets.pdf', $asset),
+        'manutencao_campo' => $activeRental && $activeRental->statusEnum() === RentalStatus::Locado
+          ? route('field.maintenance.scan', $asset->codigo_patrimonio)
+          : null,
       ],
+      'ficha_warnings' => FichaCompleteness::assetWarnings($asset),
     ];
   }
 
@@ -220,6 +285,14 @@ class AgentContextBuilder
     $order->load(['asset.equipmentModel', 'rental.customer', 'assignedToUser']);
 
     $status = $order->statusEnum();
+    $tipo = $order->tipoEnum();
+
+    $workflowUrl = match ($status->value) {
+      'aberta' => WorkflowNextStep::maintenanceShowUrl($order, 'executar'),
+      'em_execucao' => WorkflowNextStep::maintenanceShowUrl($order, 'concluir'),
+      'aguardando_peca' => WorkflowNextStep::maintenanceShowUrl($order, 'retomar'),
+      default => route('maintenance.show', $order),
+    };
 
     return [
       'entity' => 'maintenance_order',
@@ -229,27 +302,43 @@ class AgentContextBuilder
         'status' => $status->value,
         'status_label' => $status->label(),
         'tipo' => $order->tipo,
+        'tipo_label' => $tipo->label(),
+        'is_field' => $tipo->isField(),
         'descricao_problema' => $order->descricao_problema,
         'asset_codigo' => $order->asset?->codigo_patrimonio,
         'rental_codigo' => $order->rental?->codigo,
       ],
       'next_step_hint' => WorkflowNextStep::maintenanceStatusHint($status),
-      'suggested_commands' => match ($status->value) {
-        'aberta' => [['command' => 'maintenance.start', 'params' => ['order_id' => $order->id]]],
-        'em_execucao' => [
-          ['command' => 'maintenance.wait_part', 'params' => ['order_id' => $order->id]],
-          ['command' => 'maintenance.complete', 'params' => ['order_id' => $order->id]],
-        ],
-        'aguardando_peca' => [['command' => 'maintenance.resume', 'params' => ['order_id' => $order->id]]],
-        default => [],
-      },
+      'suggested_commands' => $tipo->isField()
+        ? match ($status->value) {
+          'aberta', 'em_execucao' => [
+            ['command' => 'maintenance.complete_field', 'params' => ['order_id' => $order->id, 'confirm_checklist_all' => true]],
+          ],
+          default => [],
+        }
+        : match ($status->value) {
+          'aberta' => [['command' => 'maintenance.start', 'params' => ['order_id' => $order->id]]],
+          'em_execucao' => [
+            ['command' => 'maintenance.wait_part', 'params' => ['order_id' => $order->id]],
+            ['command' => 'maintenance.complete', 'params' => ['order_id' => $order->id]],
+          ],
+          'aguardando_peca' => [['command' => 'maintenance.resume', 'params' => ['order_id' => $order->id]]],
+          default => [],
+        },
       'document_exports' => [
         ['document_type' => 'maintenance_order', 'order_id' => $order->id, 'label' => 'PDF OS'],
       ],
       'urls' => [
         'ficha' => route('maintenance.show', $order),
+        'ficha_acao' => $workflowUrl,
         'pdf' => route('maintenance.pdf', $order),
+        'campo_mobile' => $tipo->isField() && $order->asset
+          ? route('field.maintenance.scan', $order->asset->codigo_patrimonio)
+          : null,
       ],
+      'knowledge_hints' => $tipo->isField()
+        ? ['field' => 'OS de campo — locação permanece ativa; concluir via maintenance.complete_field (checklist) ou tela /campo/{patrimônio}.']
+        : [],
     ];
   }
 
@@ -343,12 +432,14 @@ class AgentContextBuilder
 
     return [
       'entity' => 'system',
+      'knowledge_version' => \App\Support\Agent\AgentSystemKnowledge::VERSION,
       'finance' => [
         'receivable_this_week' => $financeDashboard->receivableThisWeekSummary(),
         'billing_cycle_due_count' => $financeDashboard->billingCycleDueCount(),
         'pending_renewal_queue_count' => $financeDashboard->pendingRenewalQueueCount(),
         'delinquency' => $delinquency->summary(),
       ],
+      'knowledge_url' => url('/api/agent/context/knowledge'),
     ];
   }
 
@@ -493,6 +584,12 @@ class AgentContextBuilder
   }
 
   /** @return array<string, mixed> */
+  public function knowledge(): array
+  {
+    return \App\Support\Agent\AgentSystemKnowledge::manifest();
+  }
+
+  /** @return array<string, mixed> */
   public function logisticsDaily(?CarbonInterface $date = null): array
   {
     $date = $date?->copy()->startOfDay() ?? now()->startOfDay();
@@ -541,6 +638,7 @@ class AgentContextBuilder
         'id' => $category->id,
         'nome' => $category->nome,
         'tipo_linha' => $category->tipo_linha,
+        'usa_horimetro' => (bool) $category->usa_horimetro,
         'ativo' => $category->ativo,
       ],
       'prices' => $byPeriod,

@@ -123,8 +123,11 @@
                     <p class="mt-1 text-xs text-amber-900">
                         Ação: <strong>{{ $pendingActionLabel ?? 'Confirmar execução' }}</strong>
                     </p>
-                    @if($pendingPreview && ($pendingPreview['ok'] ?? false))
-                        <div class="mt-2 text-xs text-amber-900">{!! \App\Support\CopilotMessageFormatter::format($pendingPreview['message'] ?? '') !!}</div>
+                    @php
+                        $structuredPreview = $pendingPreview['action_preview'] ?? $pendingPreview ?? null;
+                    @endphp
+                    @if($structuredPreview)
+                        <x-copilot-action-preview :preview="$structuredPreview" />
                     @endif
                     <p class="mt-2 text-[11px] text-amber-700">Confirme para executar ou cancele para fazer manualmente na tela.</p>
                     <div class="mt-2.5 flex flex-wrap gap-2">

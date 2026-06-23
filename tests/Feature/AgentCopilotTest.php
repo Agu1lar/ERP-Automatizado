@@ -350,7 +350,7 @@ class AgentCopilotTest extends TestCase
       ->assertOk()
       ->assertJsonPath('requires_confirmation', true)
       ->assertJsonPath('command', 'rental.return')
-      ->assertJsonStructure(['session_id']);
+      ->assertJsonStructure(['session_id', 'action_preview' => ['parameters', 'effects', 'action_label']]);
   }
 
   public function test_copilot_floating_panel_loads_for_gestor(): void
@@ -428,7 +428,9 @@ class AgentCopilotTest extends TestCase
       ->assertOk()
       ->assertJsonPath('requires_confirmation', true)
       ->assertJsonPath('dry_run_preview.ok', true)
-      ->assertJsonPath('dry_run_preview.dry_run', true);
+      ->assertJsonPath('dry_run_preview.dry_run', true)
+      ->assertJsonPath('action_preview.command', 'billing.invoice_entry')
+      ->assertJsonStructure(['action_preview' => ['parameters', 'effects']]);
 
     $this->assertSame(1, AgentCommandLog::query()->where('dry_run', true)->count());
   }

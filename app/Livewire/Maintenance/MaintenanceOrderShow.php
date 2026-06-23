@@ -94,6 +94,7 @@ class MaintenanceOrderShow extends Component
         $this->authorize('view', $order);
         $this->loadOrder($order);
         $this->syncFormFields();
+        $this->maybeHandleWorkflowActionFromRequest();
     }
 
     public function saveTechnicalData(MaintenanceOrderService $service): void
@@ -305,7 +306,7 @@ class MaintenanceOrderShow extends Component
         $this->flashSuccess('Registro de horas removido.');
     }
 
-    public function start(MaintenanceOrderService $service): void
+    public function startExecution(MaintenanceOrderService $service): void
     {
         $this->authorize('operate', $this->order);
 
@@ -491,6 +492,61 @@ class MaintenanceOrderShow extends Component
     {
         FlashMessage::success($message, $actions);
         RentalFichaNavigation::flashReturnLink($this->order->rental);
+    }
+
+    private function maybeHandleWorkflowActionFromRequest(): void
+    {
+        $acao = request()->query('acao');
+
+        if ($acao === null) {
+            return;
+        }
+
+        match ($acao) {
+            'executar' => $this->maybeAutoStartExecution(),
+            'concluir' => $this->maybeAutoOpenCompleteModal(),
+            'retomar' => $this->maybeAutoResume(),
+            default => null,
+        };
+    }
+
+    private function maybeAutoStartExecution(): void
+    {
+        if ($this->order->statusEnum() !== MaintenanceOrderStatus::Aberta) {
+            return;
+        }
+
+        if (! auth()->user()?->can('operate', $this->order)) {
+            return;
+        }
+
+        $this->startExecution(app(MaintenanceOrderService::class));
+    }
+
+    private function maybeAutoOpenCompleteModal(): void
+    {
+        if (! in_array($this->order->statusEnum(), [MaintenanceOrderStatus::EmExecucao, MaintenanceOrderStatus::AguardandoPeca], true)) {
+            return;
+        }
+
+        if (! auth()->user()?->can('operate', $this->order)) {
+            return;
+        }
+
+        $this->openCompleteModal();
+    }
+
+    private function maybeAutoResume(): void
+    {
+        if ($this->order->statusEnum() !== MaintenanceOrderStatus::AguardandoPeca) {
+            return;
+        }
+
+        if (! auth()->user()?->can('operate', $this->order)) {
+            return;
+        }
+
+        $this->resume(app(MaintenanceOrderService::class));
     }
 
     private function syncFormFields(): void

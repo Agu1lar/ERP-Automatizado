@@ -101,6 +101,19 @@
                 <td class="value" colspan="3">{{ \App\Enums\RentalPricingPeriod::from($rental->pricing_period)->label() }}</td>
             </tr>
             @endif
+            @if($rental->billing_cycle_days)
+            <tr>
+                <td class="label">Ciclo de faturamento</td>
+                <td class="value">{{ $rental->billing_cycle_days }} dias</td>
+                <td class="label">Cláusula pro-rata</td>
+                <td class="value">{{ $rental->contrato_clausula_prorata ? 'Sim — prorrogação automática' : 'Não incluída' }}</td>
+            </tr>
+            @else
+            <tr>
+                <td class="label">Cláusula pro-rata</td>
+                <td class="value" colspan="3">{{ $rental->contrato_clausula_prorata ? 'Sim — prorrogação automática após o prazo' : 'Não incluída neste contrato' }}</td>
+            </tr>
+            @endif
         </table>
     </div>
 

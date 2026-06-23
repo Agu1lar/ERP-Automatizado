@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use PHPUnit\Framework\Attributes\Group;
 
 use App\Enums\AssetStatus;
+use App\Enums\MaintenanceOrderStatus;
 use App\Enums\UserRole;
 use App\Livewire\Maintenance\MaintenanceOrderShow;
 use App\Livewire\Rental\RentalIndex;
@@ -72,9 +73,67 @@ class WorkflowNextStepTest extends TestCase
 
         Livewire::actingAs($user)
             ->test(MaintenanceOrderShow::class, ['order' => $order])
-            ->call('start')
+            ->call('startExecution')
             ->assertHasNoErrors()
             ->assertSee('OS em execução');
+    }
+
+    public function test_maintenance_show_starts_execution_from_query_action(): void
+    {
+        $user = $this->user(UserRole::Gestor);
+        $asset = $this->asset('PAT-OS-2', AssetStatus::EmManutencao);
+
+        $this->actingAs($user);
+
+        $order = app(MaintenanceOrderService::class)->open($asset, 'Teste query executar');
+
+        Livewire::actingAs($user)
+            ->withQueryParams(['acao' => 'executar'])
+            ->test(MaintenanceOrderShow::class, ['order' => $order])
+            ->assertHasNoErrors();
+
+        $this->assertSame(
+            MaintenanceOrderStatus::EmExecucao->value,
+            $order->fresh()->status,
+        );
+    }
+
+    public function test_maintenance_show_opens_complete_modal_from_query_action(): void
+    {
+        $user = $this->user(UserRole::Gestor);
+        $asset = $this->asset('PAT-OS-3', AssetStatus::EmManutencao);
+
+        $this->actingAs($user);
+
+        $order = app(MaintenanceOrderService::class)->open($asset, 'Teste query concluir');
+        $order = app(MaintenanceOrderService::class)->start($order);
+
+        Livewire::actingAs($user)
+            ->withQueryParams(['acao' => 'concluir'])
+            ->test(MaintenanceOrderShow::class, ['order' => $order])
+            ->assertSet('showCompleteModal', true);
+    }
+
+    public function test_maintenance_show_resumes_from_query_action(): void
+    {
+        $user = $this->user(UserRole::Gestor);
+        $asset = $this->asset('PAT-OS-4', AssetStatus::EmManutencao);
+
+        $this->actingAs($user);
+
+        $order = app(MaintenanceOrderService::class)->open($asset, 'Teste query retomar');
+        $order = app(MaintenanceOrderService::class)->start($order);
+        $order = app(MaintenanceOrderService::class)->waitForPart($order, 'Aguardando motor');
+
+        Livewire::actingAs($user)
+            ->withQueryParams(['acao' => 'retomar'])
+            ->test(MaintenanceOrderShow::class, ['order' => $order])
+            ->assertHasNoErrors();
+
+        $this->assertSame(
+            MaintenanceOrderStatus::EmExecucao->value,
+            $order->fresh()->status,
+        );
     }
 
     private function user(UserRole $role): User

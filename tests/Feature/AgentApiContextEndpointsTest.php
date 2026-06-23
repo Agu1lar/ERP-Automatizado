@@ -116,4 +116,65 @@ class AgentApiContextEndpointsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('entity', 'logistics_daily');
     }
+
+    public function test_knowledge_pricing_and_part_context_endpoints(): void
+    {
+        $user = $this->agentUser();
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/agent/context/knowledge')
+            ->assertOk()
+            ->assertJsonPath('version', '2026.06')
+            ->assertJsonPath('command', 'knowledge.get')
+            ->assertJsonStructure(['workflows', 'documents', 'operational_rules']);
+
+        $this->postJson('/api/agent/commands/knowledge.get', ['input' => []])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('data.version', '2026.06')
+            ->assertJsonStructure(['data' => ['workflows', 'documents']]);
+
+        $this->postJson('/api/agent/commands/knowledge.get', ['input' => ['section' => 'workflows']])
+            ->assertOk()
+            ->assertJsonPath('data.section', 'workflows')
+            ->assertJsonStructure(['data' => ['workflows']]);
+
+        $category = \App\Models\Domain\Fleet\EquipmentCategory::create([
+            'nome' => 'Agente Cat',
+            'tipo_linha' => 'linha_leve',
+            'usa_horimetro' => false,
+            'ativo' => true,
+        ]);
+
+        $this->getJson('/api/agent/context/pricing/'.$category->id)
+            ->assertOk()
+            ->assertJsonPath('category.usa_horimetro', false);
+
+        $part = \App\Models\Domain\Maintenance\PartCatalogItem::create([
+            'codigo_peca' => 'PEC-AG-1',
+            'descricao' => 'Peça teste agente',
+            'valor_unitario_padrao' => 10,
+            'ativo' => true,
+        ]);
+
+        $this->getJson('/api/agent/context/part/'.$part->codigo_peca)
+            ->assertOk()
+            ->assertJsonPath('part.codigo_peca', 'PEC-AG-1');
+    }
+
+    public function test_rental_context_includes_documents_and_prorata(): void
+    {
+        $user = $this->agentUser();
+        Sanctum::actingAs($user);
+
+        $rental = $this->reservedRental();
+        $rental->update(['contrato_clausula_prorata' => true]);
+
+        $response = $this->getJson('/api/agent/context/rental/'.$rental->codigo)
+            ->assertOk()
+            ->assertJsonPath('rental.contrato_clausula_prorata', true)
+            ->assertJsonStructure(['document_exports', 'urls', 'knowledge_hints']);
+
+        $this->assertNotNull($response->json('urls.pdf_demonstrativo'));
+    }
 }

@@ -7,6 +7,7 @@ enum DocumentType: string
     case MaintenanceOrder = 'maintenance_order';
     case RentalSummary = 'rental_summary';
     case RentalContract = 'rental_contract';
+    case RentalStatement = 'rental_statement';
     case AssetSheet = 'asset_sheet';
     case BillingInvoice = 'billing_invoice';
 
@@ -16,6 +17,7 @@ enum DocumentType: string
             self::MaintenanceOrder => 'Ordem de Serviço',
             self::RentalSummary => 'Resumo de Locação',
             self::RentalContract => 'Contrato de Locação',
+            self::RentalStatement => 'Demonstrativo de Locação',
             self::AssetSheet => 'Ficha do Patrimônio',
             self::BillingInvoice => 'Fatura de Locação',
         };

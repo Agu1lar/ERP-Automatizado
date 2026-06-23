@@ -99,7 +99,11 @@ class AssetTransitionStatusCommand extends AbstractAgentCommand implements Suppo
 
         return AgentCommandResult::preview(
             "Simulação: alterar status de **{$asset->codigo_patrimonio}** para **{$newStatus->label()}**.",
-            ['asset_codigo' => $asset->codigo_patrimonio, 'new_status' => $newStatus->value],
+            [
+                'asset_codigo' => $asset->codigo_patrimonio,
+                'status_from' => $asset->statusEnum()->label(),
+                'status_to' => $newStatus->label(),
+            ],
         );
     }
 }

@@ -17,6 +17,7 @@ use App\Models\Domain\Rental\Rental;
 use App\Models\User;
 use App\Services\AssetStatusService;
 use App\Services\RentalService;
+use App\Support\WorkflowNextStep;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -61,10 +62,12 @@ class RentalPostFlowPromptTest extends TestCase
             ->call('openMaintenanceOrderModal')
             ->set('os_tipo', MaintenanceOrderType::Corretiva->value)
             ->set('os_descricao', 'Revisão geral')
-            ->call('createMaintenanceOrder')
-            ->call('goToPostFlowDestination');
+            ->call('createMaintenanceOrder');
 
-        $component->assertRedirect();
+        $order = $rental->fresh()->maintenanceOrders()->latest('id')->first();
+        $component
+            ->call('goToPostFlowDestination')
+            ->assertRedirect(WorkflowNextStep::maintenanceShowUrl($order, 'executar'));
     }
 
     private function user(UserRole $role): User

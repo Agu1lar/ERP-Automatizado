@@ -247,7 +247,7 @@
                 A OS será vinculada à locação <strong>{{ $rental->codigo }}</strong>
                 e ao patrimônio <strong>{{ $rental->asset->codigo_patrimonio }}</strong>.
                 @if(in_array($status, [\App\Enums\RentalStatus::Locado, \App\Enums\RentalStatus::Reservado]))
-                    <span class="block mt-1 text-amber-700">Enquanto o equipamento estiver locado, a OS será registrada sem bloquear o patrimônio.</span>
+                    <span class="block mt-1 text-amber-700">Enquanto o equipamento estiver locado, a OS será registrada sem bloquear o patrimônio. Use o tipo <strong>Manutenção em campo</strong> para reparo no mesmo equipamento na obra.</span>
                 @endif
             </p>
             <form wire:submit="createMaintenanceOrder" class="space-y-4">

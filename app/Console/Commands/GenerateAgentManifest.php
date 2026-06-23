@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Agent\AgentCommandRegistry;
+use App\Support\Agent\AgentManifestPayload;
 use Illuminate\Console\Command;
 
 class GenerateAgentManifest extends Command
@@ -11,23 +11,15 @@ class GenerateAgentManifest extends Command
 
   protected $description = 'Gera o manifest de capacidades do copiloto (comandos + schemas)';
 
-  public function handle(AgentCommandRegistry $registry): int
+  public function handle(AgentManifestPayload $manifest): int
   {
-    $payload = [
+    $payload = array_merge($manifest->build(), [
       'generated_at' => now()->toIso8601String(),
-      'version' => '1.0',
-      'system' => config('app.name'),
-      'commands' => $registry->manifest(),
-      'context_endpoints' => [
-        'rental' => '/api/agent/context/rental/{id_or_codigo}',
-        'customer' => '/api/agent/context/customer/{id}',
-        'system' => '/api/agent/context/system',
-      ],
       'auth' => [
         'type' => 'sanctum_bearer',
         'header_operating_company' => config('agent.operating_company_header'),
       ],
-    ];
+    ]);
 
     $json = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 

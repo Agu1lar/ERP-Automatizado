@@ -21,7 +21,7 @@ Cada comando no manifest inclui `surface`, `kind` (`read`/`write`) e `copilot_mo
 
 1. **API-first** — Tudo passa por endpoints estruturados (`/api/agent/*`), não por cliques simulados.
 2. **Manifesto de capacidades** — `GET /api/agent/manifest` lista comandos, modos, superfícies e URLs de contexto.
-3. **Contexto rico** — `GET /api/agent/context/{entidade}` devolve JSON pronto para a IA (status, workflow, URLs).
+3. **Contexto rico** — `GET /api/agent/context/{entidade}` devolve JSON pronto para a IA (status, workflow, URLs). **`GET /api/agent/context/knowledge`** expõe a base de conhecimento operacional (`AgentSystemKnowledge`).
 4. **Comandos atômicos** — Cada ação de negócio é um comando com permissão Spatie, validação e auditoria.
 5. **Modos Pergunta / Agente** — Pergunta = visualização; Agente = execução (com confirmação ou fila).
 6. **Background com concorrência** — Planos multi-passo rodam em fila; alterações manuais no ERP invalidam a tarefa.
@@ -31,7 +31,7 @@ Cada comando no manifest inclui `surface`, `kind` (`read`/`write`) e `copilot_mo
 | Endpoint | Superfície | Uso |
 |----------|------------|-----|
 | `GET /api/agent/manifest` | — | Descoberta: modos, superfícies, comandos |
-| `GET /api/agent/context/*` | visualização | Ler fichas (locação, cliente, sistema, OS) |
+| `GET /api/agent/context/*` | visualização | Ler fichas (locação, cliente, sistema, OS, knowledge, pricing, part…) |
 | `POST /api/agent/commands/{name}` | conforme comando | Executar um comando (sync) |
 | `POST /api/agent/chat` | conforme modo | Chat com modo `ask` / `agent` |
 | `POST /api/agent/tasks` | execução | Enfileirar plano multi-passo (background) |

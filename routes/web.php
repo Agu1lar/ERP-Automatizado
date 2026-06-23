@@ -9,6 +9,7 @@ use App\Http\Controllers\Documents\BillingInvoicePdfController;
 use App\Http\Controllers\Documents\MaintenanceOrderPdfController;
 use App\Http\Controllers\Documents\RentalContractPdfController;
 use App\Http\Controllers\Documents\RentalPdfController;
+use App\Http\Controllers\Documents\RentalStatementPdfController;
 use App\Http\Controllers\Reports\RentalPanelExportController;
 use App\Http\Controllers\Finance\AccountingExportController;
 use App\Http\Controllers\Finance\BillingEntryExportController;
@@ -121,6 +122,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('locacoes/painel/exportar', RentalPanelExportController::class)->name('rentals.panel.export');
     Route::get('locacoes/{rental}/pdf', RentalPdfController::class)->name('rentals.pdf');
     Route::get('locacoes/{rental}/contrato', RentalContractPdfController::class)->name('rentals.contract.pdf');
+    Route::get('locacoes/{rental}/demonstrativo', RentalStatementPdfController::class)->name('rentals.statement.pdf');
     Route::get('locacoes/{rental}', RentalShow::class)->name('rentals.show');
 
     Route::prefix('logistica')->name('logistics.')->group(function () {

@@ -94,6 +94,34 @@
                     <a href="{{ route('rentals.contract.pdf', $rental) }}" target="_blank" class="flex items-center gap-2 text-indigo-600 hover:underline">
                         <span class="text-base">📋</span> Contrato de locação
                     </a>
+                    @can('updateFicha', $rental)
+                        <label class="flex items-start gap-2 text-xs text-gray-700 mt-2 cursor-pointer">
+                            <input wire:model.live="contrato_clausula_prorata" type="checkbox" class="mt-0.5 rounded border-gray-300 text-indigo-600" />
+                            <span>Incluir no contrato a cláusula de <strong>prorrogação automática e pro-rata</strong> após o prazo previsto</span>
+                        </label>
+                    @endcan
+                    @php
+                        $demoDe = $rental->checkout_at?->toDateString()
+                            ?? $rental->scheduled_start_at?->toDateString()
+                            ?? $rental->reserved_at->toDateString();
+                        $demoAte = $rental->expected_return_at?->toDateString() ?? now()->toDateString();
+                    @endphp
+                    <form action="{{ route('rentals.statement.pdf', $rental) }}" method="GET" target="_blank" class="mt-3 space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs">
+                        <p class="font-medium text-gray-800">Demonstrativo por período</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-gray-500 mb-0.5">De</label>
+                                <input type="date" name="de" value="{{ $demoDe }}" required class="w-full rounded border-gray-300 text-xs" />
+                            </div>
+                            <div>
+                                <label class="block text-gray-500 mb-0.5">Até</label>
+                                <input type="date" name="ate" value="{{ $demoAte }}" required class="w-full rounded border-gray-300 text-xs" />
+                            </div>
+                        </div>
+                        <button type="submit" class="text-indigo-600 hover:underline font-medium">
+                            Gerar demonstrativo PDF →
+                        </button>
+                    </form>
                     <p class="flex items-center gap-2 text-gray-400 text-xs">
                         <span class="text-base">🚚</span> NF de remessa — previsto (integração fiscal)
                     </p>

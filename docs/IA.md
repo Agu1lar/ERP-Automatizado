@@ -76,7 +76,7 @@ Classificação de falhas: `AgentLlmFailureClassifier`.
 
 ### Comandos atômicos
 
-Cada capacidade de negócio é um **comando** em `app/Agent/Commands/*`, registrado em `config/agent.php` (~**56 comandos**).
+Cada capacidade de negócio é um **comando** em `app/Agent/Commands/*`, registrado em `config/agent.php` (~**73 comandos**).
 
 Cada comando expõe:
 
@@ -135,7 +135,8 @@ Intents como **“abrir contrato”** mapeiam para `quote.create` (LLM ou heurí
 No modo **Agente**, writes pedem confirmação (`AGENT_CHAT_REQUIRE_CONFIRMATION`, padrão `true`).
 
 - Painel **“Deseja que eu faça?”** com rótulo da ação
-- Opcional: **prévia dry-run** (simulação sem gravar) em faturamento, cadastros, locação, etc.
+- **Prévia estruturada** (`action_preview`): parâmetros informados, efeitos esperados e registros afetados — não texto genérico no chat
+- Opcional: simulação dry-run quando o comando implementa `SupportsDryRun`
 - Botões: executar agora, **executar em background**, cancelar
 
 ### Execução em background
@@ -163,13 +164,23 @@ Anexos (PDF, imagem, TXT, etc.) no painel flutuante:
 
 | Endpoint | Conteúdo |
 |----------|----------|
-| `GET /api/agent/context/rental/{id\|codigo}` | Ficha locação, workflow, URLs |
-| `GET /api/agent/context/customer/{id}` | Cliente, bloqueios, títulos |
-| `GET /api/agent/context/asset/{id\|codigo}` | Patrimônio, status, locação ativa |
-| `GET /api/agent/context/quote/{id\|codigo}` | Orçamento, validade, itens |
-| `GET /api/agent/context/receivable/{id\|codigo}` | Título, aging |
-| `GET /api/agent/context/maintenance/{id\|codigo}` | OS, peças, horas |
-| `GET /api/agent/context/system` | Resumo operacional da empresa ativa |
+| `GET /api/agent/context/knowledge` | **Base de conhecimento** — fluxos, documentos, horímetro, campo vs troca, pro-rata |
+| `GET /api/agent/context/rental/{id\|codigo}` | Ficha locação, workflow, avisos, PDFs, pro-rata, URLs com `?acao=` |
+| `GET /api/agent/context/customer/{id}` | Cliente, bloqueios, financeiro |
+| `GET /api/agent/context/asset/{id\|codigo}` | Patrimônio, `usa_horimetro`, locação/OS ativa, manutenção em campo |
+| `GET /api/agent/context/maintenance/{id\|codigo}` | OS, tipo (oficina/campo), próximo passo, deep links |
+| `GET /api/agent/context/quote/{id\|codigo}` | Orçamento, validade |
+| `GET /api/agent/context/receivable/{id\|codigo}` | Título a receber |
+| `GET /api/agent/context/billing/{id\|codigo}` | Pendência na fila a faturar |
+| `GET /api/agent/context/person/{id\|cpf}` | Pessoa CRM |
+| `GET /api/agent/context/company/{id\|cnpj}` | Empresa CRM |
+| `GET /api/agent/context/pricing/{id\|nome}` | Tabela de preços da categoria |
+| `GET /api/agent/context/part/{id\|codigo}` | Peça do catálogo |
+| `GET /api/agent/context/yard/{id\|nome}` | Pátio |
+| `GET /api/agent/context/logistics?date=` | Lista do dia logística |
+| `GET /api/agent/context/system` | Resumo financeiro operacional |
+
+Manifesto completo: `GET /api/agent/manifest` (v1.5).
 
 ### Contexto de tela (UI)
 
@@ -188,9 +199,10 @@ Com o painel aberto em uma ficha (locação, patrimônio, cliente, OS), `Copilot
 | **CRM** | `person.search`, `company.search`, … | `person.create/update`, `company.create/update` |
 | **Faturamento** | `billing.list_pending`, `billing.get` | `billing.authorize_entry`, `invoice_entry`, `process_customer_pending`, `create_renewal` |
 | **Financeiro** | `finance.summary`, `finance.delinquency`, `receivable.list/get` | `receivable.mark_paid`, `finance.accounting_export` |
-| **Manutenção** | `maintenance.list`, `maintenance.get` | `maintenance.open`, `start`, `wait_part`, `resume`, `complete` |
+| **Manutenção** | `maintenance.list`, `maintenance.get` | `maintenance.open` (incl. tipo `campo`), `start`, `wait_part`, `resume`, `complete`, `complete_field` |
+| **Documentos** | `document.export` | `rental_summary`, `rental_contract`, `rental_statement` (demonstrativo), … |
 | **Logística** | `logistics.daily` | — |
-| **Transversal** | `search.global` | `document.apply_plan` (plano multi-ação pós-documento) |
+| **Transversal** | `search.global`, `knowledge.get` | `document.apply_plan` (plano multi-ação pós-documento) |
 
 Lista completa e schemas: `php artisan agent:manifest` ou `GET /api/agent/manifest`.
 
@@ -244,15 +256,43 @@ Registra: usuário, modo, mensagens, comando, input (chaves), ok/erro, dry-run, 
 | Variável | Descrição |
 |----------|-----------|
 | `AGENT_LLM_ENABLED` | Habilita interpretação por modelo |
-| `AGENT_LLM_API_KEY` | Chave API (OpenAI-compatible) |
-| `AGENT_LLM_BASE_URL` | Padrão `https://api.openai.com/v1` |
-| `AGENT_LLM_MODEL` | Ex.: `gpt-4o-mini` (visão para PDF/imagem escaneado) |
-| `AGENT_LLM_TIMEOUT` | Timeout HTTP (s) |
+| `AGENT_LLM_PROVIDER` | `openai` (padrão) ou `groq` — define URL/modelo padrão |
+| `AGENT_LLM_API_KEY` | Chave API (OpenAI `sk-...` ou Groq `gsk_...`) |
+| `AGENT_LLM_BASE_URL` | Override da URL (Groq: `https://api.groq.com/openai/v1`) |
+| `AGENT_LLM_MODEL` | OpenAI: `gpt-4o-mini` (visão). Groq: `llama-3.3-70b-versatile` |
+| `AGENT_LLM_TIMEOUT` | Timeout HTTP (s); Groq: 60 recomendado |
+| `AGENT_LLM_SUPPORTS_VISION` | `false` no Groq 70B (texto); `true` no gpt-4o-mini |
 | `AGENT_CHAT_REQUIRE_CONFIRMATION` | Confirmação antes de writes (padrão `true`) |
 | `AGENT_MAX_ATTACHMENTS` | Anexos por mensagem |
 | `AGENT_MAX_ATTACHMENT_KB` | Tamanho máximo por anexo |
 
 Token API: `php artisan tinker` → `$user->createToken('agent')`.
+
+### Groq (Llama 3.3 70B)
+
+API OpenAI-compatible — basta trocar o provider no `.env`:
+
+```env
+AGENT_LLM_ENABLED=true
+AGENT_LLM_PROVIDER=groq
+AGENT_LLM_API_KEY=gsk_sua_chave
+AGENT_LLM_DAILY_TOKEN_LIMIT=500000
+```
+
+Opcional (já são os padrões com `AGENT_LLM_PROVIDER=groq`):
+
+```env
+AGENT_LLM_MODEL=llama-3.3-70b-versatile
+AGENT_LLM_BASE_URL=https://api.groq.com/openai/v1
+AGENT_LLM_TIMEOUT=60
+AGENT_LLM_SUPPORTS_VISION=false
+```
+
+**Chat + tool calling:** funciona com o manifest completo (73 comandos).
+
+**Anexos visuais (PDF escaneado/imagem):** Groq 70B é texto-only — use PDF com texto extraível ou volte para `AGENT_LLM_PROVIDER=openai` + `gpt-4o-mini` para visão.
+
+Teste rápido com LLM real: `AGENT_LLM_E2E=true php artisan test --group=llm-live`
 
 ---
 

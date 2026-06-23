@@ -76,8 +76,32 @@ class SearchGlobalCommand extends AbstractReadAgentCommand
             $actions[] = ['label' => 'Abrir resultado', 'url' => $directUrl, 'primary' => true];
         }
 
-        if ($assets !== []) {
-            $actions[] = ['label' => 'Ver patrimônio', 'url' => $assets[0]['primary_url'] ?? null];
+        foreach ($assets as $assetRow) {
+            if (! empty($assetRow['rental_url']) && ! empty($assetRow['secondary_url'])) {
+                $actions[] = [
+                    'label' => 'Contrato '.($assetRow['rental_codigo'] ?? ''),
+                    'url' => $assetRow['rental_url'],
+                    'primary' => empty($actions),
+                ];
+                $actions[] = [
+                    'label' => 'Patrimônio '.($assetRow['codigo_patrimonio'] ?? ''),
+                    'url' => $assetRow['secondary_url'],
+                ];
+            } elseif (! empty($assetRow['primary_url'])) {
+                $actions[] = [
+                    'label' => $assetRow['primary_label'] ?? 'Ver patrimônio',
+                    'url' => $assetRow['primary_url'],
+                ];
+            }
+        }
+
+        $actions = collect($actions)
+            ->unique('url')
+            ->values()
+            ->all();
+
+        if ($actions === [] && $rentals !== []) {
+            $actions[] = ['label' => 'Abrir locação', 'url' => $rentals[0]['url'] ?? null, 'primary' => true];
         }
 
         return $this->success(

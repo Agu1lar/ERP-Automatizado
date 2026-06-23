@@ -101,6 +101,77 @@ class FichaCompletenessTest extends TestCase
         $this->assertTrue(FichaCompleteness::hasFieldWarning($warnings, 'horimetro_saida'));
     }
 
+    public function test_rental_warnings_exclude_asset_horimetro_field(): void
+    {
+        $asset = $this->createAsset();
+        $customer = Customer::create([
+            'nome' => 'Cliente',
+            'cpf_cnpj' => '12345678909',
+            'telefone' => '11',
+            'endereco' => 'Rua',
+            'contato' => 'A',
+            'ativo' => true,
+        ]);
+
+        $rental = Rental::create([
+            'codigo' => 'LOC-000002',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Reservado->value,
+            'reserved_at' => now(),
+        ]);
+
+        $warnings = FichaCompleteness::rentalWarnings($rental);
+
+        $this->assertFalse(FichaCompleteness::hasFieldWarning($warnings, 'horimetro'));
+    }
+
+    public function test_rental_warnings_skip_horimetro_when_category_does_not_use_it(): void
+    {
+        $category = EquipmentCategory::create([
+            'nome' => 'Sem horímetro',
+            'tipo_linha' => 'linha_leve',
+            'usa_horimetro' => false,
+            'ativo' => true,
+        ]);
+
+        $model = EquipmentModel::create([
+            'equipment_category_id' => $category->id,
+            'marca' => 'Marca',
+            'modelo' => 'Modelo',
+            'ativo' => true,
+        ]);
+
+        $asset = Asset::create([
+            'codigo_patrimonio' => 'PAT-NO-H',
+            'equipment_model_id' => $model->id,
+            'status' => AssetStatus::Disponivel->value,
+        ]);
+
+        $customer = Customer::create([
+            'nome' => 'Cliente',
+            'cpf_cnpj' => '12345678909',
+            'telefone' => '11',
+            'endereco' => 'Rua',
+            'contato' => 'A',
+            'ativo' => true,
+        ]);
+
+        $rental = Rental::create([
+            'codigo' => 'LOC-000003',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Locado->value,
+            'reserved_at' => now(),
+            'local_obra' => 'Obra X',
+        ]);
+
+        $warnings = FichaCompleteness::rentalWarnings($rental);
+
+        $this->assertFalse(FichaCompleteness::hasFieldWarning($warnings, 'horimetro'));
+        $this->assertFalse(FichaCompleteness::hasFieldWarning($warnings, 'horimetro_saida'));
+    }
+
     private function createAsset(): Asset
     {
         $category = EquipmentCategory::create([

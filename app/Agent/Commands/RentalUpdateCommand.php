@@ -25,7 +25,8 @@ class RentalUpdateCommand extends AbstractAgentCommand implements SupportsDryRun
         'valor_frete_entrega', 'valor_frete_recolhida', 'ficha_descricao',
         'horimetro_saida', 'horimetro_retorno',
         'entrega_modalidade', 'entrega_agendada_em', 'entrega_turno', 'entrega_observacoes',
-        'retirada_modalidade', 'retirada_agendada_em', 'retirada_turno', 'retirada_observacoes',
+        'retirada_modalidade', 'retirada_agendada_em', 'retirada_turno',         'retirada_observacoes',
+        'contrato_clausula_prorata',
     ];
 
     public function __construct(
@@ -82,6 +83,7 @@ class RentalUpdateCommand extends AbstractAgentCommand implements SupportsDryRun
                 'retirada_agendada_em' => ['type' => 'string', 'format' => 'date'],
                 'retirada_turno' => ['type' => 'string', 'enum' => ['manha', 'tarde', 'combinar']],
                 'retirada_observacoes' => ['type' => 'string'],
+                'contrato_clausula_prorata' => ['type' => 'boolean'],
             ],
         ];
     }
@@ -165,6 +167,7 @@ class RentalUpdateCommand extends AbstractAgentCommand implements SupportsDryRun
             'retirada_agendada_em' => ['sometimes', 'nullable', 'date'],
             'retirada_turno' => ['sometimes', 'nullable', 'string', 'in:'.implode(',', array_column(LogisticsShift::cases(), 'value'))],
             'retirada_observacoes' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'contrato_clausula_prorata' => ['sometimes', 'boolean'],
         ])->validate();
     }
 }

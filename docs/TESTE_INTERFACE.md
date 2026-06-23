@@ -69,10 +69,10 @@ Detalhes: [`deploy/CICD.md`](../deploy/CICD.md#testes-na-vm-vs-ci).
 - [x] Lista `/locacoes` abre; abas (lista, painel locados) funcionam
 - [x] Criar **reserva**: cliente + patrimônio disponível → status Reservado; **valor acordado** opcional na modal (ou ajustar na ficha)
 - [x] Abrir ficha da locação `/locacoes/{id}`
-- [ ] Fluxo **saída** com checklist → patrimônio Locado (horímetro só exigido em avisos se categoria “usa horímetro”; reserva futura: editar **início previsto** na ficha ou **Antecipar para hoje**)
-- [ ] Fluxo **retorno** → inspeção → concluir ou enviar para manutenção
-- [ ] Exportar painel locados (CSV)
-- [ ] PDF resumo e **contrato PDF** baixam
+- [x] Fluxo **saída** com checklist → patrimônio Locado (horímetro só exigido em avisos se categoria “usa horímetro”; reserva futura: editar **início previsto** na ficha ou **Antecipar para hoje**)
+- [x] Fluxo **retorno** → inspeção → concluir ou enviar para manutenção
+- [x] Exportar painel locados (CSV)
+- [x] PDF resumo e **contrato PDF** baixam (horímetro só aparece em avisos/PDF se a categoria usa horímetro; contrato com opção de cláusula pro-rata; demonstrativo por período na ficha)
 
 ### 2.2 Orçamentos
 

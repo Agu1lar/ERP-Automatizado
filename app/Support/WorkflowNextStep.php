@@ -9,6 +9,17 @@ use App\Models\Domain\Rental\Rental;
 
 class WorkflowNextStep
 {
+    public static function maintenanceShowUrl(MaintenanceOrder $order, ?string $acao = null): string
+    {
+        $url = route('maintenance.show', $order);
+
+        if ($acao !== null) {
+            $url .= '?acao='.urlencode($acao);
+        }
+
+        return $url;
+    }
+
     /** @return list<array{label: string, url: string, primary?: bool}> */
     public static function maintenanceAfterStart(MaintenanceOrder $order): array
     {
@@ -35,7 +46,7 @@ class WorkflowNextStep
         return [
             [
                 'label' => 'Retomar nesta OS',
-                'url' => route('maintenance.show', $order).'#acoes',
+                'url' => self::maintenanceShowUrl($order, 'retomar'),
                 'primary' => true,
             ],
             [
@@ -51,7 +62,7 @@ class WorkflowNextStep
         return [
             [
                 'label' => 'Concluir OS',
-                'url' => route('maintenance.show', $order).'#acoes',
+                'url' => self::maintenanceShowUrl($order, 'concluir'),
                 'primary' => true,
             ],
         ];
@@ -160,4 +171,4 @@ class WorkflowNextStep
         };
     }
 }
-
+

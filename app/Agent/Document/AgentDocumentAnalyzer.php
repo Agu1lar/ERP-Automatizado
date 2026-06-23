@@ -113,17 +113,16 @@ class AgentDocumentAnalyzer
 
 
             if ($extracted['method'] === 'vision') {
-
-                $visionImages[] = [
-
-                    'name' => $attachment['original_name'],
-
-                    'base64' => base64_encode((string) Storage::disk('local')->get($attachment['path'])),
-
-                    'mime' => $attachment['mime'],
-
-                ];
-
+                if (config('agent.llm.supports_vision', true)) {
+                    $visionImages[] = [
+                        'name' => $attachment['original_name'],
+                        'base64' => base64_encode((string) Storage::disk('local')->get($attachment['path'])),
+                        'mime' => $attachment['mime'],
+                    ];
+                } else {
+                    $documentBlocks[] = "### {$attachment['original_name']}\n"
+                        .'(Anexo visual — o modelo LLM atual não suporta visão. Use texto extraível, descreva no chat ou troque para OpenAI com gpt-4o-mini.)';
+                }
             } elseif ($extracted['text'] !== '') {
 
                 $documentBlocks[] = "### {$attachment['original_name']}\n".$extracted['text'];
@@ -143,37 +142,27 @@ class AgentDocumentAnalyzer
         try {
             $userContent = $this->buildUserContent($userPrompt, $documentsText, $visionImages);
 
-            $response = Http::withToken(config('agent.llm.api_key'))
-
-                ->timeout((int) config('agent.llm.timeout', 60))
-
-                ->post(rtrim((string) config('agent.llm.base_url'), '/').'/chat/completions', [
-
-                    'model' => config('agent.llm.model'),
-
-                    'response_format' => ['type' => 'json_object'],
-
-                    'messages' => [
-
-                        [
-
-                            'role' => 'system',
-
-                            'content' => $this->systemPrompt($mode),
-
-                        ],
-
-                        [
-
-                            'role' => 'user',
-
-                            'content' => $userContent,
-
-                        ],
-
+            $payload = [
+                'model' => config('agent.llm.model'),
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => $this->systemPrompt($mode),
                     ],
+                    [
+                        'role' => 'user',
+                        'content' => $userContent,
+                    ],
+                ],
+            ];
 
-                ]);
+            if (config('agent.llm.supports_json_mode', true)) {
+                $payload['response_format'] = ['type' => 'json_object'];
+            }
+
+            $response = Http::withToken(config('agent.llm.api_key'))
+                ->timeout((int) config('agent.llm.timeout', 60))
+                ->post(rtrim((string) config('agent.llm.base_url'), '/').'/chat/completions', $payload);
 
 
 

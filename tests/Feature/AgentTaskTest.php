@@ -104,7 +104,7 @@ class AgentTaskTest extends TestCase
 
         $this->getJson('/api/agent/manifest')
             ->assertOk()
-            ->assertJsonPath('version', '1.4')
+            ->assertJsonPath('version', '1.5')
             ->assertJsonStructure([
                 'modes' => ['ask', 'agent', 'surfaces', 'navigation'],
                 'commands_by_surface' => ['visualization', 'execution'],

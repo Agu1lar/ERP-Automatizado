@@ -1,10 +1,10 @@
-<x-flash-message />
-
 <div>
+    <x-flash-message />
+
     <div class="py-8">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             <div class="flex flex-wrap justify-between items-start gap-4">
-                <div>
+                <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-3 text-sm">
                         <a href="{{ route('maintenance.index') }}" wire:navigate class="text-indigo-600 hover:underline">← Voltar</a>
                         @if($order->rental)
@@ -16,30 +16,51 @@
                     <h2 class="text-2xl font-bold text-gray-800 mt-1">{{ $order->codigo }}</h2>
                     <p class="text-gray-500">{{ $order->asset->codigo_patrimonio }} — {{ $order->tipoEnum()->label() }} ({{ $order->prioridadeEnum()->label() }})</p>
                 </div>
-                <div id="acoes" class="flex flex-wrap items-center gap-2">
-                    <a href="{{ route('maintenance.index', ['aba' => 'painel']) }}" wire:navigate class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Painel de manutenção</a>
-                    <a href="{{ route('maintenance.pdf', $order) }}" target="_blank" class="btn-secondary text-sm inline-flex items-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">Baixar PDF</a>
+                <div
+                    id="acoes"
+                    class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center"
+                    x-data
+                    x-init="if (window.location.hash === '#acoes') { $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' })) }"
+                >
+                    <a href="{{ route('maintenance.index', ['aba' => 'painel']) }}" wire:navigate class="btn-secondary text-sm inline-flex w-full items-center justify-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 sm:w-auto">Painel de manutenção</a>
+                    <a href="{{ route('maintenance.pdf', $order) }}" target="_blank" class="btn-secondary text-sm inline-flex w-full items-center justify-center px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 sm:w-auto">Baixar PDF</a>
                     <x-status-badge :status="$status" />
                     @if($order->impeditiva)
                         <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">Impeditiva</span>
                     @endif
                     @if($status === \App\Enums\MaintenanceOrderStatus::Aberta)
                         @can('operate', $order)
-                            <x-btn-primary wire:click="start" class="inline-flex items-center">
-                                Iniciar execução
-                                <x-help-hint text="Marca a OS como em execução. Depois disso, registre peças utilizadas e horas de trabalho nesta mesma tela." class="ml-2" />
-                            </x-btn-primary>
-                            <x-btn-secondary wire:click="openCancelModal">Cancelar OS</x-btn-secondary>
+                            <div class="flex w-full flex-col gap-1 sm:w-auto sm:flex-row sm:items-center">
+                                <x-btn-primary
+                                    wire:click="startExecution"
+                                    wire:loading.attr="disabled"
+                                    wire:target="startExecution"
+                                    class="inline-flex w-full items-center justify-center sm:w-auto"
+                                >
+                                    <span wire:loading.remove wire:target="startExecution">Iniciar execução</span>
+                                    <span wire:loading wire:target="startExecution">Iniciando…</span>
+                                </x-btn-primary>
+                                <x-help-hint text="Marca a OS como em execução. Depois disso, registre peças utilizadas e horas de trabalho nesta mesma tela." class="hidden sm:inline-flex" />
+                            </div>
+                            <x-btn-secondary wire:click="openCancelModal" wire:loading.attr="disabled" class="w-full sm:w-auto">Cancelar OS</x-btn-secondary>
                         @endcan
                     @elseif($status === \App\Enums\MaintenanceOrderStatus::EmExecucao)
                         @can('operate', $order)
-                            <x-btn-secondary wire:click="openWaitModal">Aguardando peça</x-btn-secondary>
-                            <x-btn-primary wire:click="openCompleteModal">Concluir OS</x-btn-primary>
+                            <x-btn-secondary wire:click="openWaitModal" wire:loading.attr="disabled" class="w-full sm:w-auto">Aguardando peça</x-btn-secondary>
+                            <x-btn-primary wire:click="openCompleteModal" wire:loading.attr="disabled" class="w-full sm:w-auto">Concluir OS</x-btn-primary>
                         @endcan
                     @elseif($status === \App\Enums\MaintenanceOrderStatus::AguardandoPeca)
                         @can('operate', $order)
-                            <x-btn-primary wire:click="resume">Retomar execução</x-btn-primary>
-                            <x-btn-secondary wire:click="openCompleteModal">Concluir OS</x-btn-secondary>
+                            <x-btn-primary
+                                wire:click="resume"
+                                wire:loading.attr="disabled"
+                                wire:target="resume"
+                                class="w-full sm:w-auto"
+                            >
+                                <span wire:loading.remove wire:target="resume">Retomar execução</span>
+                                <span wire:loading wire:target="resume">Retomando…</span>
+                            </x-btn-primary>
+                            <x-btn-secondary wire:click="openCompleteModal" wire:loading.attr="disabled" class="w-full sm:w-auto">Concluir OS</x-btn-secondary>
                         @endcan
                     @endif
                 </div>
@@ -380,4 +401,5 @@
             </div>
         </div>
     @endif
+</div>
 </div>

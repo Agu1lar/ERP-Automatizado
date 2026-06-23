@@ -18,7 +18,7 @@ class DocumentExportCommand extends AbstractReadAgentCommand
 
     public static function description(): string
     {
-        return 'Gera URL de download de PDF: resumo/contrato de locação, ficha de patrimônio, OS de manutenção ou fatura da fila.';
+        return 'Gera URL de download de PDF: resumo/contrato/demonstrativo de locação, ficha de patrimônio, OS de manutenção ou fatura da fila.';
     }
 
     public function permission(): string
@@ -37,6 +37,7 @@ class DocumentExportCommand extends AbstractReadAgentCommand
                     'enum' => [
                         'rental_summary',
                         'rental_contract',
+                        'rental_statement',
                         'asset_sheet',
                         'maintenance_order',
                         'billing_invoice',
@@ -44,6 +45,8 @@ class DocumentExportCommand extends AbstractReadAgentCommand
                 ],
                 'rental_id' => ['type' => 'integer'],
                 'rental_codigo' => ['type' => 'string'],
+                'periodo_de' => ['type' => 'string', 'format' => 'date'],
+                'periodo_ate' => ['type' => 'string', 'format' => 'date'],
                 'asset_id' => ['type' => 'integer'],
                 'asset_codigo' => ['type' => 'string'],
                 'order_id' => ['type' => 'integer'],
@@ -61,6 +64,7 @@ class DocumentExportCommand extends AbstractReadAgentCommand
         return match ($type) {
             'rental_summary' => $this->rentalSummary($input, $user),
             'rental_contract' => $this->rentalContract($input, $user),
+            'rental_statement' => $this->rentalStatement($input, $user),
             'asset_sheet' => $this->assetSheet($input, $user),
             'maintenance_order' => $this->maintenanceOrder($input, $user),
             'billing_invoice' => $this->billingInvoice($input, $user),
@@ -101,6 +105,34 @@ class DocumentExportCommand extends AbstractReadAgentCommand
                 'rental_id' => $rental->id,
             ]),
             $this->pdfNextStep('Contrato de locação', $url),
+        );
+    }
+
+    /** @param  array<string, mixed>  $input */
+    private function rentalStatement(array $input, User $user): AgentCommandResult
+    {
+        $this->assertCan($user, 'rentals.view');
+        $rental = $this->resolveRental($input);
+        $this->authorizeModel($user, 'view', $rental);
+
+        $de = $input['periodo_de'] ?? $rental->checkout_at?->toDateString()
+            ?? $rental->reserved_at->toDateString();
+        $ate = $input['periodo_ate'] ?? $rental->expected_return_at?->toDateString() ?? now()->toDateString();
+
+        $url = route('rentals.statement.pdf', [
+            'rental' => $rental,
+            'de' => $de,
+            'ate' => $ate,
+        ]);
+
+        return $this->success(
+            "Demonstrativo da locação **{$rental->codigo}** ({$de} a {$ate}) pronto para abrir.",
+            $this->exportPayload('rental_statement', $rental->codigo, $url, [
+                'rental_id' => $rental->id,
+                'periodo_de' => $de,
+                'periodo_ate' => $ate,
+            ]),
+            $this->pdfNextStep('Demonstrativo de locação', $url),
         );
     }
 

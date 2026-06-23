@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Enums\AssetStatus;
+use App\Enums\MaintenanceOrderStatus;
+use App\Enums\MaintenanceOrderType;
+use App\Enums\RentalStatus;
 use App\Enums\UserRole;
 use App\Models\Domain\Customer\Customer;
 use App\Models\Domain\Fleet\Asset;
@@ -11,6 +14,8 @@ use App\Models\Domain\Organization\OperatingCompany;
 use App\Models\Domain\Rental\Rental;
 use App\Models\User;
 use App\Enums\RentalPricingPeriod;
+use App\Services\MaintenanceOrderService;
+use App\Services\RentalService;
 use App\Support\CopilotPageContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -52,10 +57,12 @@ class AgentApiTest extends TestCase
 
         $this->getJson('/api/agent/manifest')
             ->assertOk()
-            ->assertJsonPath('version', '1.4')
+            ->assertJsonPath('version', '1.5')
             ->assertJsonFragment(['name' => 'rental.get', 'surface' => 'visualization'])
             ->assertJsonFragment(['name' => 'rental.return', 'surface' => 'execution'])
             ->assertJsonFragment(['name' => 'maintenance.open', 'surface' => 'execution'])
+            ->assertJsonFragment(['name' => 'maintenance.complete_field', 'surface' => 'execution'])
+            ->assertJsonFragment(['name' => 'knowledge.get', 'surface' => 'visualization'])
             ->assertJsonFragment(['name' => 'receivable.mark_paid', 'surface' => 'execution'])
             ->assertJsonFragment(['name' => 'customer.search', 'surface' => 'visualization'])
             ->assertJsonFragment(['name' => 'billing.list_pending', 'surface' => 'visualization']);
@@ -63,8 +70,65 @@ class AgentApiTest extends TestCase
 
   public function test_agent_manifest_artisan_command_outputs_json(): void
   {
-    $this->artisan('agent:manifest')
-      ->assertSuccessful();
+    $path = storage_path('app/agent-manifest-test.json');
+
+    $this->artisan('agent:manifest', ['--output' => $path])->assertSuccessful();
+
+    $payload = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
+    @unlink($path);
+
+    $this->assertSame('1.5', $payload['version']);
+    $this->assertArrayHasKey('knowledge', $payload);
+    $this->assertArrayHasKey('context_endpoints', $payload);
+    $this->assertArrayHasKey('maintenance', $payload['context_endpoints']);
+    $this->assertArrayHasKey('knowledge', $payload['context_endpoints']);
+    $this->assertArrayHasKey('auth', $payload);
+    $this->assertCount(15, array_filter(
+      $payload['context_endpoints'],
+      fn (string $key): bool => $key !== 'description',
+      ARRAY_FILTER_USE_KEY,
+    ));
+  }
+
+  public function test_maintenance_complete_field_command_via_api(): void
+  {
+    $user = $this->agentUser();
+    Sanctum::actingAs($user);
+
+    $asset = $this->asset('PAT-AGENT-CAMPO', AssetStatus::Disponivel);
+    $customer = $this->customer();
+
+    $rental = app(RentalService::class)->reserve($asset, $customer, now()->addDays(5));
+    $rental = app(RentalService::class)->checkout(
+      $rental,
+      array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true),
+    );
+
+    $order = app(MaintenanceOrderService::class)->openField(
+      $asset->fresh(),
+      'Ajuste em obra',
+      $rental,
+      $user,
+    );
+
+    $this->postJson('/api/agent/commands/maintenance.complete_field', [
+      'input' => [
+        'order_id' => $order->id,
+        'confirm_checklist_all' => true,
+        'solucao' => 'Serviço concluído via agente',
+      ],
+    ])
+      ->assertOk()
+      ->assertJsonPath('ok', true)
+      ->assertJsonPath('data.order.status', MaintenanceOrderStatus::Concluida->value)
+      ->assertJsonPath('data.order.is_field', true);
+
+    $asset->refresh();
+    $rental->refresh();
+
+    $this->assertSame(AssetStatus::Locado->value, $asset->status);
+    $this->assertSame(RentalStatus::Locado->value, $rental->status);
+    $this->assertSame(MaintenanceOrderType::Campo->value, $order->fresh()->tipo);
   }
 
   public function test_rental_get_context_by_codigo(): void

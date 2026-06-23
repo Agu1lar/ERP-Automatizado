@@ -11,6 +11,7 @@ use App\Models\Domain\Maintenance\MaintenanceOrder;
 use App\Models\Domain\Rental\Rental;
 use App\Models\Domain\Rental\RentalBillingQueueEntry;
 use Barryvdh\DomPDF\PDF;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Storage;
 
 class DocumentPdfService
@@ -18,6 +19,7 @@ class DocumentPdfService
     public function __construct(
         private readonly QrCodeService $qrCodeService,
         private readonly CustomFieldService $customFieldService,
+        private readonly RentalPricingService $rentalPricingService,
     ) {}
 
     public function maintenanceOrder(MaintenanceOrder $order): PDF
@@ -93,10 +95,70 @@ class DocumentPdfService
             [
                 'rental' => $rental,
                 'generatedAt' => now(),
-                'clauses' => config('documents.rental_contract_clauses', []),
+                'clauses' => $this->contractClauses($rental),
             ],
             "{$rental->codigo}-contrato.pdf",
         );
+    }
+
+    public function rentalStatement(Rental $rental, CarbonInterface $from, CarbonInterface $to): PDF
+    {
+        $rental->load([
+            'asset.equipmentModel.category',
+            'customer',
+            'commercialUser',
+            'billingQueueEntries.receivableTitle',
+        ]);
+
+        $periodStart = $from->copy()->startOfDay();
+        $periodEnd = $to->copy()->startOfDay();
+
+        $pricing = $this->rentalPricingService->calculate(
+            $rental->asset,
+            $periodStart,
+            $periodEnd,
+            $rental->pricing_period ? \App\Enums\RentalPricingPeriod::tryFrom($rental->pricing_period) : null,
+        );
+
+        $billingEntries = $rental->billingQueueEntries
+            ->filter(function (RentalBillingQueueEntry $entry) use ($periodStart, $periodEnd) {
+                if ($entry->periodo_inicio && $entry->periodo_fim) {
+                    return $entry->periodo_inicio->lte($periodEnd)
+                        && $entry->periodo_fim->gte($periodStart);
+                }
+
+                return $entry->gerado_em?->between(
+                    $periodStart->copy()->startOfDay(),
+                    $periodEnd->copy()->endOfDay(),
+                ) ?? false;
+            })
+            ->values();
+
+        return $this->render(
+            DocumentType::RentalStatement,
+            [
+                'rental' => $rental,
+                'generatedAt' => now(),
+                'periodStart' => $periodStart,
+                'periodEnd' => $periodEnd,
+                'pricing' => $pricing,
+                'billingEntries' => $billingEntries,
+                'billedDays' => $this->rentalPricingService->billingDays($periodStart, $periodEnd),
+            ],
+            "{$rental->codigo}-demonstrativo.pdf",
+        );
+    }
+
+    /** @return list<string> */
+    private function contractClauses(Rental $rental): array
+    {
+        $clauses = config('documents.rental_contract_clauses', []);
+
+        if ($rental->contrato_clausula_prorata) {
+            $clauses[] = config('documents.rental_contract_prorata_clause');
+        }
+
+        return $clauses;
     }
 
     public function billingInvoice(RentalBillingQueueEntry $entry): PDF

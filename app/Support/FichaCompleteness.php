@@ -60,7 +60,10 @@ class FichaCompleteness
     {
         $rental->loadMissing(['asset.equipmentModel.category', 'customer']);
 
-        $warnings = self::assetWarnings($rental->asset);
+        $warnings = array_values(array_filter(
+            self::assetWarnings($rental->asset),
+            fn (array $warning) => $warning['field'] !== 'horimetro',
+        ));
         $warnings = array_merge($warnings, self::customerWarnings($rental->customer));
 
         $status = $rental->statusEnum();

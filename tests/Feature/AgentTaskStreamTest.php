@@ -53,7 +53,7 @@ class AgentTaskStreamTest extends TestCase
 
         $this->getJson('/api/agent/manifest')
             ->assertOk()
-            ->assertJsonPath('version', '1.4')
+            ->assertJsonPath('version', '1.5')
             ->assertJsonPath('task_endpoints.stream', url('/api/agent/tasks/{id}/stream'));
     }
 

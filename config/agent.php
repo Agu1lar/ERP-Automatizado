@@ -30,6 +30,7 @@ use App\Agent\Commands\PricingListCommand;
 use App\Agent\Commands\ReportCommercialCommand;
 use App\Agent\Commands\ReportFinancialAnalysisCommand;
 use App\Agent\Commands\SearchGlobalCommand;
+use App\Agent\Commands\KnowledgeGetCommand;
 use App\Agent\Commands\QuoteCancelCommand;
 use App\Agent\Commands\QuoteCreateCommand;
 use App\Agent\Commands\QuoteSendCommand;
@@ -47,6 +48,7 @@ use App\Agent\Commands\CustomerSearchCommand;
 use App\Agent\Commands\FinanceSummaryCommand;
 use App\Agent\Commands\FinanceAccountingExportCommand;
 use App\Agent\Commands\MaintenanceCompleteCommand;
+use App\Agent\Commands\MaintenanceCompleteFieldCommand;
 use App\Agent\Commands\MaintenanceGetCommand;
 use App\Agent\Commands\MaintenanceListCommand;
 use App\Agent\Commands\MaintenanceOpenCommand;
@@ -71,6 +73,27 @@ use App\Agent\Commands\RentalReserveCommand;
 use App\Agent\Commands\RentalReturnCommand;
 use App\Agent\Commands\RentalSubstituteAssetCommand;
 use App\Agent\Commands\RentalStatsCommand;
+
+$agentLlmProvider = strtolower((string) env('AGENT_LLM_PROVIDER', 'openai'));
+
+$agentLlmPresets = [
+    'openai' => [
+        'base_url' => 'https://api.openai.com/v1',
+        'model' => 'gpt-4o-mini',
+        'timeout' => 30,
+        'supports_vision' => true,
+        'supports_json_mode' => true,
+    ],
+    'groq' => [
+        'base_url' => 'https://api.groq.com/openai/v1',
+        'model' => 'llama-3.3-70b-versatile',
+        'timeout' => 60,
+        'supports_vision' => false,
+        'supports_json_mode' => true,
+    ],
+];
+
+$agentLlmPreset = $agentLlmPresets[$agentLlmProvider] ?? $agentLlmPresets['openai'];
 
 return [
 
@@ -106,10 +129,12 @@ return [
         MaintenanceWaitPartCommand::class,
         MaintenanceResumeCommand::class,
         MaintenanceCompleteCommand::class,
+        MaintenanceCompleteFieldCommand::class,
         FinanceSummaryCommand::class,
         FinanceAccountingExportCommand::class,
         FinanceDelinquencyCommand::class,
         SearchGlobalCommand::class,
+        KnowledgeGetCommand::class,
         DocumentApplyPlanCommand::class,
         QuoteListCommand::class,
         QuoteGetCommand::class,
@@ -165,15 +190,26 @@ return [
     ],
 
     'llm' => [
+        'provider' => $agentLlmProvider,
         'enabled' => env('AGENT_LLM_ENABLED', false),
         'api_key' => env('AGENT_LLM_API_KEY'),
-        'base_url' => env('AGENT_LLM_BASE_URL', 'https://api.openai.com/v1'),
-        'model' => env('AGENT_LLM_MODEL', 'gpt-4o-mini'),
-        'timeout' => env('AGENT_LLM_TIMEOUT', 30),
+        'base_url' => env('AGENT_LLM_BASE_URL', $agentLlmPreset['base_url']),
+        'model' => env('AGENT_LLM_MODEL', $agentLlmPreset['model']),
+        'timeout' => (int) env('AGENT_LLM_TIMEOUT', $agentLlmPreset['timeout']),
+        'supports_vision' => filter_var(
+            env('AGENT_LLM_SUPPORTS_VISION', $agentLlmPreset['supports_vision']),
+            FILTER_VALIDATE_BOOL,
+        ),
+        'supports_json_mode' => filter_var(
+            env('AGENT_LLM_SUPPORTS_JSON_MODE', $agentLlmPreset['supports_json_mode']),
+            FILTER_VALIDATE_BOOL,
+        ),
         'daily_token_limit' => env('AGENT_LLM_DAILY_TOKEN_LIMIT'),
         'pricing_per_million' => [
             'gpt-4o-mini' => ['input' => 0.15, 'output' => 0.60],
             'gpt-4o' => ['input' => 2.50, 'output' => 10.00],
+            'llama-3.3-70b-versatile' => ['input' => 0.59, 'output' => 0.79],
+            'llama-3.1-70b-versatile' => ['input' => 0.59, 'output' => 0.79],
             'default' => ['input' => 0.15, 'output' => 0.60],
         ],
     ],

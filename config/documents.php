@@ -27,6 +27,7 @@ return [
         'maintenance_order' => 'documents.maintenance-order',
         'rental_summary' => 'documents.rental-summary',
         'rental_contract' => 'documents.rental-contract',
+        'rental_statement' => 'documents.rental-statement',
         'asset_sheet' => 'documents.asset-sheet',
         'billing_invoice' => 'documents.billing-invoice',
     ],
@@ -43,6 +44,8 @@ return [
         'O LOCATÁRIO obriga-se a utilizar o equipamento conforme manual do fabricante e legislação aplicável, sendo vedado o uso por terceiros não autorizados.',
         'A rescisão antecipada não isenta o LOCATÁRIO do pagamento do período mínimo acordado, salvo negociação expressa por escrito.',
     ],
+
+    'rental_contract_prorata_clause' => 'Prorrogação automática e pro-rata: findo o prazo de locação previsto neste contrato, se o LOCATÁRIO não solicitar formalmente a devolução do equipamento, a locação prorroga-se automaticamente por períodos sucessivos iguais ao ciclo de faturamento acordado (ou conforme unidade de cobrança — diária, semanal ou mensal), sendo devido o valor proporcional (pro-rata die) ou o valor de renovação conforme tabela de preços vigente até a efetiva devolução do bem.',
 
     /*
     |--------------------------------------------------------------------------
@@ -61,6 +64,10 @@ return [
             'orientation' => 'portrait',
         ],
         'rental_contract' => [
+            'format' => 'a4',
+            'orientation' => 'portrait',
+        ],
+        'rental_statement' => [
             'format' => 'a4',
             'orientation' => 'portrait',
         ],

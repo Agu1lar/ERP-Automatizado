@@ -432,7 +432,7 @@ class CopilotPanel extends Component
 
             $this->pendingInput = $response->commandInput;
 
-            $this->pendingPreview = $response->dryRunPreview;
+            $this->pendingPreview = $response->actionPreview ?? $response->dryRunPreview;
 
             $this->requiresInput = false;
 

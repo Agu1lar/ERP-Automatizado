@@ -82,6 +82,8 @@ class RentalShow extends Component
 
     public string $ficha_valor_faturamento = '';
 
+    public bool $contrato_clausula_prorata = true;
+
     public string $ficha_scheduled_start_at = '';
 
     public string $ficha_local_obra = '';
@@ -205,6 +207,16 @@ class RentalShow extends Component
         }
 
         $this->openCompleteModal();
+    }
+
+    public function updatedContratoClausulaProrata(): void
+    {
+        $this->authorize('updateFicha', $this->rental);
+
+        $this->rental->update([
+            'contrato_clausula_prorata' => $this->contrato_clausula_prorata,
+        ]);
+        $this->loadRental($this->rental->fresh());
     }
 
     public function saveFicha(): void
@@ -612,7 +624,7 @@ class RentalShow extends Component
             $order = $this->rental->maintenanceOrders()->latest('id')->first();
             $this->offerPostFlowNavigation(
                 $message,
-                $order ? route('maintenance.show', $order) : null,
+                $order ? WorkflowNextStep::maintenanceShowUrl($order, 'executar') : null,
                 $order ? "Abrir OS {$order->codigo}" : null,
             );
         } else {
@@ -623,7 +635,9 @@ class RentalShow extends Component
     public function openMaintenanceOrderModal(): void
     {
         $this->authorize('create', MaintenanceOrder::class);
-        $this->os_tipo = MaintenanceOrderType::Corretiva->value;
+        $this->os_tipo = $this->rental->statusEnum() === RentalStatus::Locado
+            ? MaintenanceOrderType::Campo->value
+            : MaintenanceOrderType::Corretiva->value;
         $this->os_descricao = '';
         $this->os_impeditiva = ! in_array($this->rental->statusEnum(), [RentalStatus::Locado, RentalStatus::Reservado], true);
         $this->os_valor_indenizacao = '';
@@ -686,7 +700,7 @@ class RentalShow extends Component
         $this->loadRental($this->rental->fresh());
         $this->offerPostFlowNavigation(
             "OS {$order->codigo} aberta e vinculada a esta locação.",
-            route('maintenance.show', $order),
+            WorkflowNextStep::maintenanceShowUrl($order, 'executar'),
             "Abrir OS {$order->codigo}",
         );
     }
@@ -1125,6 +1139,7 @@ class RentalShow extends Component
         $this->ficha_horimetro_retorno = $this->rental->horimetro_retorno !== null ? (string) $this->rental->horimetro_retorno : '';
         $this->ficha_observacoes = $this->rental->observacoes ?? '';
         $this->ficha_valor_faturamento = $this->rental->valor_faturamento !== null ? (string) $this->rental->valor_faturamento : '';
+        $this->contrato_clausula_prorata = (bool) ($this->rental->contrato_clausula_prorata ?? true);
         $this->ficha_scheduled_start_at = $this->rental->scheduled_start_at?->format('Y-m-d') ?? '';
         $this->ficha_valor_frete_entrega = $this->rental->valor_frete_entrega !== null ? (string) $this->rental->valor_frete_entrega : '';
         $this->ficha_valor_frete_recolhida = $this->rental->valor_frete_recolhida !== null ? (string) $this->rental->valor_frete_recolhida : '';

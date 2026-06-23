@@ -94,6 +94,7 @@
                 <td class="label">Série</td>
                 <td class="value">{{ $rental->asset->serie ?? '—' }}</td>
             </tr>
+            @if($rental->asset->usesHorimetro())
             <tr>
                 <td class="label">Horímetro atual</td>
                 <td class="value">{{ $rental->asset->horimetro !== null ? number_format($rental->asset->horimetro, 2, ',', '.').' h' : '—' }}</td>
@@ -104,6 +105,7 @@
                 <td class="label">Horímetro retorno</td>
                 <td class="value" colspan="3">{{ $rental->horimetro_retorno !== null ? number_format($rental->horimetro_retorno, 2, ',', '.').' h' : '—' }}</td>
             </tr>
+            @endif
         </table>
         @if($rental->asset->descricao)
             <div class="text-block" style="margin-top: 8px;">{{ $rental->asset->descricao }}</div>

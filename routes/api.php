@@ -53,6 +53,15 @@ Route::prefix('agent')
     Route::get('context/logistics', [ContextController::class, 'logistics'])
       ->name('api.agent.context.logistics');
 
+    Route::get('context/knowledge', [ContextController::class, 'knowledge'])
+      ->name('api.agent.context.knowledge');
+
+    Route::get('context/pricing/{identifier}', [ContextController::class, 'pricing'])
+      ->name('api.agent.context.pricing');
+
+    Route::get('context/part/{identifier}', [ContextController::class, 'part'])
+      ->name('api.agent.context.part');
+
     Route::post('chat', ChatController::class)->name('api.agent.chat');
 
     Route::get('tasks', [TaskController::class, 'index'])->name('api.agent.tasks.index');

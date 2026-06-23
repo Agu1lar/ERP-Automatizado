@@ -110,6 +110,18 @@ class RentalWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_open_maintenance_order_modal_defaults_to_campo_when_locado(): void
+    {
+        $user = User::factory()->create(['ativo' => true]);
+        $user->assignRole(UserRole::Gestor->value);
+        $rental = $this->rentalInLocado();
+
+        Livewire::actingAs($user)
+            ->test(\App\Livewire\Rental\RentalShow::class, ['rental' => $rental])
+            ->call('openMaintenanceOrderModal')
+            ->assertSet('os_tipo', MaintenanceOrderType::Campo->value);
+    }
+
     private function operator(): User
     {
         $user = User::factory()->create(['ativo' => true]);
