@@ -64,8 +64,9 @@ class AuthenticationTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole(UserRole::Admin->value);
 
+        $this->actingAs($user);
+
         Volt::test('layout.navigation')
-            ->actingAs($user)
             ->assertOk();
     }
 
