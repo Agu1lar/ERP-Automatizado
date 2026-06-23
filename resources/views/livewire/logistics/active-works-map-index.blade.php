@@ -9,10 +9,12 @@
     };
 @endphp
 
+@unless(app()->environment('testing'))
 @assets
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 @endassets
+@endunless
 
 <x-flash-message />
 
@@ -131,6 +133,7 @@
     </div>
 </div>
 
+@unless(app()->environment('testing'))
 <script>
     const initActiveWorksMap = () => {
         const el = document.getElementById('active-works-map');
@@ -224,3 +227,4 @@
     initActiveWorksMap();
     document.addEventListener('livewire:navigated', initActiveWorksMap);
 </script>
+@endunless

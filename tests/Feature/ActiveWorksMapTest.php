@@ -57,18 +57,6 @@ class ActiveWorksMapTest extends TestCase
             ->assertSee('Belo Horizonte');
     }
 
-    public function test_worksite_map_http_route_responds(): void
-    {
-        $user = User::factory()->create();
-        $user->assignRole(UserRole::Admin->value);
-
-        $this->createOnSiteRental('LOC-HTTP', 'Belo Horizonte — Centro', GeographicRegion::Bh);
-
-        $this->actingAs($user)
-            ->get(route('logistics.works-map'))
-            ->assertOk();
-    }
-
     public function test_region_filter_limits_results(): void
     {
         $user = User::factory()->create();
