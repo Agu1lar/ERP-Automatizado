@@ -77,6 +77,23 @@ class ArchiveRecordsTest extends TestCase
         $this->assertDatabaseMissing('companies', ['id' => $company->id]);
     }
 
+    public function test_authorized_admin_can_archive_company(): void
+    {
+        $admin = $this->adminUser();
+        $company = Company::create([
+            'nome' => 'Empresa Autorizada',
+            'tipo' => CompanyType::Externa->value,
+            'ativo' => true,
+        ]);
+
+        $this->actingAs($admin);
+        $this->assertTrue($admin->can('delete', $company));
+
+        app(ArchiveService::class)->archive($company);
+
+        $this->assertSoftDeleted('companies', ['id' => $company->id]);
+    }
+
     public function test_delivery_driver_can_be_archived(): void
     {
         $admin = $this->adminUser();
