@@ -186,6 +186,25 @@ class RentalShow extends Component
         $this->initBillingPaymentDefaults();
 
         $this->rental_operating_company_id = $rental->operating_company_id ?? '';
+
+        $this->maybeOpenInspectionFromRequest();
+    }
+
+    private function maybeOpenInspectionFromRequest(): void
+    {
+        if (request()->query('acao') !== 'inspecao') {
+            return;
+        }
+
+        if ($this->rental->statusEnum() !== RentalStatus::EmInspecao) {
+            return;
+        }
+
+        if (! auth()->user()?->can('operate', $this->rental)) {
+            return;
+        }
+
+        $this->openCompleteModal();
     }
 
     public function saveFicha(): void
@@ -540,10 +559,8 @@ class RentalShow extends Component
 
         $this->showReturnModal = false;
         $this->loadRental($this->rental);
-        FlashMessage::success(
-            'Retorno registrado. Próximo passo: concluir a inspeção.',
-            WorkflowNextStep::rentalAfterReturn($this->rental),
-        );
+        $this->openCompleteModal();
+        session()->flash('success', 'Retorno registrado. Conclua a inspeção no formulário abaixo.');
     }
 
     public function completeInspection(RentalService $rentalService): void

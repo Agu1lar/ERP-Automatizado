@@ -53,6 +53,33 @@ class RentalWorkflowTest extends TestCase
         $this->assertSame('Revisão geral pós-retorno', $order->descricao_problema);
     }
 
+    public function test_register_return_opens_complete_inspection_modal(): void
+    {
+        $user = $this->operator();
+        $rental = $this->rentalInLocado();
+
+        Livewire::actingAs($user)
+            ->test(\App\Livewire\Rental\RentalShow::class, ['rental' => $rental])
+            ->call('openReturnModal')
+            ->set('checklistItems', array_fill_keys(array_keys(RentalService::CHECKLIST_RETORNO), true))
+            ->call('registerReturn')
+            ->assertHasNoErrors()
+            ->assertSet('showReturnModal', false)
+            ->assertSet('showCompleteModal', true)
+            ->assertSet('inspectionOutcome', 'ok');
+    }
+
+    public function test_rental_show_opens_inspection_modal_from_query_action(): void
+    {
+        $user = $this->operator();
+        $rental = $this->rentalInInspection();
+
+        Livewire::actingAs($user)
+            ->withQueryParams(['acao' => 'inspecao'])
+            ->test(\App\Livewire\Rental\RentalShow::class, ['rental' => $rental])
+            ->assertSet('showCompleteModal', true);
+    }
+
     public function test_complete_inspection_with_indemnity_creates_os_and_receivable(): void
     {
         $user = $this->operator();
@@ -107,6 +134,22 @@ class RentalWorkflowTest extends TestCase
         $rental = $service->registerReturn($rental, array_fill_keys(array_keys(RentalService::CHECKLIST_RETORNO), true));
 
         return $rental->fresh();
+    }
+
+    private function rentalInLocado(): Rental
+    {
+        $this->actingAs($this->operator());
+        $asset = $this->asset();
+        $customer = Customer::create([
+            'nome' => 'Cliente Workflow',
+            'cpf_cnpj' => '52998224725',
+            'ativo' => true,
+        ]);
+
+        $service = app(RentalService::class);
+        $rental = $service->reserve($asset, $customer);
+
+        return $service->checkout($rental, array_fill_keys(array_keys(RentalService::CHECKLIST_SAIDA), true));
     }
 
     private function asset(): Asset
