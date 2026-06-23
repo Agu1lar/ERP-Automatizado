@@ -114,6 +114,117 @@ class GlobalSearchTest extends TestCase
             ->assertRedirect(route('assets.show', $asset));
     }
 
+    public function test_global_search_finds_rental_by_contract_number(): void
+    {
+        $this->user();
+        $category = $this->createCategory('Compactador');
+        $model = $this->createModel($category, 'Wacker', 'DPU 6555');
+        $asset = $this->createAsset($model, 'PAT-COMP-01', AssetStatus::Locado);
+        $customer = Customer::create([
+            'nome' => 'Cliente Contrato',
+            'cpf_cnpj' => '39053344705',
+            'ativo' => true,
+        ]);
+
+        $rental = Rental::create([
+            'codigo' => 'LOC-000123',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Locado->value,
+            'reserved_at' => now(),
+        ]);
+
+        $byFullCode = app(GlobalSearchService::class)->fullResults('LOC-000123');
+        $byNumeric = app(GlobalSearchService::class)->fullResults('123');
+
+        $this->assertCount(1, $byFullCode['rentals']);
+        $this->assertSame('LOC-000123', $byFullCode['rentals']->first()['codigo']);
+        $this->assertCount(1, $byNumeric['rentals']);
+        $this->assertSame(route('rentals.show', $rental), $byNumeric['rentals']->first()['url']);
+    }
+
+    public function test_global_search_submit_redirects_directly_for_exact_rental_code(): void
+    {
+        $user = $this->user();
+        $category = $this->createCategory('Rolo');
+        $model = $this->createModel($category, 'Dynapac', 'CC1200');
+        $asset = $this->createAsset($model, 'PAT-ROL-01', AssetStatus::Reservado);
+        $customer = Customer::create([
+            'nome' => 'Cliente Redirect',
+            'cpf_cnpj' => '52998224725',
+            'ativo' => true,
+        ]);
+
+        $rental = Rental::create([
+            'codigo' => 'LOC-000456',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Reservado->value,
+            'reserved_at' => now(),
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(GlobalSearch::class)
+            ->set('query', 'LOC-000456')
+            ->call('submit')
+            ->assertRedirect(route('rentals.show', $rental));
+    }
+
+    public function test_global_search_submit_redirects_for_numeric_contract_without_prefix(): void
+    {
+        $user = $this->user();
+        $category = $this->createCategory('Escavadeira');
+        $model = $this->createModel($category, 'CAT', '320');
+        $asset = $this->createAsset($model, 'PAT-ESC-01', AssetStatus::Reservado);
+        $customer = Customer::create([
+            'nome' => 'Cliente Numérico',
+            'cpf_cnpj' => '15350946056',
+            'ativo' => true,
+        ]);
+
+        $rental = Rental::create([
+            'codigo' => 'LOC-000789',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Reservado->value,
+            'reserved_at' => now(),
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(GlobalSearch::class)
+            ->set('query', '789')
+            ->call('submit')
+            ->assertRedirect(route('rentals.show', $rental));
+    }
+
+    public function test_global_search_dropdown_lists_contract_suggestions(): void
+    {
+        $user = $this->user();
+        $category = $this->createCategory('Guincho');
+        $model = $this->createModel($category, 'Iveco', 'Daily');
+        $asset = $this->createAsset($model, 'PAT-GUI-01', AssetStatus::Locado);
+        $customer = Customer::create([
+            'nome' => 'Cliente Dropdown',
+            'cpf_cnpj' => '39053344705',
+            'ativo' => true,
+        ]);
+
+        Rental::create([
+            'codigo' => 'LOC-000321',
+            'asset_id' => $asset->id,
+            'customer_id' => $customer->id,
+            'status' => RentalStatus::Locado->value,
+            'reserved_at' => now(),
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(GlobalSearch::class)
+            ->set('query', 'LOC-000321')
+            ->assertSee('LOC-000321')
+            ->assertSee('Cliente Dropdown')
+            ->assertSee('contrato');
+    }
+
     public function test_global_search_results_page_renders_category_table(): void
     {
         $user = $this->user();

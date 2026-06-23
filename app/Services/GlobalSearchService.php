@@ -32,10 +32,7 @@ class GlobalSearchService
             return $this->mapAssetRow($assets->first())['primary_url'];
         }
 
-        $rentals = Rental::query()
-            ->where('codigo', $term)
-            ->limit(2)
-            ->get();
+        $rentals = $this->findRentalsForSearch($term, 2);
 
         if ($rentals->count() === 1) {
             return route('rentals.show', $rentals->first());
@@ -107,6 +104,20 @@ class GlobalSearchService
         }
 
         $results = collect();
+
+        $rentalLimit = $this->looksLikeContractNumber($term) ? min(4, $limit) : 2;
+
+        foreach ($this->matchingRentals($term)->take($rentalLimit) as $rental) {
+            $results->push([
+                'type' => 'contrato',
+                'label' => $rental['codigo'],
+                'subtitle' => $rental['customer'].' · '.$rental['status_label']
+                    .($rental['asset_codigo'] ? ' · '.$rental['asset_codigo'] : ''),
+                'url' => $rental['url'],
+                'hint' => 'Ficha do contrato',
+                'count' => null,
+            ]);
+        }
 
         foreach ($this->matchingCategories($term)->take(2) as $category) {
             $count = $this->assetsForCategory($category)->count();
@@ -239,25 +250,91 @@ class GlobalSearchService
             ->values();
     }
 
-    /** @return Collection<int, array{codigo: string, customer: string, url: string}> */
+    /** @return Collection<int, array{codigo: string, customer: string, status_label: string, asset_codigo: ?string, url: string}> */
     private function matchingRentals(string $term): Collection
     {
+        return $this->findRentalsForSearch($term, 10)
+            ->map(fn (Rental $rental) => $this->mapRentalRow($rental));
+    }
+
+    /** @return Collection<int, Rental> */
+    private function findRentalsForSearch(string $term, int $limit): Collection
+    {
+        $term = trim($term);
+
+        if ($term === '') {
+            return collect();
+        }
+
+        $upper = strtoupper($term);
+
+        $exact = Rental::query()
+            ->with(['customer', 'asset'])
+            ->where('codigo', $upper)
+            ->limit($limit)
+            ->get();
+
+        if ($exact->isNotEmpty()) {
+            return $exact;
+        }
+
+        if (preg_match('/^\d+$/', $term)) {
+            $padded = 'LOC-'.str_pad($term, 6, '0', STR_PAD_LEFT);
+            $paddedMatch = Rental::query()
+                ->with(['customer', 'asset'])
+                ->where('codigo', $padded)
+                ->limit($limit)
+                ->get();
+
+            if ($paddedMatch->isNotEmpty()) {
+                return $paddedMatch;
+            }
+        }
+
+        $like = '%'.addcslashes($term, '%_\\').'%';
+        $numeric = preg_replace('/\D/', '', $term);
+
         return Rental::query()
-            ->with('customer')
+            ->with(['customer', 'asset'])
             ->latest()
+            ->where(function ($query) use ($like, $numeric) {
+                $query->where('codigo', 'like', $like);
+
+                if ($numeric !== '' && strlen($numeric) >= 3) {
+                    $query->orWhere('codigo', 'like', '%'.$numeric.'%');
+                }
+
+                $query->orWhereHas('customer', fn ($customer) => $customer->where('nome', 'like', $like))
+                    ->orWhereHas('asset', fn ($asset) => $asset->where('codigo_patrimonio', 'like', $like));
+            })
+            ->limit(50)
             ->get()
             ->filter(fn (Rental $rental) => TextSearch::matchesAny(
                 $term,
                 $rental->codigo,
                 $rental->customer?->nome,
+                $rental->asset?->codigo_patrimonio,
+                $rental->local_obra,
             ))
-            ->take(10)
-            ->map(fn (Rental $rental) => [
-                'codigo' => $rental->codigo,
-                'customer' => $rental->customer?->nome ?? '—',
-                'url' => route('rentals.show', $rental),
-            ])
+            ->take($limit)
             ->values();
+    }
+
+    /** @return array{codigo: string, customer: string, status_label: string, asset_codigo: ?string, url: string} */
+    private function mapRentalRow(Rental $rental): array
+    {
+        return [
+            'codigo' => $rental->codigo,
+            'customer' => $rental->customer?->nome ?? '—',
+            'status_label' => $rental->statusEnum()->label(),
+            'asset_codigo' => $rental->asset?->codigo_patrimonio,
+            'url' => route('rentals.show', $rental),
+        ];
+    }
+
+    private function looksLikeContractNumber(string $term): bool
+    {
+        return (bool) preg_match('/^(LOC-)?\d+/i', trim($term));
     }
 
     /** @return array<string, mixed> */

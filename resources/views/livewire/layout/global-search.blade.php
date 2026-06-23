@@ -10,7 +10,7 @@
         <input
             wire:model.live.debounce.200ms="query"
             type="search"
-            placeholder="Buscar categoria, patrimônio, cliente..."
+            placeholder="Buscar categoria, patrimônio, contrato, cliente..."
             autocomplete="off"
             @focus="if ($wire.query.length >= 1) open = true"
             class="w-full rounded-lg border-gray-300 bg-gray-50 py-2 pl-9 pr-8 text-sm shadow-sm focus:border-indigo-500 focus:bg-white focus:ring-indigo-500"
@@ -50,6 +50,7 @@
                         'bg-indigo-100 text-indigo-700' => $item['type'] === 'patrimonio',
                         'bg-emerald-100 text-emerald-700' => $item['type'] === 'modelo',
                         'bg-amber-100 text-amber-700' => $item['type'] === 'cliente',
+                        'bg-sky-100 text-sky-700' => $item['type'] === 'contrato',
                     ])>
                         {{ $item['type'] }}
                     </span>

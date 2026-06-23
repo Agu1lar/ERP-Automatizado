@@ -6,18 +6,18 @@
                 @if(trim($q) !== '')
                     <p class="text-gray-500 mt-1">Resultados para <strong class="text-gray-700">"{{ $q }}"</strong></p>
                 @else
-                    <p class="text-gray-500 mt-1">Digite uma categoria (ex.: marteletes), código de patrimônio ou nome de cliente.</p>
+                    <p class="text-gray-500 mt-1">Digite uma categoria (ex.: marteletes), código de patrimônio, número de contrato (ex.: LOC-000123) ou nome de cliente.</p>
                 @endif
             </div>
 
             @if(trim($q) === '')
                 <div class="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-sm text-gray-500">
-                    Use a barra de busca no topo para pesquisar equipamentos por categoria, patrimônio ou cliente.
+                    Use a barra de busca no topo para pesquisar equipamentos por categoria, patrimônio, contrato ou cliente.
                 </div>
             @elseif(! $hasResults)
                 <div class="rounded-lg border border-gray-200 bg-white p-8 text-center">
                     <p class="text-gray-600">Nenhum resultado encontrado para "{{ $q }}".</p>
-                    <p class="text-sm text-gray-400 mt-2">Tente o nome da categoria no plural (marteletes, betoneiras) ou o código do patrimônio.</p>
+                    <p class="text-sm text-gray-400 mt-2">Tente o nome da categoria no plural (marteletes, betoneiras), o código do patrimônio ou o número do contrato (LOC-000123 ou só 123).</p>
                 </div>
             @else
                 @foreach($results['categories'] as $category)
@@ -49,13 +49,16 @@
                 @if($results['rentals']->isNotEmpty())
                     <div class="bg-white rounded-lg shadow overflow-hidden">
                         <div class="px-4 py-4 border-b border-gray-100">
-                            <h3 class="text-lg font-semibold text-gray-900">Locações</h3>
+                            <h3 class="text-lg font-semibold text-gray-900">Contratos / locações</h3>
+                            <p class="text-sm text-gray-500">{{ $results['rentals']->count() }} resultado(s)</p>
                         </div>
                         <table class="min-w-full divide-y divide-gray-200 text-sm">
                             <thead class="bg-gray-50 text-xs uppercase text-gray-500">
                                 <tr>
-                                    <th class="px-4 py-3 text-left">Código</th>
+                                    <th class="px-4 py-3 text-left">Contrato</th>
                                     <th class="px-4 py-3 text-left">Cliente</th>
+                                    <th class="px-4 py-3 text-left">Patrimônio</th>
+                                    <th class="px-4 py-3 text-left">Status</th>
                                     <th class="px-4 py-3 text-right">Ação</th>
                                 </tr>
                             </thead>
@@ -64,8 +67,10 @@
                                     <tr>
                                         <td class="px-4 py-3 font-medium text-gray-900">{{ $rental['codigo'] }}</td>
                                         <td class="px-4 py-3 text-gray-600">{{ $rental['customer'] }}</td>
+                                        <td class="px-4 py-3 text-gray-600">{{ $rental['asset_codigo'] ?? '—' }}</td>
+                                        <td class="px-4 py-3 text-gray-600">{{ $rental['status_label'] }}</td>
                                         <td class="px-4 py-3 text-right">
-                                            <a href="{{ $rental['url'] }}" wire:navigate class="text-indigo-600 hover:underline">Abrir ficha da locação</a>
+                                            <a href="{{ $rental['url'] }}" wire:navigate class="text-indigo-600 hover:underline">Abrir ficha</a>
                                         </td>
                                     </tr>
                                 @endforeach
