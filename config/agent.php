@@ -204,6 +204,7 @@ return [
             env('AGENT_LLM_SUPPORTS_JSON_MODE', $agentLlmPreset['supports_json_mode']),
             FILTER_VALIDATE_BOOL,
         ),
+        'verify_ssl' => filter_var(env('AGENT_LLM_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
         'daily_token_limit' => env('AGENT_LLM_DAILY_TOKEN_LIMIT'),
         'pricing_per_million' => [
             'gpt-4o-mini' => ['input' => 0.15, 'output' => 0.60],

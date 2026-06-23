@@ -16,6 +16,8 @@ class AgentLlmFailureClassifier
 
     public const SERVICE_UNAVAILABLE = 'service_unavailable';
 
+    public const CONNECTION_ERROR = 'connection_error';
+
     public const UNKNOWN = 'unknown';
 
     public static function fromHttp(int $status, string $body = ''): string
@@ -64,6 +66,16 @@ class AgentLlmFailureClassifier
 
         if (str_contains($message, 'timed out') || str_contains($message, 'timeout')) {
             return self::TIMEOUT;
+        }
+
+        if (
+            str_contains($message, 'ssl certificate')
+            || str_contains($message, 'curl error 60')
+            || str_contains($message, 'unable to get local issuer certificate')
+            || str_contains($message, 'connection refused')
+            || str_contains($message, 'could not resolve host')
+        ) {
+            return self::CONNECTION_ERROR;
         }
 
         if (str_contains($message, 'context_length') || str_contains($message, 'token')) {

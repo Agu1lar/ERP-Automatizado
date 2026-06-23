@@ -10,7 +10,8 @@ use App\Models\User;
 use App\Services\AgentLlmUsageService;
 use App\Support\Agent\AgentLlmConversationBuilder;
 use App\Support\Agent\AgentLlmFailureClassifier;
-use Illuminate\Support\Facades\Http;
+use App\Support\Agent\AgentLlmHttp;
+use App\Support\Agent\AgentLlmToolSchemaSanitizer;
 use Illuminate\Support\Facades\Log;
 
 class AgentLlmDriver
@@ -19,6 +20,7 @@ class AgentLlmDriver
     private readonly AgentCommandRegistry $registry,
     private readonly AgentLlmUsageService $usageService,
     private readonly AgentLlmConversationBuilder $conversationBuilder,
+    private readonly AgentLlmToolSchemaSanitizer $toolSchemaSanitizer,
   ) {}
 
   public function isConfigured(): bool
@@ -68,15 +70,14 @@ class AgentLlmDriver
         ->map(fn (array $entry) => [
           'name' => $entry['name'],
           'description' => $entry['description'],
-          'parameters' => $entry['input_schema'],
+          'parameters' => $this->toolSchemaSanitizer->sanitize($entry['input_schema'] ?? []),
         ])
         ->values()
         ->all();
 
       $messages = $this->conversationBuilder->build($sessionId, $message, $mode);
 
-      $response = Http::withToken(config('agent.llm.api_key'))
-        ->timeout((int) config('agent.llm.timeout', 30))
+      $response = AgentLlmHttp::client()
         ->post(rtrim((string) config('agent.llm.base_url'), '/').'/chat/completions', [
           'model' => config('agent.llm.model'),
           'messages' => $messages,

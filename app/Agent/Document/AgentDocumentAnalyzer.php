@@ -13,7 +13,7 @@ use App\Models\User;
 use App\Models\Domain\Agent\AgentLlmCall;
 use App\Services\AgentLlmUsageService;
 use App\Support\Agent\AgentLlmFailureClassifier;
-
+use App\Support\Agent\AgentLlmHttp;
 use App\Support\Agent\AgentModeContext;
 
 use Illuminate\Support\Facades\Http;
@@ -160,8 +160,7 @@ class AgentDocumentAnalyzer
                 $payload['response_format'] = ['type' => 'json_object'];
             }
 
-            $response = Http::withToken(config('agent.llm.api_key'))
-                ->timeout((int) config('agent.llm.timeout', 60))
+            $response = AgentLlmHttp::client()
                 ->post(rtrim((string) config('agent.llm.base_url'), '/').'/chat/completions', $payload);
 
 

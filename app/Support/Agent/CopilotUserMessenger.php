@@ -107,6 +107,7 @@ class CopilotUserMessenger
             AgentLlmFailureClassifier::TIMEOUT => 'A IA **demorou demais** para responder.',
             AgentLlmFailureClassifier::AUTH_ERROR => 'A **configuração da IA** está incompleta ou incorreta.',
             AgentLlmFailureClassifier::SERVICE_UNAVAILABLE => 'O **serviço de IA está indisponível** no momento.',
+            AgentLlmFailureClassifier::CONNECTION_ERROR => 'Não consegui **conectar à API de IA** (rede/SSL). No Windows de desenvolvimento, tente `AGENT_LLM_VERIFY_SSL=false` no `.env` ou instale o pacote CA do PHP.',
             default => 'A IA **não respondeu** como esperado.',
         };
 
