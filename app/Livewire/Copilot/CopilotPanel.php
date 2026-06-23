@@ -20,6 +20,7 @@ use App\Agent\Chat\AgentLlmDriver;
 
 use App\Enums\CopilotMode;
 
+use App\Models\Domain\Agent\AgentTask;
 use App\Services\AgentTaskService;
 
 use App\Support\CopilotPageContext;
@@ -559,6 +560,60 @@ class CopilotPanel extends Component
         $this->dispatch('copilot-scroll-bottom');
     }
 
+    public function cancelBackgroundTask(int $taskId, AgentTaskService $taskService): void
+    {
+        abort_unless($this->enabled, 403);
+
+        $task = AgentTask::query()
+            ->whereKey($taskId)
+            ->where('user_id', auth()->id())
+            ->first();
+
+        if (! $task) {
+            return;
+        }
+
+        $cancelled = $taskService->cancel($task);
+        $this->onTaskProgress($taskId, $cancelled->toAgentArray());
+        $this->dispatch('copilot-stop-task', taskId: $taskId);
+    }
+
+    public function refreshActiveTasks(): void
+    {
+        foreach ($this->messages as $message) {
+            $taskId = (int) ($message['meta']['task']['id'] ?? 0);
+            $status = (string) ($message['meta']['task']['status'] ?? '');
+
+            if ($taskId === 0 || ! in_array($status, ['queued', 'running'], true)) {
+                continue;
+            }
+
+            $task = AgentTask::query()
+                ->whereKey($taskId)
+                ->where('user_id', auth()->id())
+                ->first();
+
+            if (! $task) {
+                continue;
+            }
+
+            $this->onTaskProgress($taskId, $task->toAgentArray());
+        }
+    }
+
+    public function hasActiveBackgroundTasks(): bool
+    {
+        foreach ($this->messages as $message) {
+            $status = (string) ($message['meta']['task']['status'] ?? '');
+
+            if (in_array($status, ['queued', 'running'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function queuePendingInBackground(AgentTaskService $taskService, AgentSessionService $sessionService): void
 
     {
@@ -597,7 +652,7 @@ class CopilotPanel extends Component
 
             $session,
 
-        );
+        )->fresh();
 
 
 
@@ -612,6 +667,8 @@ class CopilotPanel extends Component
             'meta' => ['task' => $task->toAgentArray()],
 
         ];
+
+        $this->onTaskProgress($task->id, $task->toAgentArray());
 
 
 
@@ -714,6 +771,8 @@ class CopilotPanel extends Component
             'llmEnabled' => app(\App\Agent\Document\AgentDocumentAnalyzer::class)->isAvailable(),
 
             'llmConfigured' => app(\App\Agent\Document\AgentDocumentAnalyzer::class)->isConfigured(),
+
+            'hasActiveBackgroundTasks' => $this->hasActiveBackgroundTasks(),
 
         ]);
 

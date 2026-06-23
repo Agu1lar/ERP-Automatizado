@@ -77,15 +77,28 @@ class AgentTaskService
                 ]);
             }
 
-            ProcessAgentTaskJob::dispatch($task->id);
+            if ($this->shouldRunInline()) {
+                ProcessAgentTaskJob::dispatchSync($task->id);
+            } else {
+                ProcessAgentTaskJob::dispatch($task->id);
+            }
 
-            return $task;
+            return $task->fresh();
         });
+    }
+
+    private function shouldRunInline(): bool
+    {
+        if (config('queue.default') === 'sync') {
+            return true;
+        }
+
+        return (bool) config('agent.tasks.run_inline_in_local', false);
     }
 
     public function cancel(AgentTask $task): AgentTask
     {
-        if (! in_array($task->status, [AgentTaskStatus::Queued->value, AgentTaskStatus::Running->value], true)) {
+        if (! $task->isCancellable()) {
             return $task;
         }
 

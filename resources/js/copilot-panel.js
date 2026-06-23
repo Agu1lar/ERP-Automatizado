@@ -33,7 +33,16 @@ document.addEventListener('livewire:init', () => {
         source.onerror = () => closeStream();
     };
 
+    const stopTask = (taskId) => {
+        const source = activeStreams.get(taskId);
+        if (source) {
+            source.close();
+            activeStreams.delete(taskId);
+        }
+    };
+
     Livewire.on('copilot-watch-task', ({ taskId }) => watchTask(taskId));
+    Livewire.on('copilot-stop-task', ({ taskId }) => stopTask(taskId));
 
     document.addEventListener('livewire:navigated', () => {
         const url = window.location.pathname + window.location.search;

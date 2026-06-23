@@ -22,13 +22,35 @@
                 <div class="mt-2 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2.5 py-2 text-xs text-indigo-900">
                     <div class="flex items-center justify-between gap-2">
                         <span class="font-medium">{{ $task['status_label'] ?? $task['status'] ?? 'Em fila' }}</span>
-                        <span>{{ $task['progress_percent'] ?? 0 }}%</span>
+                        <div class="flex items-center gap-2">
+                            <span>{{ $task['progress_percent'] ?? 0 }}%</span>
+                            @if(! empty($task['can_cancel']))
+                                <button
+                                    type="button"
+                                    wire:click="cancelBackgroundTask({{ $task['id'] }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="cancelBackgroundTask({{ $task['id'] }})"
+                                    class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-indigo-300 bg-white text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                                    title="Cancelar tarefa"
+                                    aria-label="Cancelar tarefa em background"
+                                >
+                                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <rect x="6" y="6" width="12" height="12" rx="1" />
+                                    </svg>
+                                </button>
+                            @endif
+                        </div>
                     </div>
                     <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-indigo-200">
                         <div class="h-full rounded-full bg-indigo-600 transition-all duration-300" style="width: {{ $task['progress_percent'] ?? 0 }}%"></div>
                     </div>
                     @if(! empty($task['current_step']) && ! empty($task['total_steps']))
                         <p class="mt-1 text-[10px] text-indigo-700">Passo {{ $task['current_step'] }}/{{ $task['total_steps'] }}</p>
+                    @endif
+                    @if(! empty($task['is_stale']))
+                        <p class="mt-1.5 text-[10px] leading-snug text-amber-800">
+                            A fila parece parada. Em produção, confira o worker (`queue:work`). Você pode cancelar e usar <strong>Sim, executar agora</strong>.
+                        </p>
                     @endif
                 </div>
             @endif

@@ -187,6 +187,10 @@ return [
     'tasks' => [
         'sse_poll_ms' => (int) env('AGENT_TASK_SSE_POLL_MS', 1000),
         'sse_max_seconds' => (int) env('AGENT_TASK_SSE_MAX_SECONDS', 300),
+        // Em local (ou AGENT_TASKS_INLINE=true) executa na hora — sem depender de queue:work.
+        'run_inline_in_local' => filter_var(env('AGENT_TASKS_INLINE', false), FILTER_VALIDATE_BOOL)
+            ?: env('APP_ENV', 'production') === 'local',
+        'queued_stale_seconds' => (int) env('AGENT_TASK_QUEUED_STALE_SECONDS', 20),
     ],
 
     'llm' => [

@@ -65,6 +65,60 @@ class AgentTaskTest extends TestCase
         $this->assertSame(1, $task->current_step);
     }
 
+    public function test_cancel_queued_task_via_api(): void
+    {
+        Sanctum::actingAs($user = $this->agentUser());
+
+        $task = AgentTask::create([
+            'user_id' => $user->id,
+            'status' => AgentTaskStatus::Queued->value,
+            'title' => 'Cadastro',
+            'total_steps' => 1,
+            'steps' => [['command' => 'finance.summary', 'params' => []]],
+        ]);
+
+        $this->postJson('/api/agent/tasks/'.$task->id.'/cancel')
+            ->assertOk()
+            ->assertJsonPath('status', AgentTaskStatus::Cancelled->value)
+            ->assertJsonPath('can_cancel', false);
+    }
+
+    public function test_cancelled_task_is_skipped_by_background_job(): void
+    {
+        $user = $this->agentUser();
+
+        $task = AgentTask::create([
+            'user_id' => $user->id,
+            'status' => AgentTaskStatus::Queued->value,
+            'title' => 'Cadastro',
+            'total_steps' => 1,
+            'steps' => [['command' => 'finance.summary', 'params' => []]],
+        ]);
+
+        app(AgentTaskService::class)->cancel($task);
+
+        ProcessAgentTaskJob::dispatchSync($task->id);
+
+        $task->refresh();
+        $this->assertSame(AgentTaskStatus::Cancelled->value, $task->status);
+        $this->assertSame(0, $task->current_step);
+    }
+
+    public function test_inline_dispatch_completes_task_without_worker(): void
+    {
+        config(['agent.tasks.run_inline_in_local' => true]);
+        config(['queue.default' => 'database']);
+
+        $task = app(AgentTaskService::class)->queue(
+            $this->agentUser(),
+            [['command' => 'finance.summary', 'params' => []]],
+            'Resumo inline',
+        );
+
+        $this->assertSame(AgentTaskStatus::Completed->value, $task->status);
+        $this->assertSame(1, $task->current_step);
+    }
+
     public function test_user_edit_marks_task_as_conflict(): void
     {
         $user = $this->agentUser();

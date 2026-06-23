@@ -76,12 +76,41 @@ class AgentTask extends Model
         return AgentTaskStatus::from($this->status);
     }
 
-    public function markRunning(): void
+    public function markRunning(): bool
     {
-        $this->update([
-            'status' => AgentTaskStatus::Running->value,
-            'started_at' => now(),
-        ]);
+        $updated = static::query()
+            ->whereKey($this->id)
+            ->where('status', AgentTaskStatus::Queued->value)
+            ->update([
+                'status' => AgentTaskStatus::Running->value,
+                'started_at' => now(),
+            ]);
+
+        if ($updated > 0) {
+            $this->refresh();
+        }
+
+        return $updated > 0;
+    }
+
+    public function isCancellable(): bool
+    {
+        return in_array($this->status, [
+            AgentTaskStatus::Queued->value,
+            AgentTaskStatus::Running->value,
+        ], true);
+    }
+
+    public function isStaleInQueue(): bool
+    {
+        if ($this->status !== AgentTaskStatus::Queued->value) {
+            return false;
+        }
+
+        $threshold = max(5, (int) config('agent.tasks.queued_stale_seconds', 20));
+
+        return $this->created_at !== null
+            && $this->created_at->diffInSeconds(now()) >= $threshold;
     }
 
     public function markCompleted(): void
@@ -132,9 +161,12 @@ class AgentTask extends Model
             'progress_percent' => $this->total_steps > 0
                 ? (int) round(($this->current_step / $this->total_steps) * 100)
                 : 0,
+            'can_cancel' => $this->isCancellable(),
+            'is_stale' => $this->isStaleInQueue(),
             'error_message' => $this->error_message,
             'conflict_reason' => $this->conflict_reason,
             'step_results' => $this->step_results,
+            'created_at' => $this->created_at?->toIso8601String(),
             'started_at' => $this->started_at?->toIso8601String(),
             'finished_at' => $this->finished_at?->toIso8601String(),
         ];

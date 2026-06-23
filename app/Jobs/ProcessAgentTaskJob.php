@@ -32,14 +32,20 @@ class ProcessAgentTaskJob implements ShouldQueue
             return;
         }
 
-        $task->markRunning();
+        if (! $task->markRunning()) {
+            return;
+        }
+
         $user = $task->user;
         $results = [];
 
         foreach ($task->steps as $index => $step) {
             $task->refresh();
 
-            if ($task->status === AgentTaskStatus::Conflict->value) {
+            if (in_array($task->status, [
+                AgentTaskStatus::Conflict->value,
+                AgentTaskStatus::Cancelled->value,
+            ], true)) {
                 return;
             }
 

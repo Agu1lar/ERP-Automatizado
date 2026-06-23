@@ -83,6 +83,7 @@
             <div
                 x-ref="messages"
                 class="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
+                @if($hasActiveBackgroundTasks) wire:poll.2s="refreshActiveTasks" @endif
             >
                 @include('livewire.copilot.partials.chat-messages')
             </div>
