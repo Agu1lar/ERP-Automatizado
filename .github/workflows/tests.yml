@@ -41,10 +41,10 @@ jobs:
         run: npm ci && npm run build
 
       - name: Run core tests (SQLite)
-        run: php artisan test --exclude-group=agent,livewire,llm-live
+        run: php artisan test --exclude-group=agent --exclude-group=livewire --exclude-group=llm-live
 
       - name: Run Livewire and HTTP smoke tests (SQLite)
-        run: php artisan test --group=livewire --exclude-group=agent,llm-live
+        run: php artisan test --group=livewire --exclude-group=agent --exclude-group=llm-live
 
       - name: Run agent tests (SQLite)
         run: php artisan test --group=agent --exclude-group=llm-live
@@ -94,10 +94,10 @@ jobs:
         run: npm ci && npm run build
 
       - name: Run core tests (PostgreSQL)
-        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --exclude-group agent,livewire,llm-live
+        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --exclude-group agent --exclude-group livewire --exclude-group llm-live
 
       - name: Run Livewire and HTTP smoke tests (PostgreSQL)
-        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --group livewire --exclude-group agent,llm-live
+        run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --group livewire --exclude-group agent --exclude-group llm-live
 
       - name: Run agent tests (PostgreSQL)
         run: php -d memory_limit=2048M vendor/phpunit/phpunit/phpunit --configuration=phpunit.pgsql.xml --group agent --exclude-group llm-live
