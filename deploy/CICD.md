@@ -375,3 +375,104 @@ cp .env.testing .env
 php vendor/phpunit/phpunit/phpunit --filter=SmokeRoutesTest
 # Restaure o .env de produção depois
 ```
+
+---
+
+## Base de conhecimento — falhas recentes do CI
+
+Registro resumido dos problemas que derrubaram o workflow **Tests** (jun/2026) e das correções aplicadas. Serve para não repetir os mesmos erros ao adicionar testes ou mudar o pipeline.
+
+### Visão geral do pipeline atual
+
+O job **Tests** roda a suíte em **três passes** (core → livewire → agent), em SQLite e PostgreSQL, para limitar memória e isolar testes pesados:
+
+| Pass | Grupos | ~testes |
+|------|--------|---------|
+| Core | `--exclude-group=agent --exclude-group=livewire` | ~127 |
+| Livewire / smoke HTTP | `--group=livewire` | ~241 |
+| Agent | `--group=agent` | restante |
+
+No PostgreSQL, cada pass usa `phpunit.pgsql.xml` com `memory_limit=2048M`.
+
+### 1. Filtro `--exclude-group` com vírgula (suite inteira rodando)
+
+**Sintoma:** CI lento, OOM ou *Premature end of PHP process*; centenas de testes quando deveriam ser ~127 no primeiro pass.
+
+**Causa:** `--exclude-group=agent,livewire` é interpretado como **um único nome de grupo** (`agent,livewire`), não como dois grupos. Quase nenhum teste era excluído.
+
+**Correção:** flags separadas:
+
+```bash
+--exclude-group=agent --exclude-group=livewire --exclude-group=llm-live
+```
+
+**Commit:** `4175ec8`
+
+### 2. Fatal em policies ao arquivar (`can('delete')`)
+
+**Sintoma:** *Fatal error* ao rodar `ArchiveRecordsTest` ou smoke Livewire que chama `authorize('delete', ...)`.
+
+**Causa:** o trait `RestoresWhenDeleted` declarava `abstract public function delete(User $user, mixed $model)`; policies concretas usam assinatura tipada (`delete(User, Company $company)`). O PHP não considera isso compatível → fatal na resolução do Gate.
+
+**Correção:** remover o `abstract delete` do trait; cada policy mantém só `delete` e `restore` tipados.
+
+**Commit:** `fdd0166`
+
+### 3. Parse error no `ArchiveService`
+
+**Sintoma:** fatal ao carregar `ArchiveService` em qualquer teste que instancia o serviço.
+
+**Causa:** interpolação inválida `{$model::class}` dentro de string (sintaxe PHP incorreta).
+
+**Correção:** usar concatenação ou `get_class($model)`.
+
+**Commit:** `fdd0166`
+
+### 4. Arquivamento sem persistir `ativo = false`
+
+**Sintoma:** testes de soft delete / perfil falhavam; registro arquivado ainda com `ativo = true` no banco.
+
+**Causa:** `forceFill(['ativo' => false])` sem `save()` antes do `delete()`.
+
+**Correção:** `forceFill(...)->save()` antes do soft delete.
+
+**Commit:** `fdd0166`
+
+### 5. Layout Blade quebrado em `APP_ENV=testing` (HTTP 500 nos smokes)
+
+**Sintoma:** `SmokeRoutesTest`, `LivewirePagesSmokeTest` e rotas com `layouts.app` retornavam **500** no CI (não OOM).
+
+**Causa:** tentativa de layout “mínimo” com `@environment('testing')` / `@else` gerou Blade inválido após compilação.
+
+**Correção:** restaurar o layout completo; desligar apenas o copiloto com `@if (!app()->environment('testing'))`. Ajustar `ProfileTest` para `assertSoftDeleted`.
+
+**Commit:** `1ab5586`
+
+### 6. Suíte monolítica e memória (OOM no PostgreSQL)
+
+**Sintoma:** processo PHP morria no meio do job PG, às vezes sem stack trace clara.
+
+**Causa:** ~460 testes num único processo + render Livewire/HTTP + agent; limite padrão de memória insuficiente.
+
+**Correção:** três passes no `tests.yml`; grupos `#[Group('livewire')]` e `#[Group('agent')]` nas classes; `memory_limit=2048M` no `phpunit.pgsql.xml`.
+
+**Commit:** `e59e61a` (e ajustes em `tests.yml`)
+
+### 7. Smoke tests sem `cpf` em `people` (NOT NULL)
+
+**Sintoma:** 4 **errors** no pass livewire (SQLite e PostgreSQL): `Integrity constraint violation: NOT NULL constraint failed: people.cpf`.
+
+**Causa:** `Person::create([...])` em `CreatesSmokeContext` e em testes de arquivamento de empresa sem o campo `cpf`, obrigatório desde a migration `create_companies_and_people_tables`.
+
+**Correção:** incluir CPF válido em todas as fábricas smoke de pessoa; no teste Livewire de erro de arquivamento, trocar `assertSessionHas('error')` por `assertSee(...)` com a mensagem exibida no flash (o Livewire 3 não expõe o flash da mesma forma no `TestResponse` após `call()`).
+
+**Commit:** `e3baece`
+
+### Checklist rápido se o CI voltar a falhar
+
+1. Qual **pass** falhou (core / livewire / agent)? Rodar só esse pass localmente.
+2. Novo teste com `Person::create`? Incluir **`cpf`** único.
+3. Novo componente Livewire pesado? Considerar `#[Group('livewire')]` ou `#[Group('agent')]`.
+4. Mudou `--exclude-group`? **Nunca** junte grupos com vírgula numa flag só.
+5. Erro 500 em smoke HTTP? Ver `storage/logs/laravel.log` local com `APP_ENV=testing` — muitas vezes é Blade/PHP fatal, não memória.
+6. Deploy na VM só depois do **Tests** verde; a VM **não** roda PHPUnit em produção (`composer install --no-dev`).
