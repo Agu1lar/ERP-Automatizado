@@ -89,6 +89,8 @@ class RentalIndex extends Component
 
     public string $local_obra = '';
 
+    public string $valor_acordado = '';
+
     public string $asset_search = '';
 
     public string $customer_search = '';
@@ -324,6 +326,7 @@ class RentalIndex extends Component
             ],
             'observacoes' => 'nullable|string|max:2000',
             'local_obra' => 'nullable|string|max:2000',
+            'valor_acordado' => 'nullable|numeric|min:0',
         ]);
 
         $asset = Asset::findOrFail($data['asset_id']);
@@ -347,6 +350,7 @@ class RentalIndex extends Component
                 $data['local_obra'] ?: null,
                 $period,
                 $scheduledStart,
+                filled($data['valor_acordado'] ?? null) ? (float) $data['valor_acordado'] : null,
             );
         } catch (\InvalidArgumentException $e) {
             if ($this->isCustomerRentalBlockError($customer, $e->getMessage())) {
@@ -641,6 +645,7 @@ class RentalIndex extends Component
         $this->pricing_period = '';
         $this->observacoes = '';
         $this->local_obra = '';
+        $this->valor_acordado = '';
         $this->asset_search = '';
         $this->customer_search = '';
         $this->assetSuggestions = [];

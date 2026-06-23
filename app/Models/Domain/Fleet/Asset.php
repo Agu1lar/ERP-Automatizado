@@ -130,6 +130,13 @@ class Asset extends Model
         return QrCodeStatus::from($this->qr_code_status ?? QrCodeStatus::Pending->value);
     }
 
+    public function usesHorimetro(): bool
+    {
+        $this->loadMissing('equipmentModel.category');
+
+        return $this->equipmentModel?->category?->usa_horimetro ?? true;
+    }
+
     public function resolveRouteBinding($value, $field = null)
     {
         return static::withoutGlobalScope('operating_company')

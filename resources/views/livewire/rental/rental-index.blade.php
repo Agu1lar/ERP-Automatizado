@@ -528,8 +528,15 @@
                                 <p class="text-xs text-emerald-700 mt-1">{{ $priceEstimate['billed_days'] }} dias · {{ $priceEstimate['source'] }}</p>
                             </div>
                         @elseif($asset_id && filled($expected_return_at))
-                            <p class="text-sm text-amber-700">Sem tabela de preços para este equipamento — o valor deverá ser informado manualmente na ficha.</p>
+                            <p class="text-sm text-amber-700">Sem tabela de preços para este equipamento — informe o valor acordado abaixo.</p>
                         @endif
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Valor acordado (opcional)</label>
+                            <input wire:model="valor_acordado" type="number" step="0.01" min="0" class="mt-1 w-full rounded-md border-gray-300 shadow-sm" placeholder="{{ $priceEstimate ? number_format($priceEstimate['valor_calculado'], 2, '.', '') : '0,00' }}" />
+                            @error('valor_acordado') <span class="text-red-600 text-sm">{{ $message }}</span> @enderror
+                            <p class="text-xs text-gray-500 mt-1">Deixe em branco para usar a estimativa da tabela. Ajustes finos podem ser feitos na ficha depois.</p>
+                        </div>
 
 
 

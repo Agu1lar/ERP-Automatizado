@@ -15,24 +15,33 @@ Checklist manual para validar **todos os módulos em produção** após deploy o
 | Flash de erro | Após cada ação, mensagem verde/vermelha no topo da tela |
 | CI verde | GitHub Actions → workflow **Tests** passou no último commit |
 
-### Smoke automatizado (desenvolvedor)
+### Smoke automatizado (PHPUnit)
+
+| Ambiente | Comando |
+|----------|---------|
+| **PC de desenvolvimento** | `composer install` → `php artisan test --filter=SmokeRoutesTest` |
+| **GitHub Actions** | Automático em cada push no `main` |
+| **VM de produção** | **Não disponível** — `atualizar.sh` usa `composer install --no-dev` (sem PHPUnit). Use `/health` + checklist abaixo |
+
+Na VM, após deploy:
 
 ```bash
-php artisan test --filter=SmokeRoutesTest
-php artisan test --filter=LivewirePagesSmokeTest
+curl -s http://192.168.5.29/health
 ```
+
+Detalhes: [`deploy/CICD.md`](../deploy/CICD.md#testes-na-vm-vs-ci).
 
 ---
 
 ## 0. Autenticação e navegação ⚡
 
-- [ ] Acessar `/` redireciona para `/dashboard`
-- [ ] Login com credencial válida abre o painel
-- [ ] Logout encerra a sessão
-- [ ] Menu lateral: 6 seções (Dashboard, Comercial, Logística, Estoque, Financeiro, Configurações)
-- [ ] Troca de empresa operacional no topo recarrega dados coerentes
-- [ ] Busca global (topo): digitar código de patrimônio ou nome de cliente → resultados
-- [ ] Abas multitarefa: abrir 2 fichas e alternar sem perder contexto
+- [x] Acessar `/` redireciona para `/dashboard`
+- [x] Login com credencial válida abre o painel
+- [x] Logout encerra a sessão
+- [x] Menu lateral: 6 seções (Dashboard, Comercial, Logística, Estoque, Financeiro, Configurações)
+- [x] Troca de empresa operacional no topo recarrega dados coerentes
+- [x] Busca global (topo): digitar código de patrimônio ou nome de cliente → resultados
+- [x] Abas multitarefa: abrir 2 fichas e alternar sem perder contexto
 
 ---
 
@@ -40,16 +49,16 @@ php artisan test --filter=LivewirePagesSmokeTest
 
 ### 1.1 Painel principal ⚡
 
-- [ ] `/dashboard` carrega cards (frota, locações, manutenção, financeiro)
-- [ ] Links dos cards abrem telas corretas
-- [ ] Badge de retornos atrasados (se houver) leva a Locações
+- [x] `/dashboard` carrega cards (frota, locações, manutenção, financeiro)
+- [x] Links dos cards abrem telas corretas
+- [x] Badge de retornos atrasados (se houver) leva a Locações
 
 ### 1.2 Relatórios (perfil Gestor/Admin)
 
-- [ ] **Relatório comercial** — lista e filtros; exportar CSV
-- [ ] **Análise financeira** — gráficos/tabelas carregam
-- [ ] **Indicadores de frota** — taxas por categoria
-- [ ] **Custo OS vs faturamento** — sem erro 500
+- [x] **Relatório comercial** — lista e filtros; exportar CSV (região = filtro automático pelo local da obra; cidades em `config/geography.php`)
+- [x] **Análise financeira** — tabelas e indicadores (gráficos: roadmap)
+- [x] **Indicadores de frota** — taxas por categoria
+- [x] **Custo OS vs faturamento** — sem erro 500
 
 ---
 
@@ -57,10 +66,10 @@ php artisan test --filter=LivewirePagesSmokeTest
 
 ### 2.1 Locações ⚡
 
-- [ ] Lista `/locacoes` abre; abas (lista, painel locados) funcionam
-- [ ] Criar **reserva**: cliente + patrimônio disponível → status Reservado
-- [ ] Abrir ficha da locação `/locacoes/{id}`
-- [ ] Fluxo **saída** com checklist → patrimônio Locado
+- [x] Lista `/locacoes` abre; abas (lista, painel locados) funcionam
+- [x] Criar **reserva**: cliente + patrimônio disponível → status Reservado; **valor acordado** opcional na modal (ou ajustar na ficha)
+- [x] Abrir ficha da locação `/locacoes/{id}`
+- [ ] Fluxo **saída** com checklist → patrimônio Locado (horímetro só exigido em avisos se categoria “usa horímetro”; reserva futura: editar **início previsto** na ficha ou **Antecipar para hoje**)
 - [ ] Fluxo **retorno** → inspeção → concluir ou enviar para manutenção
 - [ ] Exportar painel locados (CSV)
 - [ ] PDF resumo e **contrato PDF** baixam
@@ -194,9 +203,11 @@ Repetir smoke ⚡ com usuários não-admin:
 
 ## 8. Pós-deploy na VM
 
+**Nota:** `php artisan test` **não funciona** na VM de produção (dependências de dev não instaladas). Valide com `/health`, GitHub Actions e este checklist no navegador.
+
 ```bash
-# Health
-curl -s http://192.168.5.29/health | jq .
+# Health (smoke automatizado na VM)
+curl -s http://192.168.5.29/health
 
 # Deploy manual se necessário
 sudo bash /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh

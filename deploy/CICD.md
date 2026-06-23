@@ -250,6 +250,7 @@ sudo bash /var/www/ERP-Acesso/deploy/scripts/deploy-from-git.sh
 | Erro 500 após deploy | `sudo bash deploy/scripts/corrigir-500.sh` |
 | `Permission denied` em `storage/logs` ou `bootstrap/cache` no `composer install` | Rode `sudo bash deploy/scripts/corrigir-500.sh` e depois `sudo bash deploy/scripts/atualizar.sh` de novo; o usuário de deploy (`jose`) deve estar no grupo `www-data`: `sudo usermod -aG www-data jose` (faça logout/login) |
 | Tests falham, deploy não roda | Corrija testes antes; deploy só após CI verde |
+| `php artisan test` — *Command "test" is not defined* na VM | **Esperado em produção** — ver seção [Testes na VM vs CI](#testes-na-vm-vs-ci) |
 | `bad interpreter` / `$'\r': command not found` em `.sh` | Ver seção **Dicas de ouro → CRLF**; `git config --global core.autocrlf false` no Windows |
 | Runner parou após reboot da VM | `cd /home/jose/actions-runner && sudo ./svc.sh start` |
 
@@ -322,3 +323,55 @@ Se não quiser runner na VM:
 - **Cron** `git pull` a cada X minutos (não é CD de verdade)
 
 Para rede doméstica/VirtualBox, **self-hosted runner** é a opção mais estável.
+
+---
+
+## Testes na VM vs CI
+
+O deploy de produção (`atualizar.sh`) executa:
+
+```bash
+composer install --no-dev --optimize-autoloader
+```
+
+Com `--no-dev`, **PHPUnit e `laravel/pao` não são instalados**. Por isso, na VM aparece:
+
+```text
+ERROR  Command "test" is not defined.
+```
+
+Isso **não é falha do deploy** — é intencional (menos pacotes, menor superfície de ataque).
+
+### Onde rodar testes automatizados
+
+| Onde | Como |
+|------|------|
+| **GitHub Actions** | Workflow **Tests** em cada push/PR no `main` (recomendado) |
+| **Seu PC (dev)** | `composer install` (com dev) → `php artisan test` ou filtros `--filter=SmokeRoutesTest` |
+| **VM produção** | **Não use** `php artisan test` no banco real |
+
+### Smoke na VM (produção)
+
+Use o endpoint de saúde e o roteiro manual:
+
+```bash
+curl -s http://127.0.0.1/health
+# ou, na rede local:
+curl -s http://192.168.5.29/health
+```
+
+Esperado: JSON com `"status": "healthy"` (ou `"degraded"` se só o cache falhar).
+
+Checklist completo no navegador: [`docs/TESTE_INTERFACE.md`](../docs/TESTE_INTERFACE.md).
+
+### Rodar PHPUnit na VM (apenas staging / banco de teste)
+
+**Não faça isso na VM de produção** com o `.env` operacional. Só em ambiente isolado, com `.env.testing` e banco separado:
+
+```bash
+cd /var/www/ERP-Acesso
+composer install --no-interaction          # sem --no-dev
+cp .env.testing .env
+php vendor/phpunit/phpunit/phpunit --filter=SmokeRoutesTest
+# Restaure o .env de produção depois
+```

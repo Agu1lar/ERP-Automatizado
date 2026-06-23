@@ -31,6 +31,8 @@ class CategoryIndex extends Component
 
     public bool $ativo = true;
 
+    public bool $usa_horimetro = true;
+
     public function mount(): void
     {
         $this->authorize('viewAny', EquipmentCategory::class);
@@ -56,6 +58,7 @@ class CategoryIndex extends Component
         $this->editingId = $category->id;
         $this->nome = $category->nome;
         $this->tipo_linha = $category->tipo_linha;
+        $this->usa_horimetro = $category->usa_horimetro;
         $this->ativo = $category->ativo;
         $this->showForm = true;
     }
@@ -65,6 +68,7 @@ class CategoryIndex extends Component
         $data = $this->validate([
             'nome' => 'required|string|max:255',
             'tipo_linha' => 'required|string|max:100',
+            'usa_horimetro' => 'boolean',
             'ativo' => 'boolean',
         ]);
 
@@ -92,6 +96,7 @@ class CategoryIndex extends Component
         $this->editingId = null;
         $this->nome = '';
         $this->tipo_linha = 'linha_leve';
+        $this->usa_horimetro = true;
         $this->ativo = true;
         $this->resetValidation();
     }

@@ -35,6 +35,11 @@
                             <input wire:model="tipo_linha" type="text" class="mt-1 w-full rounded-md border-gray-300 shadow-sm" />
                         </div>
                         <label class="flex items-center gap-2">
+                            <input wire:model="usa_horimetro" type="checkbox" class="rounded border-gray-300" />
+                            <span class="text-sm text-gray-700">Equipamentos usam horímetro</span>
+                        </label>
+                        <p class="text-xs text-gray-500 -mt-2">Desmarque para betoneiras, andaimes e outros itens sem controle de horas.</p>
+                        <label class="flex items-center gap-2">
                             <input wire:model="ativo" type="checkbox" class="rounded border-gray-300" />
                             <span class="text-sm text-gray-700">Ativo</span>
                         </label>

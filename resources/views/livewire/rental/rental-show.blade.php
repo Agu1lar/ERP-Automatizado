@@ -127,6 +127,7 @@
                                         wire:model="asset_descricao"
                                     />
                                 </div>
+                                @if($usesHorimetro)
                                 <x-inline-field
                                     label="Horímetro atual"
                                     :display="$rental->asset->horimetro !== null ? number_format($rental->asset->horimetro, 2, ',', '.').' h' : null"
@@ -137,6 +138,7 @@
                                     :warning-message="$warningText('horimetro')"
                                     wire:model="asset_horimetro"
                                 />
+                                @endif
                                 <x-inline-field
                                     label="Série"
                                     :display="$rental->asset->serie"
@@ -149,10 +151,13 @@
                             @else
                                 <div class="md:col-span-2 text-sm text-gray-600">
                                     Descrição: {{ $rental->asset->descricao ?? '—' }} |
-                                    Horímetro: {{ $rental->asset->horimetro ?? '—' }} |
+                                    @if($usesHorimetro)
+                                        Horímetro: {{ $rental->asset->horimetro ?? '—' }} |
+                                    @endif
                                     Série: {{ $rental->asset->serie ?? '—' }}
                                 </div>
                             @endif
+                            @if($usesHorimetro)
                             <x-inline-field
                                 label="Horímetro saída"
                                 :display="$rental->horimetro_saida !== null ? number_format($rental->horimetro_saida, 2, ',', '.').' h' : null"
@@ -173,6 +178,9 @@
                                 :warning-message="$warningText('horimetro_retorno')"
                                 wire:model="ficha_horimetro_retorno"
                             />
+                            @else
+                                <p class="md:col-span-2 text-xs text-gray-500 px-3">Esta categoria de equipamento não utiliza horímetro.</p>
+                            @endif
                         </div>
                     </div>
 
@@ -523,6 +531,19 @@
                     <div><span class="text-gray-500">Local da obra:</span> {{ $rental->local_obra ?? '—' }}</div>
                     <div><span class="text-gray-500">Localização patrimônio:</span> {{ $rental->asset->localizacao ?? '—' }}</div>
                     <div><span class="text-gray-500">Previsão de retorno:</span> {{ $rental->expected_return_at?->format('d/m/Y') ?? '—' }}</div>
+                    @if($canEditScheduledStart)
+                        <x-inline-field
+                            label="Início previsto"
+                            :display="$rental->scheduled_start_at?->format('d/m/Y') ?? 'Imediato'"
+                            type="date"
+                            :editable="true"
+                            save="saveRentalField('ficha_scheduled_start_at')"
+                            wire:model="ficha_scheduled_start_at"
+                        />
+                        @error('ficha_scheduled_start_at') <p class="text-red-600 text-xs">{{ $message }}</p> @enderror
+                    @elseif($rental->scheduled_start_at)
+                        <div><span class="text-gray-500">Início previsto:</span> {{ $rental->scheduled_start_at->format('d/m/Y') }}</div>
+                    @endif
                     @if($rental->cancel_reason)
                         <div class="text-red-600"><span class="font-medium">Motivo cancelamento:</span> {{ $rental->cancel_reason }}</div>
                     @endif

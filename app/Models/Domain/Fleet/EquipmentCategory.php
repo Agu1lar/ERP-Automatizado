@@ -15,12 +15,14 @@ class EquipmentCategory extends Model
         'operating_company_id',
         'nome',
         'tipo_linha',
+        'usa_horimetro',
         'ativo',
     ];
 
     protected function casts(): array
     {
         return [
+            'usa_horimetro' => 'boolean',
             'ativo' => 'boolean',
         ];
     }

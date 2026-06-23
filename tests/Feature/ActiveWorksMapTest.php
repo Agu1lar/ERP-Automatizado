@@ -18,6 +18,7 @@ use App\Services\AssetStatusService;
 use App\Support\ActiveOperatingCompany;
 use App\Support\ActiveWorksGeographicQuery;
 use App\Support\WorksiteMapLocator;
+use Database\Seeders\OperatingCompanySeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -31,6 +32,7 @@ class ActiveWorksMapTest extends TestCase
     {
         parent::setUp();
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(OperatingCompanySeeder::class);
 
         $companyId = OperatingCompany::query()->where('slug', 'acesso')->value('id')
             ?? OperatingCompany::query()->orderBy('id')->value('id');
@@ -47,12 +49,24 @@ class ActiveWorksMapTest extends TestCase
 
         $rental = $this->createOnSiteRental('LOC-MAPA-1', 'Belo Horizonte — Savassi', GeographicRegion::Bh);
 
-        $this->actingAs($user)
-            ->get(route('logistics.works-map'))
+        Livewire::actingAs($user)
+            ->test(ActiveWorksMapIndex::class)
             ->assertOk()
             ->assertSee('Mapa de obras ativas')
             ->assertSee('LOC-MAPA-1')
             ->assertSee('Belo Horizonte');
+    }
+
+    public function test_worksite_map_http_route_responds(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(UserRole::Admin->value);
+
+        $this->createOnSiteRental('LOC-HTTP', 'Belo Horizonte — Centro', GeographicRegion::Bh);
+
+        $this->actingAs($user)
+            ->get(route('logistics.works-map'))
+            ->assertOk();
     }
 
     public function test_region_filter_limits_results(): void

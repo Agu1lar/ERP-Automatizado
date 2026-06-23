@@ -58,7 +58,7 @@
                         data-center-lat="{{ $mapCenter['lat'] }}"
                         data-center-lng="{{ $mapCenter['lng'] }}"
                         data-zoom="{{ $mapZoom }}"
-                        data-markers='@json($markers)'
+                        data-markers="{{ e(json_encode($markers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)) }}"
                     ></div>
                     <p class="mt-2 text-xs text-gray-500">
                         Precisão: <strong>endereço</strong> (geocodificado) &gt; <strong>cache</strong> &gt; <strong>cidade</strong> &gt; <strong>região</strong>.
@@ -131,7 +131,6 @@
     </div>
 </div>
 
-@script
 <script>
     const initActiveWorksMap = () => {
         const el = document.getElementById('active-works-map');
@@ -225,4 +224,3 @@
     initActiveWorksMap();
     document.addEventListener('livewire:navigated', initActiveWorksMap);
 </script>
-@endscript

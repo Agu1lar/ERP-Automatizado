@@ -82,6 +82,8 @@ class RentalShow extends Component
 
     public string $ficha_valor_faturamento = '';
 
+    public string $ficha_scheduled_start_at = '';
+
     public string $ficha_local_obra = '';
 
     public string $ficha_valor_frete_entrega = '';
@@ -325,6 +327,7 @@ class RentalShow extends Component
                 $this->rental,
                 ($v = $this->validateOnly('ficha_local_obra', ['ficha_local_obra' => 'nullable|string|max:2000'])['ficha_local_obra']) !== '' ? $v : null,
             ),
+            'ficha_scheduled_start_at' => $this->updateScheduledStartField(),
             'asset_descricao' => $this->canEditAsset() ? $this->rental->asset->update([
                 'descricao' => $this->validateOnly('asset_descricao', ['asset_descricao' => 'nullable|string|max:5000'])['asset_descricao'] ?: null,
             ]) : null,
@@ -375,6 +378,23 @@ class RentalShow extends Component
 
         $this->loadRental($this->rental->fresh());
         session()->flash('success', 'Empresa da locação atualizada.');
+    }
+
+    public function advanceScheduledStartToToday(RentalService $rentalService): void
+    {
+        $this->authorize('operate', $this->rental);
+
+        try {
+            $this->rental = $rentalService->updateScheduledStart($this->rental, now());
+        } catch (\InvalidArgumentException $e) {
+            $this->addError('ficha_scheduled_start_at', $e->getMessage());
+
+            return;
+        }
+
+        $this->loadRental($this->rental);
+        $this->syncFichaFields();
+        session()->flash('success', 'Início da reserva antecipado para hoje. Você já pode registrar a saída.');
     }
 
     public function openCheckoutModal(): void
@@ -1038,6 +1058,9 @@ class RentalShow extends Component
             'logisticsShiftOptions' => LogisticsShift::cases(),
             'logisticsDeliveryModes' => LogisticsDeliveryMode::cases(),
             'logisticsReturnModes' => LogisticsReturnMode::cases(),
+            'usesHorimetro' => $this->rental->asset->usesHorimetro(),
+            'canEditScheduledStart' => $this->rental->statusEnum() === RentalStatus::Reservado
+                && auth()->user()->can('operate', $this->rental),
         ]);
     }
 
@@ -1053,6 +1076,28 @@ class RentalShow extends Component
             || auth()->user()->can('rentals.reserve');
     }
 
+    private function updateScheduledStartField(): void
+    {
+        if ($this->rental->statusEnum() !== RentalStatus::Reservado) {
+            abort(403);
+        }
+
+        $value = $this->validateOnly('ficha_scheduled_start_at', [
+            'ficha_scheduled_start_at' => 'nullable|date',
+        ])['ficha_scheduled_start_at'];
+
+        try {
+            $this->rental = app(RentalService::class)->updateScheduledStart(
+                $this->rental,
+                filled($value) ? Carbon::parse($value) : null,
+            );
+        } catch (\InvalidArgumentException $e) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'ficha_scheduled_start_at' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function syncFichaFields(): void
     {
         $asset = $this->rental->asset;
@@ -1063,6 +1108,7 @@ class RentalShow extends Component
         $this->ficha_horimetro_retorno = $this->rental->horimetro_retorno !== null ? (string) $this->rental->horimetro_retorno : '';
         $this->ficha_observacoes = $this->rental->observacoes ?? '';
         $this->ficha_valor_faturamento = $this->rental->valor_faturamento !== null ? (string) $this->rental->valor_faturamento : '';
+        $this->ficha_scheduled_start_at = $this->rental->scheduled_start_at?->format('Y-m-d') ?? '';
         $this->ficha_valor_frete_entrega = $this->rental->valor_frete_entrega !== null ? (string) $this->rental->valor_frete_entrega : '';
         $this->ficha_valor_frete_recolhida = $this->rental->valor_frete_recolhida !== null ? (string) $this->rental->valor_frete_recolhida : '';
         $this->ficha_local_obra = $this->rental->local_obra ?? '';

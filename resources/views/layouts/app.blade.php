@@ -37,9 +37,11 @@
                 </main>
 
                 @auth
-                    @can('agent.api')
-                        <livewire:copilot.copilot-panel />
-                    @endcan
+                    @if (! app()->environment('testing'))
+                        @can('agent.api')
+                            <livewire:copilot.copilot-panel />
+                        @endcan
+                    @endif
                 @endauth
             </div>
         </div>

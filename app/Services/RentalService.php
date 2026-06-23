@@ -60,6 +60,7 @@ class RentalService
         ?string $localObra = null,
         ?RentalPricingPeriod $pricingPeriod = null,
         ?CarbonInterface $scheduledStart = null,
+        ?float $valorFaturamento = null,
     ): Rental {
         $user ??= auth()->user();
 
@@ -105,7 +106,7 @@ class RentalService
             }
         }
 
-        return DB::transaction(function () use ($asset, $customer, $expectedReturn, $observacoes, $user, $localObra, $pricingPeriod, $scheduledStartDate, $isFutureReservation, $rangeStart) {
+        return DB::transaction(function () use ($asset, $customer, $expectedReturn, $observacoes, $user, $localObra, $pricingPeriod, $scheduledStartDate, $isFutureReservation, $rangeStart, $valorFaturamento) {
             $asset = Asset::query()->whereKey($asset->id)->lockForUpdate()->firstOrFail();
 
             if (! $isFutureReservation) {
@@ -180,7 +181,17 @@ class RentalService
             );
 
             if ($expectedReturn) {
-                $this->rentalPricingService->applyToRental($rental->fresh(), $pricingPeriod);
+                $this->rentalPricingService->applyToRental(
+                    $rental->fresh(),
+                    $pricingPeriod,
+                    overwriteFaturamento: $valorFaturamento === null,
+                );
+
+                if ($valorFaturamento !== null) {
+                    $rental->update(['valor_faturamento' => $valorFaturamento]);
+                }
+            } elseif ($valorFaturamento !== null) {
+                $rental->update(['valor_faturamento' => $valorFaturamento]);
             }
 
             $rental = $rental->fresh(['asset', 'customer']);
@@ -314,6 +325,52 @@ class RentalService
         if ($rental->statusEnum() === RentalStatus::Locado) {
             $this->applyWorkSiteLocation($rental, $user);
             $this->syncWorksiteGeocode($rental);
+        }
+
+        return $rental->fresh(['asset', 'customer']);
+    }
+
+    public function updateScheduledStart(Rental $rental, ?CarbonInterface $scheduledStart, ?User $user = null): Rental
+    {
+        $user ??= auth()->user();
+        $this->assertStatus($rental, RentalStatus::Reservado);
+
+        $scheduledStartDate = $scheduledStart?->copy()->startOfDay();
+        $wasFuture = $rental->isFutureReservation();
+
+        if ($scheduledStartDate !== null
+            && $rental->expected_return_at !== null
+            && $scheduledStartDate->gt($rental->expected_return_at->copy()->startOfDay())) {
+            throw new InvalidArgumentException('O início previsto não pode ser após a previsão de retorno.');
+        }
+
+        if ($rental->expected_return_at !== null) {
+            $rangeStart = $scheduledStartDate ?? now()->startOfDay();
+            $conflict = $this->scheduleConflict->analyze(
+                $rental->asset_id,
+                $rangeStart,
+                $rental->expected_return_at->copy()->startOfDay(),
+                $rental->id,
+            );
+
+            if ($conflict->hasConflict) {
+                throw new InvalidArgumentException($conflict->message);
+            }
+        }
+
+        $rental->update([
+            'scheduled_start_at' => $scheduledStartDate?->toDateString(),
+        ]);
+
+        $rental = $rental->fresh(['asset', 'customer']);
+
+        if ($wasFuture && ! $rental->isFutureReservation() && $rental->asset->isAvailableForRental()) {
+            $this->assetStatusService->transition(
+                $rental->asset,
+                AssetStatus::Reservado,
+                "Início antecipado — reserva {$rental->codigo}",
+                $user,
+            );
         }
 
         return $rental->fresh(['asset', 'customer']);

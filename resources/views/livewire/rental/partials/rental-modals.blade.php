@@ -2,6 +2,14 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <h3 class="text-lg font-semibold mb-4">Registrar saída</h3>
+            @if($rental->isFutureReservation())
+                <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <p class="font-medium">A data de início ainda não foi atingida ({{ $rental->scheduled_start_at->format('d/m/Y') }}).</p>
+                    <button type="button" wire:click="advanceScheduledStartToToday" class="mt-2 text-indigo-700 font-medium hover:underline text-sm">
+                        Antecipar início para hoje e continuar →
+                    </button>
+                </div>
+            @endif
             <form wire:submit="checkout" class="space-y-4">
                 <p class="text-sm text-gray-600">Checklist de saída — marque todos os itens:</p>
                 @foreach($saidaTemplate as $key => $label)

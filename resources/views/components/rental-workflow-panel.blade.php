@@ -50,6 +50,17 @@
                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Operação</p>
                 <div class="flex flex-wrap gap-2">
                     @if($status === \App\Enums\RentalStatus::Reservado)
+                        @if($rental->isFutureReservation())
+                            <div class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                                <p class="font-medium">Saída liberada em {{ $rental->scheduled_start_at->format('d/m/Y') }}</p>
+                                <p class="text-xs text-amber-800 mt-1">Para registrar a saída antes dessa data, altere o início previsto abaixo ou antecipe para hoje.</p>
+                                @can('operate', $rental)
+                                    <button type="button" wire:click="advanceScheduledStartToToday" class="mt-2 text-sm font-medium text-indigo-700 hover:underline">
+                                        Antecipar início para hoje →
+                                    </button>
+                                @endcan
+                            </div>
+                        @endif
                         @can('operate', $rental)
                             <x-btn-primary wire:click="openCheckoutModal" class="text-sm">1. Registrar saída</x-btn-primary>
                         @endcan

@@ -21,7 +21,7 @@ class FichaCompleteness
             $warnings[] = ['field' => 'descricao', 'message' => 'Descrição do equipamento não preenchida'];
         }
 
-        if ($asset->horimetro === null) {
+        if ($asset->usesHorimetro() && $asset->horimetro === null) {
             $warnings[] = ['field' => 'horimetro', 'message' => 'Horímetro não registrado'];
         }
 
@@ -58,14 +58,16 @@ class FichaCompleteness
     /** @return list<array{field: string, message: string}> */
     public static function rentalWarnings(Rental $rental): array
     {
-        $rental->loadMissing(['asset.equipmentModel', 'customer']);
+        $rental->loadMissing(['asset.equipmentModel.category', 'customer']);
 
         $warnings = self::assetWarnings($rental->asset);
         $warnings = array_merge($warnings, self::customerWarnings($rental->customer));
 
         $status = $rental->statusEnum();
+        $usesHorimetro = $rental->asset?->usesHorimetro() ?? true;
 
-        if (in_array($status, [RentalStatus::Locado, RentalStatus::EmInspecao, RentalStatus::Concluido], true)
+        if ($usesHorimetro
+            && in_array($status, [RentalStatus::Locado, RentalStatus::EmInspecao, RentalStatus::Concluido], true)
             && $rental->horimetro_saida === null) {
             $warnings[] = ['field' => 'horimetro_saida', 'message' => 'Horímetro de saída não registrado'];
         }
@@ -75,7 +77,8 @@ class FichaCompleteness
             $warnings[] = ['field' => 'local_obra', 'message' => 'Local da obra não informado'];
         }
 
-        if (in_array($status, [RentalStatus::EmInspecao, RentalStatus::Concluido], true)
+        if ($usesHorimetro
+            && in_array($status, [RentalStatus::EmInspecao, RentalStatus::Concluido], true)
             && $rental->horimetro_retorno === null) {
             $warnings[] = ['field' => 'horimetro_retorno', 'message' => 'Horímetro de retorno não registrado'];
         }
