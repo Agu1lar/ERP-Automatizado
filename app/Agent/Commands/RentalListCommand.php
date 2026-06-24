@@ -18,7 +18,7 @@ class RentalListCommand extends AbstractReadAgentCommand
 
     public static function description(): string
     {
-        return 'Lista locações com filtros por status, categoria de equipamento e busca textual. Retorna atalho para abrir o painel filtrado.';
+        return 'Lista locações/contratos com filtros. Para "N contratos mais recentes" use limit e sort=recent (sem status).';
     }
 
     public function permission(): string
@@ -37,6 +37,7 @@ class RentalListCommand extends AbstractReadAgentCommand
                 'category_query' => ['type' => 'string'],
                 'q' => ['type' => 'string'],
                 'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50],
+                'sort' => ['type' => 'string', 'description' => 'recent (cadastro mais novo) ou updated (última alteração).'],
             ],
         ];
     }
@@ -44,6 +45,7 @@ class RentalListCommand extends AbstractReadAgentCommand
     public function execute(array $input, User $user): \App\Agent\AgentCommandResult
     {
         $limit = min(max((int) ($input['limit'] ?? 20), 1), 50);
+        $sort = (string) ($input['sort'] ?? 'updated');
         $category = $this->resolveCategory($input);
         $categoryQuery = ! empty($input['category_query']) ? (string) $input['category_query'] : null;
         $status = ! empty($input['status']) ? (string) $input['status'] : null;
@@ -81,7 +83,7 @@ class RentalListCommand extends AbstractReadAgentCommand
                         ->orWhereHas('asset', fn ($a) => $a->where('codigo_patrimonio', 'like', '%'.$term.'%'));
                 });
             })
-            ->orderByDesc('updated_at')
+            ->orderByDesc($sort === 'recent' ? 'created_at' : 'updated_at')
             ->limit($limit)
             ->get();
 
@@ -105,7 +107,7 @@ class RentalListCommand extends AbstractReadAgentCommand
             ],
         ];
 
-        if ($count > 0 && $count <= 5) {
+        if ($count > 0 && $count <= 10) {
             foreach ($rentals as $rental) {
                 $nextSteps[] = [
                     'label' => "Ver {$rental->codigo}",
@@ -194,7 +196,7 @@ class RentalListCommand extends AbstractReadAgentCommand
         $parts[] = "\n\nUse o botão abaixo para abrir o **painel de locações** já filtrado.";
         $parts[] = ' Se quiser que eu **execute** algo (saída, retorno, faturar), diga o código LOC-… ou confirme quando eu pedir.';
 
-        if ($count > 0 && $count <= 5) {
+        if ($count > 0 && $count <= 10) {
             $parts[] = "\n\n**Resumo:**";
             foreach ($rentals as $rental) {
                 $equip = $rental->asset?->equipmentDisplayName() ?? '—';

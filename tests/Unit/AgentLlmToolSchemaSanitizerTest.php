@@ -34,4 +34,17 @@ class AgentLlmToolSchemaSanitizerTest extends TestCase
         $this->assertArrayNotHasKey('oneOfRequired', $sanitized);
         $this->assertArrayHasKey('rental_id', $sanitized['properties']);
     }
+
+    public function test_strips_enum_values_for_groq_compatibility(): void
+    {
+        $sanitized = (new AgentLlmToolSchemaSanitizer)->sanitize([
+            'type' => 'object',
+            'properties' => [
+                'status' => ['type' => 'string', 'enum' => ['locado', 'concluido']],
+            ],
+        ]);
+
+        $this->assertArrayNotHasKey('enum', $sanitized['properties']['status']);
+        $this->assertStringContainsString('locado', $sanitized['properties']['status']['description']);
+    }
 }

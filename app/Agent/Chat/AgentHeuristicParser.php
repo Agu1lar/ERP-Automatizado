@@ -295,6 +295,14 @@ class AgentHeuristicParser
       ];
     }
 
+    if ($recentLimit = $this->matchRecentRentalsLimit($lower)) {
+      return [
+        'command' => 'rental.list',
+        'input' => ['limit' => $recentLimit, 'sort' => 'recent'],
+        'reply' => "Listando os {$recentLimit} contratos mais recentes.",
+      ];
+    }
+
     if ($this->isRentalStatsIntent($lower)) {
       $category = EquipmentCategoryResolver::resolveFromText($message);
       $categoryTerm = EquipmentCategoryResolver::detectTermFromText($message);
@@ -649,6 +657,22 @@ class AgentHeuristicParser
     }
 
     return [$start->toDateString(), $end->toDateString()];
+  }
+
+  private function matchRecentRentalsLimit(string $lower): ?int
+  {
+    $hasRentalTerm = $this->containsAny($lower, ['contrato', 'locaç', 'locac', 'locação', 'locacao']);
+    $hasRecentTerm = $this->containsAny($lower, ['recent', 'últim', 'ultim', 'retorn', 'trazer', 'recente']);
+
+    if (! $hasRentalTerm || ! $hasRecentTerm) {
+      return null;
+    }
+
+    if (preg_match('/(\d+)\s+(contratos|locações|locacoes)/u', $lower, $matches)) {
+      return min(max((int) $matches[1], 1), 50);
+    }
+
+    return 10;
   }
 
   private function isRentalFilterIntent(string $lower): bool

@@ -110,6 +110,37 @@ class AgentLlmFallbackTest extends TestCase
         $this->assertStringNotContainsString('Inteligência operacional indisponível', $response->reply);
     }
 
+    public function test_heuristic_parses_recent_rentals_when_llm_fails(): void
+    {
+        config([
+            'agent.llm.enabled' => true,
+            'agent.llm.api_key' => 'test-key',
+            'agent.llm.base_url' => 'https://api.groq.com/openai/v1',
+        ]);
+
+        Http::fake([
+            'https://api.groq.com/openai/v1/chat/completions' => Http::response([
+                'error' => [
+                    'message' => 'Failed to call a function.',
+                    'type' => 'invalid_request_error',
+                    'code' => 'tool_use_failed',
+                ],
+            ], 400),
+        ]);
+
+        $user = $this->agentUser();
+        $response = app(AgentChatOrchestrator::class)->handle(
+            'retorne os 7 contratos mais recentes',
+            $user,
+            null,
+            new AgentChatOptions(mode: CopilotMode::Agent),
+        );
+
+        $this->assertTrue($response->llmDegraded);
+        $this->assertTrue($response->executed);
+        $this->assertSame('rental_list', $response->result['data']['entity'] ?? null);
+    }
+
     private function agentUser(): User
     {
         $user = User::factory()->create(['ativo' => true]);

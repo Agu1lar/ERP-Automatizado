@@ -39,6 +39,15 @@ class AgentLlmToolSchemaSanitizer
             $schema['items'] = $this->normalizeNode($schema['items']);
         }
 
+        if (isset($schema['enum']) && is_array($schema['enum'])) {
+            $values = implode(', ', array_map('strval', $schema['enum']));
+            $schema['type'] = $schema['type'] ?? 'string';
+            unset($schema['enum']);
+            $schema['description'] = trim(($schema['description'] ?? '')." Valores: {$values}.");
+        }
+
+        unset($schema['minimum'], $schema['maximum']);
+
         foreach (['anyOf', 'allOf'] as $composite) {
             if (! isset($schema[$composite]) || ! is_array($schema[$composite])) {
                 continue;
