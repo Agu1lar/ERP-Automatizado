@@ -70,7 +70,7 @@ if (-not $SomenteServidor) {
         }
     }
 
-    $copyCmd = "sudo cp -a $Staging/. $RemoteDir/; sudo chown -R ${VmUser}:www-data $RemoteDir; sudo find $RemoteDir -type f ! -path '*/storage/*' ! -path '*/bootstrap/cache/*' -exec chmod 644 {} +; sudo find $RemoteDir -type d ! -path '*/storage/*' ! -path '*/bootstrap/cache/*' -exec chmod 755 {} +; sudo chown -R www-data:www-data $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R ug+rwx $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R u+rwX,go+rX $RemoteDir/deploy; rm -rf $Staging"
+    $copyCmd = "sudo cp -a $Staging/. $RemoteDir/; sudo chown -R ${VmUser}:www-data $RemoteDir; sudo find $RemoteDir -type f ! -path '*/storage/*' ! -path '*/bootstrap/cache/*' ! -path '*/node_modules/*' ! -path '*/vendor/*' -exec chmod 644 {} +; sudo find $RemoteDir -type d ! -path '*/storage/*' ! -path '*/bootstrap/cache/*' ! -path '*/node_modules/*' ! -path '*/vendor/*' -exec chmod 755 {} +; sudo chown -R www-data:www-data $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R ug+rwx $RemoteDir/storage $RemoteDir/bootstrap/cache; sudo chmod -R u+rwX,go+rX $RemoteDir/deploy; rm -rf $Staging"
     ssh -tt $Remote $copyCmd
 
     Write-Host "  (.env NAO e enviado - fica so no servidor)" -ForegroundColor DarkGray
