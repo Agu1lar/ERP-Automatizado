@@ -197,6 +197,14 @@ class AgentHeuristicParser
       ];
     }
 
+    if ($recentMaintenanceLimit = $this->matchRecentOpenMaintenanceOrdersLimit($lower)) {
+      return [
+        'command' => 'maintenance.list',
+        'input' => ['limit' => $recentMaintenanceLimit, 'open_only' => true],
+        'reply' => "Listando as {$recentMaintenanceLimit} OS abertas mais recentes.",
+      ];
+    }
+
     if ($rentalCodigo && $this->containsAny($lower, ['pdf', 'contrato', 'imprimir', 'exportar'])) {
       $docType = $this->containsAny($lower, ['contrato']) ? 'rental_contract' : 'rental_summary';
 
@@ -669,6 +677,39 @@ class AgentHeuristicParser
     }
 
     if (preg_match('/(\d+)\s+(contratos|locações|locacoes)/u', $lower, $matches)) {
+      return min(max((int) $matches[1], 1), 50);
+    }
+
+    return 10;
+  }
+
+  private function matchRecentOpenMaintenanceOrdersLimit(string $lower): ?int
+  {
+    if (preg_match('/\bcontratos?\b/u', $lower) || preg_match('/\bloca[cç][aã]o/u', $lower)) {
+      return null;
+    }
+
+    $hasOs = (bool) preg_match('/\b(os|ordens?\s+de\s+servi\w*)\b/u', $lower)
+      || str_contains($lower, 'manutenção')
+      || str_contains($lower, 'manutencao');
+
+    if (! $hasOs) {
+      return null;
+    }
+
+    $isListIntent = $this->containsAny($lower, [
+      'mostr', 'listar', 'listagem', 'últim', 'ultim', 'recent', 'quantas', 'quais', 'retorn', 'trazer', 'ver as', 'me d',
+    ]);
+
+    if (! $isListIntent) {
+      return null;
+    }
+
+    if (preg_match('/(\d+)\s+ultim\w*\s+os/u', $lower, $matches)) {
+      return min(max((int) $matches[1], 1), 50);
+    }
+
+    if (preg_match('/(\d+)\s+os/u', $lower, $matches)) {
       return min(max((int) $matches[1], 1), 50);
     }
 

@@ -13,6 +13,7 @@ class AgentChatOptions
         public readonly bool $confirmed = false,
         public readonly CopilotMode $mode = CopilotMode::Ask,
         public readonly array $attachments = [],
+        public readonly ?string $userMessage = null,
     ) {}
 
     public function hasAttachments(): bool

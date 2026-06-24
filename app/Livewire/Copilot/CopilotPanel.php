@@ -395,6 +395,8 @@ class CopilotPanel extends Component
 
             attachments: $this->queuedAttachments,
 
+            userMessage: $text,
+
         );
 
 

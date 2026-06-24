@@ -16,7 +16,7 @@ class MaintenanceListCommand extends AbstractReadAgentCommand
 
     public static function description(): string
     {
-        return 'Lista ordens de serviço com filtros por status, atraso e busca textual.';
+        return 'Lista ordens de serviço (OS). Para "N últimas OS abertas" use limit=N e open_only=true.';
     }
 
     public function permission(): string
@@ -73,11 +73,20 @@ class MaintenanceListCommand extends AbstractReadAgentCommand
                 .($openOnly ? ' (abertas)' : '')
                 .'.';
 
+        if ($count > 0 && $count <= 10) {
+            $message .= "\n\n**Resumo:**";
+            foreach ($orders as $order) {
+                $asset = $order->asset?->codigo_patrimonio ?? '—';
+                $message .= "\n• {$order->codigo} — {$order->statusEnum()->label()} — {$asset}"
+                    .($order->descricao_problema ? ' — '.mb_substr($order->descricao_problema, 0, 60) : '');
+            }
+        }
+
         $nextSteps = [
             ['label' => 'Abrir manutenção', 'url' => CopilotNavigationLinks::maintenance(['q' => $term ?: null]), 'primary' => true],
         ];
 
-        if ($count > 0 && $count <= 5) {
+        if ($count > 0 && $count <= 10) {
             foreach ($orders as $order) {
                 $nextSteps[] = [
                     'label' => "Ver {$order->codigo}",

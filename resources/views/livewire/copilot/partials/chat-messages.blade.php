@@ -64,10 +64,19 @@
                     <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-500 mb-2">Atalhos</p>
                     <div class="flex flex-col gap-1.5">
                         @foreach($navLinks as $action)
+                            @php
+                                $isPdfLink = str_contains(mb_strtolower($action['label'] ?? ''), 'pdf')
+                                    || preg_match('#/(pdf|contrato|demonstrativo)([/?]|$)#i', $action['url'] ?? '');
+                            @endphp
                             <a
                                 href="{{ $action['url'] }}"
-                                wire:navigate
-                                wire:click="closePanel"
+                                @if($isPdfLink)
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                @else
+                                    wire:navigate
+                                    wire:click="closePanel"
+                                @endif
                                 @class([
                                     'inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-medium transition',
                                     'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm' => ! empty($action['primary']),

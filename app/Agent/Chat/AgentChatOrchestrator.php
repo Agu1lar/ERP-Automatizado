@@ -122,7 +122,7 @@ class AgentChatOrchestrator
 
 
 
-    [$parsed, $llmDegraded, $llmNotice] = $this->interpretMessage($message, $user, $options->mode, $session?->id);
+    [$parsed, $llmDegraded, $llmNotice] = $this->interpretMessage($message, $user, $options->mode, $session?->id, $options->userMessage);
 
 
 
@@ -133,10 +133,17 @@ class AgentChatOrchestrator
 
 
   /** @return array{0: array{command?: string, input?: array<string, mixed>, reply?: string}, 1: bool, 2: ?string} */
-  private function interpretMessage(string $message, User $user, CopilotMode $mode, ?int $sessionId = null): array
-  {
+  private function interpretMessage(
+    string $message,
+    User $user,
+    CopilotMode $mode,
+    ?int $sessionId = null,
+    ?string $userMessage = null,
+  ): array {
+    $heuristicInput = ($userMessage !== null && trim($userMessage) !== '') ? trim($userMessage) : $message;
+
     if (! $this->llm->isConfigured()) {
-      return [$this->parser->parse($message), false, null];
+      return [$this->parser->parse($heuristicInput), false, null];
     }
 
     $llmResult = $this->llm->interpret($message, $user, $mode, $sessionId);
@@ -145,7 +152,7 @@ class AgentChatOrchestrator
       return [$llmResult->parsed, false, null];
     }
 
-    $parsed = $this->parser->parse($message);
+    $parsed = $this->parser->parse($heuristicInput);
 
     if ($llmResult->shouldNotifyFallback()) {
       app(\App\Services\AgentLlmUsageService::class)->recordHeuristicFallback(
